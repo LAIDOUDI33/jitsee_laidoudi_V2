@@ -33,6 +33,8 @@ import {
   Clock,
   User,
   MousePointer2,
+  Star,
+  Quote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -312,6 +314,63 @@ const HERO_STATS = [
   { icon: Activity, value: '99.99%', label: 'Uptime' },
   { icon: Globe, value: '150+', label: 'Countries' },
 ] as const;
+
+const TESTIMONIALS = [
+  {
+    name: 'Sarah Mitchell',
+    role: 'VP of Engineering',
+    company: 'TechCorp Global',
+    initials: 'SM',
+    color: 'bg-gradient-to-br from-rose-500 to-pink-600',
+    rating: 5,
+    text: 'ALVISION transformed our remote meetings. The AI summaries alone save our team 5+ hours per week. The transcription accuracy in our technical discussions is remarkable.',
+  },
+  {
+    name: 'James Chen',
+    role: 'CTO',
+    company: 'FinanceFlow',
+    initials: 'JC',
+    color: 'bg-gradient-to-br from-sky-500 to-blue-600',
+    rating: 5,
+    text: 'Security was our top priority. ALVISION\'s zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.',
+  },
+  {
+    name: 'Priya Sharma',
+    role: 'Head of Operations',
+    company: 'MediCare Solutions',
+    initials: 'PS',
+    color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+    rating: 5,
+    text: 'HIPAA compliance was non-negotiable. ALVISION delivered on every requirement and their support team went above and beyond during our compliance audit.',
+  },
+  {
+    name: 'Marcus Johnson',
+    role: 'CEO',
+    company: 'StartupLaunch',
+    initials: 'MJ',
+    color: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    rating: 5,
+    text: 'We switched from three different tools to just ALVISION. Video calls, chat, whiteboards, and AI notes — all in one platform. Our team productivity increased by 40%.',
+  },
+  {
+    name: 'Elena Rodriguez',
+    role: 'Director of HR',
+    company: 'GlobalEdge Inc',
+    initials: 'ER',
+    color: 'bg-gradient-to-br from-violet-500 to-purple-600',
+    rating: 5,
+    text: 'The live translation feature is a game-changer for our international offices. Teams in Tokyo, Berlin, and São Paulo now collaborate seamlessly in their native languages.',
+  },
+  {
+    name: 'David Park',
+    role: 'Product Manager',
+    company: 'DataSync',
+    initials: 'DP',
+    color: 'bg-gradient-to-br from-cyan-500 to-sky-600',
+    rating: 5,
+    text: 'The AI action extraction automatically creates Jira tickets from our sprint reviews. What used to take 30 minutes of manual work now happens instantly. Incredible.',
+  },
+];
 
 /* -------------------------------------------------------------------------- */
 /*                              HELPER FUNCTIONS                             */
@@ -1114,7 +1173,66 @@ export default function LandingPage() {
         </section>
 
         {/* ============================================================== */}
-        {/* 9. CTA SECTION                                               */}
+        {/* 9. TESTIMONIALS SECTION                                       */}
+        {/* ============================================================== */}
+        <section className="py-24 bg-muted/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              variants={sectionVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-80px' }}
+              className="text-center mb-14"
+            >
+              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                <Star className="w-3 h-3 mr-1 fill-amber-400 text-amber-400" /> Trusted by 10,000+ organizations
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                Loved by Teams Worldwide
+              </h2>
+              <p className="mt-3 text-lg text-muted-foreground max-w-2xl mx-auto">
+                See why enterprises from Fortune 500 to fast-growing startups choose ALVISION for their collaboration needs.
+              </p>
+            </motion.div>
+
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-60px' }}
+              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {TESTIMONIALS.map((t, idx) => (
+                <motion.div key={t.name} variants={staggerItem}>
+                  <Card className="h-full border-border/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${idx % 3 === 0 ? 'from-rose-500 to-pink-500' : idx % 3 === 1 ? 'from-sky-500 to-blue-500' : 'from-emerald-500 to-teal-500'}`} />
+                    <CardContent className="p-6 pt-7">
+                      <Quote className="h-8 w-8 text-muted-foreground/20 mb-3" />
+                      <p className="text-sm leading-relaxed text-foreground/80 mb-5">{t.text}</p>
+                      <div className="flex items-center gap-1 mb-4">
+                        {Array.from({ length: t.rating }).map((_, i) => (
+                          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold shadow-lg`}>
+                          {t.initials}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{t.name}</p>
+                          <p className="text-xs text-muted-foreground">{t.role}, {t.company}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ============================================================== */}
+        {/* 10. CTA SECTION                                               */}
         {/* ============================================================== */}
         <section className="py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1123,7 +1241,7 @@ export default function LandingPage() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-80px' }}
-              className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 p-12 md:p-16 text-center"
+              className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-12 md:p-16 text-center"
             >
               {/* Decorative elements */}
               <div className="absolute top-0 left-0 h-full w-full -z-0">
@@ -1136,14 +1254,14 @@ export default function LandingPage() {
                   Ready to Transform Your
                   <br className="hidden sm:block" /> Collaboration?
                 </h2>
-                <p className="mt-4 text-blue-100 text-lg max-w-xl mx-auto">
+                <p className="mt-4 text-emerald-100 text-lg max-w-xl mx-auto">
                   Join thousands of enterprises already using ALVISION to
                   collaborate smarter and more securely.
                 </p>
                 <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                   <Button
                     size="lg"
-                    className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-lg shadow-black/10 px-8 h-12 text-base"
+                    className="bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg shadow-black/10 px-8 h-12 text-base"
                     onClick={handleStartMeeting}
                   >
                     Start Free

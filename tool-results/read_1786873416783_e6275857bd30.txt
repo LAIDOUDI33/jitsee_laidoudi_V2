@@ -1,0 +1,1109 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback, useEffect, useRef, createContext, useContext } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  LayoutGrid,
+     7→  Shuffle,
+     8→  Plus,
+     9→  Play,
+    10→  Pause,
+    11→  RotateCcw,
+    12→  Send,
+    13→  Timer,
+    14→  Users,
+    15→  Settings2,
+    16→  Volume2,
+    17→  ArrowRight,
+    18→  MoreHorizontal,
+    19→  UserMinus,
+    20→} from 'lucide-react';
+    21→import { toast } from 'sonner';
+    22→import { Button } from '@/components/ui/button';
+    23→import { Card, CardContent } from '@/components/ui/card';
+    24→import { Badge } from '@/components/ui/badge';
+    25→import { Input } from '@/components/ui/input';
+    26→import { Switch } from '@/components/ui/switch';
+    27→import { Label } from '@/components/ui/label';
+    28→import { Separator } from '@/components/ui/separator';
+    29→import {
+    30→  Dialog,
+    31→  DialogContent,
+    32→  DialogHeader,
+    33→  DialogTitle,
+    34→  DialogFooter,
+    35→} from '@/components/ui/dialog';
+    36→import {
+    37→  DropdownMenu,
+    38→  DropdownMenuContent,
+    39→  DropdownMenuItem,
+    40→  DropdownMenuTrigger,
+    41→} from '@/components/ui/dropdown-menu';
+    42→import {
+    43→  Tooltip,
+    44→  TooltipContent,
+    45→  TooltipProvider,
+    46→  TooltipTrigger,
+    47→} from '@/components/ui/tooltip';
+    48→
+    49→/* -------------------------------------------------------------------------- */
+    50→/*                                   TYPES                                    */
+    51→/* -------------------------------------------------------------------------- */
+    52→
+    53→type RoomStatus = 'not-started' | 'in-progress' | 'completed';
+    54→
+    55→type TimerMode = 'idle' | 'running' | 'paused';
+    56→
+    57→interface Participant {
+    58→  id: string;
+    59→  name: string;
+    60→  color: string;
+    61→}
+    62→
+    63→interface ChatMessage {
+    64→  id: string;
+    65→  sender: string;
+    66→  text: string;
+    67→  time: string;
+    68→}
+    69→
+    70→interface BreakoutRoom {
+    71→  id: string;
+    72→  name: string;
+    73→  status: RoomStatus;
+    74→  participants: string[];
+    75→  elapsedSeconds: number;
+    76→  timerMode: TimerMode;
+    77→  chat: ChatMessage[];
+    78→}
+    79→
+    80→interface RoomSettings {
+    81→  maxParticipants: number;
+    82→  timeLimitMinutes: number;
+    83→  autoClose: boolean;
+    84→}
+    85→
+    86→interface BreakoutContextType {
+    87→  participants: Participant[];
+    88→  rooms: BreakoutRoom[];
+    89→  unassignedIds: string[];
+    90→  settings: RoomSettings;
+    91→  getParticipant: (id: string) => Participant | undefined;
+    92→}
+    93→
+    94→/* -------------------------------------------------------------------------- */
+    95→/*                                 CONSTANTS                                  */
+    96→/* -------------------------------------------------------------------------- */
+    97→
+    98→const AVATAR_COLORS = [
+    99→  'bg-amber-500', 'bg-orange-500', 'bg-emerald-500', 'bg-rose-500',
+   100→  'bg-sky-500', 'bg-violet-500', 'bg-teal-500', 'bg-fuchsia-500',
+   101→  'bg-lime-500', 'bg-cyan-500', 'bg-pink-500', 'bg-indigo-500',
+   102→  'bg-red-500', 'bg-yellow-500', 'bg-green-500',
+   103→];
+   104→
+   105→const INITIAL_PARTICIPANTS: Participant[] = [
+   106→  { id: 'p1', name: 'Sarah Chen', color: AVATAR_COLORS[0] },
+   107→  { id: 'p2', name: 'Alex Rivera', color: AVATAR_COLORS[1] },
+   108→  { id: 'p3', name: 'Jordan Kim', color: AVATAR_COLORS[2] },
+   109→  { id: 'p4', name: 'Maya Patel', color: AVATAR_COLORS[3] },
+   110→  { id: 'p5', name: "Liam O'Brien", color: AVATAR_COLORS[4] },
+   111→  { id: 'p6', name: 'Ava Thompson', color: AVATAR_COLORS[5] },
+   112→  { id: 'p7', name: 'Noah Garcia', color: AVATAR_COLORS[6] },
+   113→  { id: 'p8', name: 'Emma Wilson', color: AVATAR_COLORS[7] },
+   114→  { id: 'p9', name: 'James Lee', color: AVATAR_COLORS[8] },
+   115→  { id: 'p10', name: 'Olivia Brown', color: AVATAR_COLORS[9] },
+   116→  { id: 'p11', name: 'Lucas Martinez', color: AVATAR_COLORS[10] },
+   117→  { id: 'p12', name: 'Sophia Davis', color: AVATAR_COLORS[11] },
+   118→  { id: 'p13', name: 'Ethan Moore', color: AVATAR_COLORS[12] },
+   119→  { id: 'p14', name: 'Isabella Taylor', color: AVATAR_COLORS[13] },
+   120→  { id: 'p15', name: 'Mason Anderson', color: AVATAR_COLORS[14] },
+   121→];
+   122→
+   123→const MOCK_CHAT: ChatMessage[] = [
+   124→  { id: 'm1', sender: 'Sarah Chen', text: "Let's start by reviewing the action items from last sprint.", time: '2:31 PM' },
+   125→  { id: 'm2', sender: 'Alex Rivera', text: 'Good idea. I have the updated metrics ready to share.', time: '2:32 PM' },
+   126→  { id: 'm3', sender: 'Jordan Kim', text: 'Should we also discuss the new feature requirements?', time: '2:33 PM' },
+   127→  { id: 'm4', sender: 'Maya Patel', text: 'Yes, the product team sent over the PRD this morning.', time: '2:34 PM' },
+   128→];
+   129→
+   130→const INITIAL_ROOMS: BreakoutRoom[] = [
+   131→  {
+   132→    id: 'room-1', name: 'Room Alpha', status: 'not-started',
+   133→    participants: ['p1', 'p2', 'p3', 'p4'], elapsedSeconds: 0, timerMode: 'idle', chat: MOCK_CHAT,
+   134→  },
+   135→  {
+   136→    id: 'room-2', name: 'Room Beta', status: 'in-progress',
+   137→    participants: ['p5', 'p6', 'p7'], elapsedSeconds: 347, timerMode: 'running', chat: MOCK_CHAT.slice(0, 2),
+   138→  },
+   139→  {
+   140→    id: 'room-3', name: 'Room Gamma', status: 'not-started',
+   141→    participants: ['p8', 'p9', 'p10'], elapsedSeconds: 0, timerMode: 'idle', chat: MOCK_CHAT.slice(0, 1),
+   142→  },
+   143→  {
+   144→    id: 'room-4', name: 'Room Delta', status: 'completed',
+   145→    participants: ['p11', 'p12'], elapsedSeconds: 600, timerMode: 'idle', chat: MOCK_CHAT.slice(1, 3),
+   146→  },
+   147→];
+   148→
+   149→const ROOM_NAMES = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa'];
+   150→
+   151→/* -------------------------------------------------------------------------- */
+   152→/*                                 HELPERS                                    */
+   153→/* -------------------------------------------------------------------------- */
+   154→
+   155→function getInitials(name: string): string {
+   156→  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+   157→}
+   158→
+   159→function formatTime(seconds: number): string {
+   160→  const m = Math.floor(seconds / 60);
+   161→  const s = seconds % 60;
+   162→  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+   163→}
+   164→
+   165→const STATUS_CONFIG: Record<RoomStatus, { label: string; color: string; dotClass: string }> = {
+   166→  'not-started': {
+   167→    label: 'Not Started',
+   168→    color: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-500/15 dark:text-zinc-400 border-zinc-500/20',
+   169→    dotClass: 'bg-zinc-400',
+   170→  },
+   171→  'in-progress': {
+   172→    label: 'In Progress',
+   173→    color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 border-amber-500/20',
+   174→    dotClass: 'bg-amber-500',
+   175→  },
+   176→  completed: {
+   177→    label: 'Completed',
+   178→    color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border-emerald-500/20',
+   179→    dotClass: 'bg-emerald-500',
+   180→  },
+   181→};
+   182→
+   183→/* -------------------------------------------------------------------------- */
+   184→/*                                 ANIMATION                                  */
+   185→/* -------------------------------------------------------------------------- */
+   186→
+   187→const containerVariants = {
+   188→  hidden: {},
+   189→  visible: { transition: { staggerChildren: 0.07 } },
+   190→};
+   191→
+   192→const itemVariants = {
+   193→  hidden: { opacity: 0, y: 20 },
+   194→  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+   195→};
+   196→
+   197→/* -------------------------------------------------------------------------- */
+   198→/*                              CONTEXT                                       */
+   199→/* -------------------------------------------------------------------------- */
+   200→
+   201→const BreakoutContext = createContext<BreakoutContextType | null>(null);
+   202→
+   203→function useBreakout() {
+   204→  const ctx = useContext(BreakoutContext);
+   205→  if (!ctx) throw new Error('useBreakout must be used within BreakoutRoomsPage');
+   206→  return ctx;
+   207→}
+   208→
+   209→/* -------------------------------------------------------------------------- */
+   210→/*                        AVATAR STACK COMPONENT                            */
+   211→/* -------------------------------------------------------------------------- */
+   212→
+   213→function AvatarStack({ participantIds, max = 4 }: { participantIds: string[]; max?: number }) {
+   214→  const { getParticipant } = useBreakout();
+   215→  const visible = participantIds.slice(0, max);
+   216→  const remaining = participantIds.length - max;
+   217→
+   218→  return (
+   219→    <div className="flex items-center">
+   220→      {visible.map((pid, i) => {
+   221→        const p = getParticipant(pid);
+   222→        if (!p) return null;
+   223→        return (
+   224→          <TooltipProvider key={pid} delayDuration={0}>
+   225→            <Tooltip>
+   226→              <TooltipTrigger asChild>
+   227→                <div
+   228→                  className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-card -ml-[6px] first:ml-0 transition-transform hover:scale-110 hover:z-10 cursor-pointer"
+   229→                  style={{ backgroundColor: p.color, zIndex: visible.length - i }}
+   230→                >
+   231→                  {getInitials(p.name)}
+   232→                </div>
+   233→              </TooltipTrigger>
+   234→              <TooltipContent side="bottom" className="text-xs">
+   235→                {p.name}
+   236→              </TooltipContent>
+   237→            </Tooltip>
+   238→          </TooltipProvider>
+   239→        );
+   240→      })}
+   241→      {remaining > 0 && (
+   242→        <div className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold bg-muted text-muted-foreground ring-2 ring-card -ml-[6px]">
+   243→          +{remaining}
+   244→        </div>
+   245→      )}
+   246→    </div>
+   247→  );
+   248→}
+   249→
+   250→/* -------------------------------------------------------------------------- */
+   251→/*                       UNASSIGNED POOL COMPONENT                            */
+   252→/* -------------------------------------------------------------------------- */
+   253→
+   254→function UnassignedPool({ unassignedIds, onAssignClick }: { unassignedIds: string[]; onAssignClick: (pid: string) => void }) {
+   255→  const { getParticipant } = useBreakout();
+   256→
+   257→  if (unassignedIds.length === 0) return null;
+   258→
+   259→  return (
+   260→    <motion.div
+   261→      initial={{ opacity: 0, y: -10 }}
+   262→      animate={{ opacity: 1, y: 0 }}
+   263→      transition={{ duration: 0.4 }}
+   264→      className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3"
+   265→    >
+   266→      <div className="flex items-center gap-2 mb-2">
+   267→        <Users className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+   268→        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+   269→          Unassigned ({unassignedIds.length})
+   270→        </span>
+   271→      </div>
+   272→      <div className="flex gap-2 overflow-x-auto pb-1">
+   273→        <AnimatePresence>
+   274→          {unassignedIds.map((pid) => {
+   275→            const p = getParticipant(pid);
+   276→            if (!p) return null;
+   277→            return (
+   278→              <motion.button
+   279→                key={pid}
+   280→                initial={{ opacity: 0, scale: 0.8 }}
+   281→                animate={{ opacity: 1, scale: 1 }}
+   282→                exit={{ opacity: 0, scale: 0.8 }}
+   283→                whileHover={{ scale: 1.05 }}
+   284→                whileTap={{ scale: 0.95 }}
+   285→                onClick={() => onAssignClick(pid)}
+   286→                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-card hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-200 shrink-0 cursor-pointer group"
+   287→              >
+   288→                <div
+   289→                  className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+   290→                  style={{ backgroundColor: p.color }}
+   291→                >
+   292→                  {getInitials(p.name)}
+   293→                </div>
+   294→                <span className="text-xs font-medium whitespace-nowrap">{p.name}</span>
+   295→                <ArrowRight className="h-3 w-3 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+   296→              </motion.button>
+   297→            );
+   298→          })}
+   299→        </AnimatePresence>
+   300→      </div>
+   301→    </motion.div>
+   302→  );
+   303→}
+   304→
+   305→/* -------------------------------------------------------------------------- */
+   306→/*                       ROOM DETAIL DIALOG                                   */
+   307→/* -------------------------------------------------------------------------- */
+   308→
+   309→function RoomDetailDialog({ room, open, onClose, onRemoveParticipant, onReassign }: {
+   310→  room: BreakoutRoom | null;
+   311→  open: boolean;
+   312→  onClose: () => void;
+   313→  onRemoveParticipant: (roomId: string, pid: string) => void;
+   314→  onReassign: (pid: string, toRoomId: string) => void;
+   315→}) {
+   316→  const { rooms, getParticipant } = useBreakout();
+   317→  const { settings } = useBreakout();
+   318→
+   319→  if (!room) return null;
+   320→  const statusCfg = STATUS_CONFIG[room.status];
+   321→
+   322→  return (
+   323→    <Dialog open={open} onOpenChange={onClose}>
+   324→      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+   325→        <DialogHeader>
+   326→          <DialogTitle className="flex items-center gap-2.5">
+   327→            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+   328→              <LayoutGrid className="h-4 w-4 text-white" />
+   329→            </div>
+   330→            <div className="flex items-center gap-2">
+   331→              <span>{room.name}</span>
+   332→              <Badge variant="secondary" className={`text-[10px] font-medium px-2 py-0 border ${statusCfg.color}`}>
+   333→                <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dotClass} mr-1`} />
+   334→                {statusCfg.label}
+   335→              </Badge>
+   336→            </div>
+   337→          </DialogTitle>
+   338→        </DialogHeader>
+   339→
+   340→        <div className="flex-1 overflow-y-auto space-y-4 pr-1 -mr-1">
+   341→          {/* Timer */}
+   342→          <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-between">
+   343→            <div className="flex items-center gap-2">
+   344→              <Timer className="h-4 w-4 text-amber-500" />
+   345→              <span className="text-sm font-medium">Elapsed Time</span>
+   346→            </div>
+   347→            <span className="text-lg font-mono font-bold tabular-nums">
+   348→              {formatTime(room.elapsedSeconds)}
+   349→            </span>
+   350→          </div>
+   351→
+   352→          {/* Settings summary */}
+   353→          <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+   354→            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Room Settings</p>
+   355→            <div className="flex items-center justify-between text-sm">
+   356→              <span className="text-muted-foreground">Max Participants</span>
+   357→              <span className="font-medium">{settings.maxParticipants > 0 ? settings.maxParticipants : 'Unlimited'}</span>
+   358→            </div>
+   359→            <div className="flex items-center justify-between text-sm">
+   360→              <span className="text-muted-foreground">Time Limit</span>
+   361→              <span className="font-medium">{settings.timeLimitMinutes > 0 ? `${settings.timeLimitMinutes} min` : 'No limit'}</span>
+   362→            </div>
+   363→            <div className="flex items-center justify-between text-sm">
+   364→              <span className="text-muted-foreground">Auto-Close</span>
+   365→              <span className="font-medium">{settings.autoClose ? 'Enabled' : 'Disabled'}</span>
+   366→            </div>
+   367→          </div>
+   368→
+   369→          {/* Participants list */}
+   370→          <div>
+   371→            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+   372→              Participants ({room.participants.length})
+   373→            </p>
+   374→            <div className="space-y-1.5">
+   375→              <AnimatePresence>
+   376→                {room.participants.map((pid) => {
+   377→                  const p = getParticipant(pid);
+   378→                  if (!p) return null;
+   379→                  return (
+   380→                    <motion.div
+   381→                      key={pid}
+   382→                      initial={{ opacity: 0, x: -10 }}
+   383→                      animate={{ opacity: 1, x: 0 }}
+   384→                      exit={{ opacity: 0, x: 10 }}
+   385→                      className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-muted/50 transition-colors group"
+   386→                    >
+   387→                      <div className="flex items-center gap-2.5 min-w-0">
+   388→                        <div
+   389→                          className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+   390→                          style={{ backgroundColor: p.color }}
+   391→                        >
+   392→                          {getInitials(p.name)}
+   393→                        </div>
+   394→                        <span className="text-sm font-medium truncate">{p.name}</span>
+   395→                      </div>
+   396→                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+   397→                        <DropdownMenu>
+   398→                          <DropdownMenuTrigger asChild>
+   399→                            <Button variant="ghost" size="icon" className="h-7 w-7">
+   400→                              <ArrowRight className="h-3.5 w-3.5" />
+   401→                            </Button>
+   402→                          </DropdownMenuTrigger>
+   403→                          <DropdownMenuContent align="end">
+   404→                            {rooms.filter((r) => r.id !== room.id).map((r) => (
+   405→                              <DropdownMenuItem key={r.id} onClick={() => onReassign(pid, r.id)}>
+   406→                                Move to {r.name}
+   407→                              </DropdownMenuItem>
+   408→                            ))}
+   409→                          </DropdownMenuContent>
+   410→                        </DropdownMenu>
+   411→                        <Button
+   412→                          variant="ghost"
+   413→                          size="icon"
+   414→                          className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+   415→                          onClick={() => onRemoveParticipant(room.id, pid)}
+   416→                        >
+   417→                          <UserMinus className="h-3.5 w-3.5" />
+   418→                        </Button>
+   419→                      </div>
+   420→                    </motion.div>
+   421→                  );
+   422→                })}
+   423→              </AnimatePresence>
+   424→            </div>
+   425→          </div>
+   426→
+   427→          {/* Chat History Mock */}
+   428→          <div>
+   429→            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Chat History</p>
+   430→            <div className="bg-muted/30 rounded-lg p-3 space-y-2.5 max-h-40 overflow-y-auto">
+   431→              {room.chat.map((msg) => (
+   432→                <div key={msg.id} className="flex flex-col gap-0.5">
+   433→                  <div className="flex items-center gap-2">
+   434→                    <span className="text-xs font-semibold">{msg.sender}</span>
+   435→                    <span className="text-[10px] text-muted-foreground">{msg.time}</span>
+   436→                  </div>
+   437→                  <p className="text-sm text-muted-foreground">{msg.text}</p>
+   438→                </div>
+   439→              ))}
+   440→              {room.chat.length === 0 && (
+   441→                <p className="text-xs text-muted-foreground text-center py-3">No messages yet</p>
+   442→              )}
+   443→            </div>
+   444→          </div>
+   445→        </div>
+   446→      </DialogContent>
+   447→    </Dialog>
+   448→  );
+   449→}
+   450→
+   451→/* -------------------------------------------------------------------------- */
+   452→/*                       BROADCAST MESSAGE DIALOG                             */
+   453→/* -------------------------------------------------------------------------- */
+   454→
+   455→function BroadcastDialog({ open, onClose, targetRoom, rooms, onSend }: {
+   456→  open: boolean;
+   457→  onClose: () => void;
+   458→  targetRoom: BreakoutRoom | null;
+   459→  rooms: BreakoutRoom[];
+   460→  onSend: (message: string, roomId: string | null) => void;
+   461→}) {
+   462→  const [message, setMessage] = useState('');
+   463→  const [sendToRoom, setSendToRoom] = useState<string | null>(targetRoom?.id ?? null);
+   464→
+   465→  const handleSend = () => {
+   466→    if (!message.trim()) return;
+   467→    onSend(message.trim(), sendToRoom);
+   468→    onClose();
+   469→  };
+   470→
+   471→  return (
+   472→    <Dialog open={open} onOpenChange={onClose}>
+   473→      <DialogContent className="sm:max-w-md">
+   474→        <DialogHeader>
+   475→          <DialogTitle className="flex items-center gap-2.5">
+   476→            <Volume2 className="h-5 w-5 text-amber-500" />
+   477→            Broadcast Message
+   478→          </DialogTitle>
+   479→        </DialogHeader>
+   480→
+   481→        <div className="space-y-4 pt-1">
+   482→          <div className="space-y-2">
+   483→            <Label className="text-sm font-medium">Send To</Label>
+   484→            <div className="flex flex-wrap gap-2">
+   485→              <Button
+   486→                variant={sendToRoom === null ? 'default' : 'outline'}
+   487→                size="sm"
+   488→                onClick={() => setSendToRoom(null)}
+   489→                className={sendToRoom === null ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0' : ''}
+   490→              >
+   491→                All Rooms
+   492→              </Button>
+   493→              {rooms.map((r) => (
+   494→                <Button
+   495→                  key={r.id}
+   496→                  variant={sendToRoom === r.id ? 'default' : 'outline'}
+   497→                  size="sm"
+   498→                  onClick={() => setSendToRoom(r.id)}
+   499→                  className={sendToRoom === r.id ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0' : ''}
+   500→                >
+   501→                  {r.name}
+   502→                </Button>
+   503→              ))}
+   504→            </div>
+   505→          </div>
+   506→
+   507→          <div className="space-y-2">
+   508→            <Label className="text-sm font-medium">Message</Label>
+   509→            <textarea
+   510→              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 focus-visible:ring-offset-2 resize-none"
+   511→              placeholder="Type your broadcast message..."
+   512→              value={message}
+   513→              onChange={(e) => setMessage(e.target.value)}
+   514→              onKeyDown={(e) => {
+   515→                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend();
+   516→              }}
+   517→            />
+   518→          </div>
+   519→
+   520→          {message.trim() && (
+   521→            <div className="space-y-1.5">
+   522→              <p className="text-xs font-medium text-muted-foreground">Preview</p>
+   523→              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
+   524→                <div className="flex items-center gap-2 mb-1">
+   525→                  <Volume2 className="h-3.5 w-3.5 text-amber-500" />
+   526→                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+   527→                    Broadcast{sendToRoom ? ` → ${rooms.find((r) => r.id === sendToRoom)?.name}` : ' → All Rooms'}
+   528→                  </span>
+   529→                </div>
+   530→                <p className="text-sm">{message.trim()}</p>
+   531→              </div>
+   532→            </div>
+   533→          )}
+   534→        </div>
+   535→
+   536→        <DialogFooter className="gap-2 sm:gap-0">
+   537→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   538→          <Button
+   539→            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
+   540→            onClick={handleSend}
+   541→            disabled={!message.trim()}
+   542→          >
+   543→            <Send className="h-4 w-4 mr-2" />
+   544→            Send
+   545→          </Button>
+   546→        </DialogFooter>
+   547→      </DialogContent>
+   548→    </Dialog>
+   549→  );
+   550→}
+   551→
+   552→/* -------------------------------------------------------------------------- */
+   553→/*                        ROOM SETTINGS DIALOG                                */
+   554→/* -------------------------------------------------------------------------- */
+   555→
+   556→function RoomSettingsDialog({ open, onClose, settings, onSave }: {
+   557→  open: boolean;
+   558→  onClose: () => void;
+   559→  settings: RoomSettings;
+   560→  onSave: (settings: RoomSettings) => void;
+   561→}) {
+   562→  const [localSettings, setLocalSettings] = useState<RoomSettings>(settings);
+   563→
+   564→  return (
+   565→    <Dialog open={open} onOpenChange={onClose}>
+   566→      <DialogContent className="sm:max-w-md">
+   567→        <DialogHeader>
+   568→          <DialogTitle className="flex items-center gap-2.5">
+   569→            <Settings2 className="h-5 w-5 text-amber-500" />
+   570→            Room Settings
+   571→          </DialogTitle>
+   572→        </DialogHeader>
+   573→
+   574→        <div className="space-y-5 pt-1">
+   575→          <div className="space-y-2">
+   576→            <Label className="text-sm font-medium">Max Participants Per Room</Label>
+   577→            <Input
+   578→              type="number"
+   579→              min={0}
+   580→              max={50}
+   581→              value={localSettings.maxParticipants}
+   582→              onChange={(e) => setLocalSettings({ ...localSettings, maxParticipants: Math.max(0, parseInt(e.target.value) || 0) })}
+   583→              placeholder="0 = unlimited"
+   584→            />
+   585→            <p className="text-xs text-muted-foreground">Set to 0 for unlimited participants</p>
+   586→          </div>
+   587→
+   588→          <div className="space-y-2">
+   589→            <Label className="text-sm font-medium">Time Limit (minutes)</Label>
+   590→            <Input
+   591→              type="number"
+   592→              min={0}
+   593→              max={180}
+   594→              value={localSettings.timeLimitMinutes}
+   595→              onChange={(e) => setLocalSettings({ ...localSettings, timeLimitMinutes: Math.max(0, parseInt(e.target.value) || 0) })}
+   596→              placeholder="0 = no limit"
+   597→            />
+   598→            <p className="text-xs text-muted-foreground">Set to 0 for no time limit</p>
+   599→          </div>
+   600→
+   601→          <div className="flex items-center justify-between">
+   602→            <div>
+   603→              <Label className="text-sm font-medium">Auto-Close on Time Expire</Label>
+   604→              <p className="text-xs text-muted-foreground">Automatically close rooms when time runs out</p>
+   605→            </div>
+   606→            <Switch
+   607→              checked={localSettings.autoClose}
+   608→              onCheckedChange={(checked) => setLocalSettings({ ...localSettings, autoClose: checked })}
+   609→            />
+   610→          </div>
+   611→        </div>
+   612→
+   613→        <DialogFooter className="gap-2 sm:gap-0">
+   614→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   615→          <Button
+   616→            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
+   617→            onClick={() => { onSave(localSettings); onClose(); }}
+   618→          >
+   619→            Save Settings
+   620→          </Button>
+   621→        </DialogFooter>
+   622→      </DialogContent>
+   623→    </Dialog>
+   624→  );
+   625→}
+   626→
+   627→/* -------------------------------------------------------------------------- */
+   628→/*                           MAIN COMPONENT                                   */
+   629→/* -------------------------------------------------------------------------- */
+   630→
+   631→export default function BreakoutRoomsPage() {
+   632→  const [rooms, setRooms] = useState<BreakoutRoom[]>(INITIAL_ROOMS);
+   633→  const [participants] = useState<Participant[]>(INITIAL_PARTICIPANTS);
+   634→  const [settings, setSettings] = useState<RoomSettings>({ maxParticipants: 6, timeLimitMinutes: 10, autoClose: true });
+   635→  const [globalTimerMode, setGlobalTimerMode] = useState<TimerMode>('idle');
+   636→  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+   637→  const [broadcastOpen, setBroadcastOpen] = useState(false);
+   638→  const [broadcastTarget, setBroadcastTarget] = useState<BreakoutRoom | null>(null);
+   639→  const [settingsOpen, setSettingsOpen] = useState(false);
+   640→  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   641→
+   642→  const assignedIds = new Set(rooms.flatMap((r) => r.participants));
+   643→  const unassignedIds = participants.map((p) => p.id).filter((id) => !assignedIds.has(id));
+   644→
+   645→  const getParticipant = useCallback(
+   646→    (id: string) => participants.find((p) => p.id === id),
+   647→    [participants]
+   648→  );
+   649→
+   650→  const selectedRoom = rooms.find((r) => r.id === selectedRoomId) || null;
+   651→
+   652→  // Timer interval
+   653→  useEffect(() => {
+   654→    if (globalTimerMode === 'running') {
+   655→      timerRef.current = setInterval(() => {
+   656→        setRooms((prev) =>
+   657→          prev.map((r) => {
+   658→            if (r.timerMode === 'running') {
+   659→              const newElapsed = r.elapsedSeconds + 1;
+   660→              let newStatus: RoomStatus = r.status === 'not-started' ? 'in-progress' : r.status;
+   661→              if (settings.autoClose && settings.timeLimitMinutes > 0 && newElapsed >= settings.timeLimitMinutes * 60) {
+   662→                newStatus = 'completed';
+   663→              }
+   664→              return {
+   665→                ...r,
+   666→                elapsedSeconds: newElapsed,
+   667→                status: newStatus,
+   668→                timerMode: newStatus === 'completed' ? 'idle' : 'running',
+   669→              };
+   670→            }
+   671→            return r;
+   672→          })
+   673→        );
+   674→      }, 1000);
+   675→    } else {
+   676→      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+   677→    }
+   678→    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+   679→  }, [globalTimerMode, settings.autoClose, settings.timeLimitMinutes]);
+   680→
+   681→  // Handlers
+   682→  const handleAssignToRoom = useCallback(
+   683→    (pid: string) => {
+   684→      const target = rooms.find((r) => {
+   685→        if (r.status === 'completed') return false;
+   686→        if (settings.maxParticipants > 0 && r.participants.length >= settings.maxParticipants) return false;
+   687→        return true;
+   688→      });
+   689→      if (!target) { toast.error('All rooms are full or completed'); return; }
+   690→      setRooms((prev) => prev.map((r) => r.id === target.id ? { ...r, participants: [...r.participants, pid] } : r));
+   691→      const p = getParticipant(pid);
+   692→      toast.success(`${p?.name} assigned to ${target.name}`);
+   693→    },
+   694→    [rooms, settings.maxParticipants, getParticipant]
+   695→  );
+   696→
+   697→  const handleRemoveParticipant = useCallback(
+   698→    (roomId: string, pid: string) => {
+   699→      setRooms((prev) => prev.map((r) => r.id === roomId ? { ...r, participants: r.participants.filter((id) => id !== pid) } : r));
+   700→      const p = getParticipant(pid);
+   701→      toast.success(`${p?.name} returned to unassigned pool`);
+   702→    },
+   703→    [getParticipant]
+   704→  );
+   705→
+   706→  const handleReassign = useCallback(
+   707→    (pid: string, toRoomId: string) => {
+   708→      const toRoom = rooms.find((r) => r.id === toRoomId);
+   709→      if (!toRoom) return;
+   710→      setRooms((prev) =>
+   711→        prev.map((r) => {
+   712→          if (r.participants.includes(pid)) return { ...r, participants: r.participants.filter((id) => id !== pid) };
+   713→          if (r.id === toRoomId) return { ...r, participants: [...r.participants, pid] };
+   714→          return r;
+   715→        })
+   716→      );
+   717→      const p = getParticipant(pid);
+   718→      toast.success(`${p?.name} moved to ${toRoom.name}`);
+   719→    },
+   720→    [rooms, getParticipant]
+   721→  );
+   722→
+   723→  const handleAutoAssign = useCallback(() => {
+   724→    if (unassignedIds.length === 0) { toast.info('No unassigned participants to assign'); return; }
+   725→    const shuffled = [...unassignedIds].sort(() => Math.random() - 0.5);
+   726→    let updatedRooms = [...rooms];
+   727→    let assigned = 0;
+   728→    for (const pid of shuffled) {
+   729→      const target = updatedRooms.find((r) => {
+   730→        if (r.status === 'completed') return false;
+   731→        if (settings.maxParticipants > 0 && r.participants.length >= settings.maxParticipants) return false;
+   732→        return true;
+   733→      });
+   734→      if (target) {
+   735→        updatedRooms = updatedRooms.map((r) => r.id === target.id ? { ...r, participants: [...r.participants, pid] } : r);
+   736→        assigned++;
+   737→      }
+   738→    }
+   739→    setRooms(updatedRooms);
+   740→    toast.success(`Auto-assigned ${assigned} participant${assigned !== 1 ? 's' : ''} to rooms`);
+   741→  }, [unassignedIds, rooms, settings.maxParticipants]);
+   742→
+   743→  const handleCreateRoom = useCallback(() => {
+   744→    const num = rooms.length + 1;
+   745→    const name = ROOM_NAMES[num - 1] || `Room ${num}`;
+   746→    const newRoom: BreakoutRoom = {
+   747→      id: `room-${Date.now()}`, name, status: 'not-started',
+   748→      participants: [], elapsedSeconds: 0, timerMode: 'idle', chat: [],
+   749→    };
+   750→    setRooms((prev) => [...prev, newRoom]);
+   751→    toast.success(`Created ${name}`);
+   752→  }, [rooms.length]);
+   753→
+   754→  const handleDeleteRoom = useCallback(
+   755→    (roomId: string) => {
+   756→      const room = rooms.find((r) => r.id === roomId);
+   757→      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+   758→      if (selectedRoomId === roomId) setSelectedRoomId(null);
+   759→      toast.success(`Deleted ${room?.name}`);
+   760→    },
+   761→    [rooms, selectedRoomId]
+   762→  );
+   763→
+   764→  const handleTimerToggle = useCallback((roomId: string) => {
+   765→    setRooms((prev) =>
+   766→      prev.map((r) => {
+   767→        if (r.id !== roomId) return r;
+   768→        const newMode: TimerMode = r.timerMode === 'running' ? 'paused' : 'running';
+   769→        return {
+   770→          ...r, timerMode: newMode,
+   771→          status: r.status === 'completed' ? r.status : (newMode === 'running' ? 'in-progress' as RoomStatus : r.status),
+   772→        };
+   773→      })
+   774→    );
+   775→  }, []);
+   776→
+   777→  const handleTimerReset = useCallback((roomId: string) => {
+   778→    setRooms((prev) => prev.map((r) => r.id === roomId ? { ...r, elapsedSeconds: 0, timerMode: 'idle' as TimerMode, status: 'not-started' as RoomStatus } : r));
+   779→    toast.success('Timer reset');
+   780→  }, []);
+   781→
+   782→  const handleGlobalTimerToggle = useCallback(() => {
+   783→    setGlobalTimerMode((prev) => {
+   784→      const next: TimerMode = prev === 'running' ? 'paused' : 'running';
+   785→      if (next === 'running') {
+   786→        setRooms((prevRooms) =>
+   787→          prevRooms.map((r) => r.status !== 'completed' ? { ...r, timerMode: 'running' as TimerMode, status: 'in-progress' as RoomStatus } : r)
+   788→        );
+   789→      } else {
+   790→        setRooms((prevRooms) => prevRooms.map((r) => r.timerMode === 'running' ? { ...r, timerMode: 'paused' as TimerMode } : r));
+   791→      }
+   792→      return next;
+   793→    });
+   794→  }, []);
+   795→
+   796→  const handleGlobalTimerReset = useCallback(() => {
+   797→    setGlobalTimerMode('idle');
+   798→    setRooms((prev) => prev.map((r) => ({ ...r, elapsedSeconds: 0, timerMode: 'idle' as TimerMode, status: 'not-started' as RoomStatus })));
+   799→    toast.success('All timers reset');
+   800→  }, []);
+   801→
+   802→  const handleBroadcast = useCallback(
+   803→    (message: string, roomId: string | null) => {
+   804→      const now = new Date();
+   805→      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+   806→      const chatMsg: ChatMessage = { id: `broadcast-${Date.now()}`, sender: 'Host (You)', text: message, time: timeStr };
+   807→      setRooms((prev) => prev.map((r) => (!roomId || r.id === roomId ? { ...r, chat: [...r.chat, chatMsg] } : r)));
+   808→      const target = roomId ? rooms.find((r) => r.id === roomId)?.name : 'All Rooms';
+   809→      toast.success(`Message sent to ${target}`);
+   810→    },
+   811→    [rooms]
+   812→  );
+   813→
+   814→  const handleSaveSettings = useCallback((newSettings: RoomSettings) => {
+   815→    setSettings(newSettings);
+   816→    toast.success('Settings saved');
+   817→  }, []);
+   818→
+   819→  const anyRunning = rooms.some((r) => r.timerMode === 'running');
+   820→  const maxElapsed = Math.max(...rooms.map((r) => r.elapsedSeconds), 0);
+   821→
+   822→  const contextValue: BreakoutContextType = {
+   823→    participants, rooms, unassignedIds, settings, getParticipant,
+   824→  };
+   825→
+   826→  return (
+   827→    <BreakoutContext.Provider value={contextValue}>
+   828→      <div className="space-y-6">
+   829→        {/* Page Header */}
+   830→        <motion.div
+   831→          initial={{ opacity: 0, y: -12 }}
+   832→          animate={{ opacity: 1, y: 0 }}
+   833→          transition={{ duration: 0.5 }}
+   834→          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+   835→        >
+   836→          <div className="flex items-center gap-3">
+   837→            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20">
+   838→              <LayoutGrid className="h-5 w-5 text-white" />
+   839→            </div>
+   840→            <div>
+   841→              <h2 className="text-2xl font-bold tracking-tight">Breakout Rooms</h2>
+   842→              <p className="text-sm text-muted-foreground mt-0.5">Manage rooms, assign participants, and control timers.</p>
+   843→            </div>
+   844→          </div>
+   845→          <div className="flex items-center gap-3 flex-wrap">
+   846→            {/* Global timer display */}
+   847→            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/50 bg-card/80 backdrop-blur-sm">
+   848→              <Timer className={`h-4 w-4 ${anyRunning ? 'text-amber-500' : 'text-muted-foreground'}`} />
+   849→              <span className="text-sm font-mono font-bold tabular-nums">{formatTime(maxElapsed)}</span>
+   850→              {settings.timeLimitMinutes > 0 && (
+   851→                <span className="text-xs text-muted-foreground">/ {formatTime(settings.timeLimitMinutes * 60)}</span>
+   852→              )}
+   853→              {anyRunning && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+   854→            </div>
+   855→            <Button variant="outline" size="sm" className="gap-2" onClick={handleAutoAssign}>
+   856→              <Shuffle className="h-4 w-4" />
+   857→              Auto-Assign
+   858→            </Button>
+   859→            <Button
+   860→              size="sm"
+   861→              className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow-md shadow-amber-500/20"
+   862→              onClick={handleCreateRoom}
+   863→            >
+   864→              <Plus className="h-4 w-4" />
+   865→              Create Room
+   866→            </Button>
+   867→          </div>
+   868→        </motion.div>
+   869→
+   870→        {/* Global Timer Controls */}
+   871→        <motion.div
+   872→          initial={{ opacity: 0, y: 12 }}
+   873→          animate={{ opacity: 1, y: 0 }}
+   874→          transition={{ duration: 0.4, delay: 0.1 }}
+   875→          className="flex items-center gap-2 flex-wrap"
+   876→        >
+   877→          <Button
+   878→            variant={globalTimerMode === 'running' ? 'default' : 'outline'}
+   879→            size="sm"
+   880→            className={`gap-2 ${globalTimerMode === 'running' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0' : ''}`}
+   881→            onClick={handleGlobalTimerToggle}
+   882→          >
+   883→            {globalTimerMode === 'running' ? <><Pause className="h-3.5 w-3.5" /> Pause All</> : <><Play className="h-3.5 w-3.5" /> Start All</>}
+   884→          </Button>
+   885→          <Button variant="outline" size="sm" className="gap-2" onClick={handleGlobalTimerReset}>
+   886→            <RotateCcw className="h-3.5 w-3.5" />
+   887→            Reset All
+   888→          </Button>
+   889→          <Separator orientation="vertical" className="h-6 mx-1" />
+   890→          <Button variant="outline" size="sm" className="gap-2" onClick={() => { setBroadcastTarget(null); setBroadcastOpen(true); }}>
+   891→            <Send className="h-3.5 w-3.5" />
+   892→            Broadcast to All
+   893→          </Button>
+   894→          <div className="ml-auto">
+   895→            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => setSettingsOpen(true)}>
+   896→              <Settings2 className="h-3.5 w-3.5" />
+   897→              Settings
+   898→            </Button>
+   899→          </div>
+   900→        </motion.div>
+   901→
+   902→        {/* Unassigned Participants Pool */}
+   903→        <UnassignedPool unassignedIds={unassignedIds} onAssignClick={handleAssignToRoom} />
+   904→
+   905→        {/* Room Grid */}
+   906→        <motion.div
+   907→          variants={containerVariants}
+   908→          initial="hidden"
+   909→          animate="visible"
+   910→          className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"
+   911→        >
+   912→          <AnimatePresence>
+   913→            {rooms.map((room) => (
+   914→              <RoomCard
+   915→                key={room.id}
+   916→                room={room}
+   917→                index={rooms.indexOf(room)}
+   918→                onRoomClick={setSelectedRoomId}
+   919→                onBroadcast={(rid) => { setBroadcastTarget(rooms.find((x) => x.id === rid) || null); setBroadcastOpen(true); }}
+   920→                onTimerToggle={handleTimerToggle}
+   921→                onTimerReset={handleTimerReset}
+   922→              />
+   923→            ))}
+   924→          </AnimatePresence>
+   925→
+   926→          {/* Create room card */}
+   927→          <motion.div variants={itemVariants}>
+   928→            <Card
+   929→              className="border-dashed border-2 border-border/40 bg-muted/20 hover:bg-muted/40 hover:border-amber-500/30 transition-all duration-300 cursor-pointer flex items-center justify-center min-h-[180px]"
+   930→              onClick={handleCreateRoom}
+   931→            >
+   932→              <CardContent className="p-4 flex flex-col items-center gap-2">
+   933→                <div className="h-10 w-10 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+   934→                  <Plus className="h-5 w-5 text-muted-foreground/50" />
+   935→                </div>
+   936→                <span className="text-sm font-medium text-muted-foreground/70">Create New Room</span>
+   937→              </CardContent>
+   938→            </Card>
+   939→          </motion.div>
+   940→        </motion.div>
+   941→
+   942→        {/* Stats bar */}
+   943→        <motion.div
+   944→          initial={{ opacity: 0, y: 12 }}
+   945→          animate={{ opacity: 1, y: 0 }}
+   946→          transition={{ duration: 0.4, delay: 0.3 }}
+   947→          className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap"
+   948→        >
+   949→          <span className="flex items-center gap-1.5">
+   950→            <span className="h-2 w-2 rounded-full bg-zinc-400" />
+   951→            {rooms.filter((r) => r.status === 'not-started').length} Not Started
+   952→          </span>
+   953→          <span className="flex items-center gap-1.5">
+   954→            <span className="h-2 w-2 rounded-full bg-amber-500" />
+   955→            {rooms.filter((r) => r.status === 'in-progress').length} In Progress
+   956→          </span>
+   957→          <span className="flex items-center gap-1.5">
+   958→            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+   959→            {rooms.filter((r) => r.status === 'completed').length} Completed
+   960→          </span>
+   961→          <Separator orientation="vertical" className="h-3" />
+   962→          <span>{participants.length} total · {assignedIds.size} assigned · {unassignedIds.length} unassigned</span>
+   963→        </motion.div>
+   964→      </div>
+   965→
+   966→      {/* Dialogs */}
+   967→      <RoomDetailDialog
+   968→        room={selectedRoom}
+   969→        open={!!selectedRoomId}
+   970→        onClose={() => setSelectedRoomId(null)}
+   971→        onRemoveParticipant={handleRemoveParticipant}
+   972→        onReassign={handleReassign}
+   973→      />
+   974→      <BroadcastDialog
+   975→        open={broadcastOpen}
+   976→        onClose={() => setBroadcastOpen(false)}
+   977→        targetRoom={broadcastTarget}
+   978→        rooms={rooms}
+   979→        onSend={handleBroadcast}
+   980→      />
+   981→      <RoomSettingsDialog
+   982→        open={settingsOpen}
+   983→        onClose={() => setSettingsOpen(false)}
+   984→        settings={settings}
+   985→        onSave={handleSaveSettings}
+   986→      />
+   987→    </BreakoutContext.Provider>
+   988→  );
+   989→}
+   990→
+   991→/* -------------------------------------------------------------------------- */
+   992→/*                       ROOM CARD COMPONENT (after context)                  */
+   993→/* -------------------------------------------------------------------------- */
+   994→
+   995→function RoomCard({ room, index, onRoomClick, onBroadcast, onTimerToggle, onTimerReset }: {
+   996→  room: BreakoutRoom;
+   997→  index: number;
+   998→  onRoomClick: (id: string) => void;
+   999→  onBroadcast: (roomId: string) => void;
+  1000→  onTimerToggle: (roomId: string) => void;
+  1001→  onTimerReset: (roomId: string) => void;
+  1002→}) {
+  1003→  const { settings } = useBreakout();
+  1004→  const statusCfg = STATUS_CONFIG[room.status];
+  1005→  const isOverTime = settings.timeLimitMinutes > 0 && room.elapsedSeconds >= settings.timeLimitMinutes * 60;
+  1006→
+  1007→  return (
+  1008→    <motion.div variants={itemVariants}>
+  1009→      <Card
+  1010→        className="group relative overflow-hidden border border-border/50 bg-card/80 backdrop-blur-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300 cursor-pointer"
+  1011→        onClick={() => onRoomClick(room.id)}
+  1012→      >
+  1013→        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-500 via-orange-500 to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+  1014→
+  1015→        <CardContent className="p-4">
+  1016→          <div className="flex items-start justify-between gap-3 mb-3">
+  1017→            <div className="flex-1 min-w-0">
+  1018→              <div className="flex items-center gap-2">
+  1019→                <h3 className="font-semibold text-sm truncate">{room.name}</h3>
+  1020→                <Badge variant="secondary" className={`text-[10px] font-medium px-2 py-0 border ${statusCfg.color}`}>
+  1021→                  <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dotClass} mr-1`} />
+  1022→                  {statusCfg.label}
+  1023→                </Badge>
+  1024→              </div>
+  1025→            </div>
+  1026→            <div className="flex items-center gap-1 shrink-0">
+  1027→              <TooltipProvider delayDuration={0}>
+  1028→                <Tooltip>
+  1029→                  <TooltipTrigger asChild>
+  1030→                    <Button
+  1031→                      variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+  1032→                      onClick={(e) => { e.stopPropagation(); onBroadcast(room.id); }}
+  1033→                    >
+  1034→                      <Send className="h-3.5 w-3.5 text-muted-foreground" />
+  1035→                    </Button>
+  1036→                  </TooltipTrigger>
+  1037→                  <TooltipContent>Broadcast Message</TooltipContent>
+  1038→                </Tooltip>
+  1039→              </TooltipProvider>
+  1040→              <DropdownMenu>
+  1041→                <DropdownMenuTrigger asChild>
+  1042→                  <Button
+  1043→                    variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+  1044→                    onClick={(e) => e.stopPropagation()}
+  1045→                  >
+  1046→                    <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+  1047→                  </Button>
+  1048→                </DropdownMenuTrigger>
+  1049→                <DropdownMenuContent align="end">
+  1050→                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTimerToggle(room.id); }}>
+  1051→                    {room.timerMode === 'running' ? <><Pause className="h-4 w-4 mr-2" /> Pause Timer</> : <><Play className="h-4 w-4 mr-2" /> Start Timer</>}
+  1052→                  </DropdownMenuItem>
+  1053→                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTimerReset(room.id); }}>
+  1054→                    <RotateCcw className="h-4 w-4 mr-2" /> Reset Timer
+  1055→                  </DropdownMenuItem>
+  1056→                </DropdownMenuContent>
+  1057→              </DropdownMenu>
+  1058→            </div>
+  1059→          </div>
+  1060→
+  1061→          {/* Participants */}
+  1062→          <div className="flex items-center justify-between mb-3">
+  1063→            <AvatarStack participantIds={room.participants} />
+  1064→            <Badge variant="outline" className="text-[10px] font-medium ml-2">
+  1065→              <Users className="h-3 w-3 mr-1" />
+  1066→              {room.participants.length}{settings.maxParticipants > 0 ? `/${settings.maxParticipants}` : ''}
+  1067→            </Badge>
+  1068→          </div>
+  1069→
+  1070→          {/* Timer section */}
+  1071→          <div className="flex items-center justify-between">
+  1072→            <div className="flex items-center gap-2">
+  1073→              <Timer className={`h-3.5 w-3.5 ${room.timerMode === 'running' ? 'text-amber-500' : 'text-muted-foreground'}`} />
+  1074→              <span className={`text-sm font-mono tabular-nums ${isOverTime ? 'text-red-500 font-semibold' : room.timerMode === 'running' ? 'text-foreground' : 'text-muted-foreground'}`}>
+  1075→                {formatTime(room.elapsedSeconds)}
+  1076→              </span>
+  1077→              {room.timerMode === 'running' && (
+  1078→                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+  1079→              )}
+  1080→            </div>
+  1081→            <div className="flex items-center gap-1">
+  1082→              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onTimerToggle(room.id); }}>
+  1083→                {room.timerMode === 'running' ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+  1084→              </Button>
+  1085→              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onTimerReset(room.id); }}>
+  1086→                <RotateCcw className="h-3 w-3" />
+  1087→              </Button>
+  1088→            </div>
+  1089→          </div>
+  1090→
+  1091→          {/* Progress bar */}
+  1092→          {settings.timeLimitMinutes > 0 && (
+  1093→            <div className="mt-2">
+  1094→              <div className="h-1 rounded-full bg-muted overflow-hidden">
+  1095→                <motion.div
+  1096→                  className={`h-full rounded-full ${isOverTime ? 'bg-red-500' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}
+  1097→                  initial={false}
+  1098→                  animate={{ width: `${Math.min((room.elapsedSeconds / (settings.timeLimitMinutes * 60)) * 100, 100)}%` }}
+  1099→                  transition={{ duration: 0.5, ease: 'linear' }}
+  1100→                />
+  1101→              </div>
+  1102→            </div>
+  1103→          )}
+  1104→        </CardContent>
+  1105→      </Card>
+  1106→    </motion.div>
+  1107→  );
+  1108→}
+  1109→

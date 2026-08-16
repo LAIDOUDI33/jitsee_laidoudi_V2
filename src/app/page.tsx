@@ -128,6 +128,18 @@ const BreakoutRoomsPage = dynamic(() => import('@/components/dashboard/views/Bre
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
   ssr: false,
 })
+const ParticipantsPage = dynamic(() => import('@/components/dashboard/views/ParticipantsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const MeetingNotesPage = dynamic(() => import('@/components/dashboard/views/MeetingNotesPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const SessionHistoryPage = dynamic(() => import('@/components/dashboard/views/SessionHistoryPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -207,6 +219,9 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   templates: TemplatesPage,
   notifications: NotificationsPage,
   'breakout-rooms': BreakoutRoomsPage,
+  participants: ParticipantsPage,
+  'meeting-notes': MeetingNotesPage,
+  'session-history': SessionHistoryPage,
 }
 
 function ForgotPasswordPage() {

@@ -5,7 +5,8 @@ import {
   Video, Users, Clock, TrendingUp, Calendar, MessageSquare, FileText, Brain,
   ArrowRight, Plus, MoreHorizontal, Mic, Monitor, Globe, Shield, ChevronRight,
   BarChart3, Activity, LayoutDashboard, FolderOpen, CircleDot, Radio,
-  Settings, User, LogOut, Search, Bell
+  Settings, User, LogOut, Search, Bell, BookOpen, Pen, Bot, Puzzle,
+  HelpCircle, Webhook, LayoutTemplate, LayoutGrid, UsersRound, MessageCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,6 +108,17 @@ const teamActivities = [
   { user: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', action: 'scheduled a meeting', target: 'Design Sync', time: '3h ago' },
 ];
 
+const onlinePeople = [
+  { name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', status: 'In a meeting' },
+  { name: 'Alex Rivera', initials: 'AR', color: 'bg-sky-500', status: 'Available' },
+  { name: 'Maya Patel', initials: 'MP', color: 'bg-emerald-500', status: 'Editing document' },
+  { name: 'James Wilson', initials: 'JW', color: 'bg-orange-500', status: 'On a call' },
+  { name: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', status: 'Available' },
+  { name: 'David Kim', initials: 'DK', color: 'bg-teal-500', status: 'Away' },
+  { name: 'Lisa Park', initials: 'LP', color: 'bg-rose-500', status: 'In a meeting' },
+  { name: 'Ryan Foster', initials: 'RF', color: 'bg-amber-500', status: 'Available' },
+];
+
 export default function DashboardPage() {
   const { user, setCurrentView, currentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
   const [gradientPhase, setGradientPhase] = useState(0);
@@ -145,8 +157,19 @@ export default function DashboardPage() {
     { label: 'Files', icon: <FolderOpen size={18} />, view: 'files' },
     { label: 'Recordings', icon: <CircleDot size={18} />, view: 'recordings' },
     { label: 'AI Assistant', icon: <Brain size={18} />, view: 'ai-assistant', badge: 'AI', badgeVariant: 'secondary' as const },
+    { label: 'Knowledge', icon: <BookOpen size={18} />, view: 'knowledge' },
     { label: 'Calendar', icon: <Calendar size={18} />, view: 'calendar' },
     { label: 'Events', icon: <Radio size={18} />, view: 'events' },
+    { label: 'Whiteboard', icon: <Pen size={18} />, view: 'whiteboard', badge: 'N', badgeVariant: 'outline' as const },
+    { label: 'Analytics', icon: <BarChart3 size={18} />, view: 'analytics', badge: 'N', badgeVariant: 'outline' as const },
+    { label: 'Status', icon: <Activity size={18} />, view: 'status' },
+    { label: 'People', icon: <UsersRound size={18} />, view: 'people' },
+    { label: 'Integrations', icon: <Puzzle size={18} />, view: 'integrations' },
+    { label: 'Help Center', icon: <HelpCircle size={18} />, view: 'help-center' },
+    { label: 'Webhooks', icon: <Webhook size={18} />, view: 'webhooks' },
+    { label: 'Templates', icon: <LayoutTemplate size={18} />, view: 'templates' },
+    { label: 'Notifications', icon: <Bell size={18} />, view: 'notifications' },
+    { label: 'Breakout Rooms', icon: <LayoutGrid size={18} />, view: 'breakout-rooms' },
   ];
 
   const bottomNavItems = [
@@ -547,21 +570,28 @@ export default function DashboardPage() {
                   <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
                     {[
                       { label: 'New Meeting', icon: <Plus size={18} />, color: 'text-sky-600 bg-sky-50 dark:bg-sky-900/20 dark:text-sky-400', onClick: handleNewMeeting, isStartMeeting: true },
                       { label: 'Schedule', icon: <Calendar size={18} />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', onClick: () => setCurrentView('calendar') },
                       { label: 'Join Meeting', icon: <Video size={18} />, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', onClick: handleJoinMeeting },
                       { label: 'AI Assistant', icon: <Brain size={18} />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400', onClick: () => setCurrentView('ai-assistant') },
-                    ].map((action) => (
+                      { label: 'Whiteboard', icon: <Pen size={18} />, color: 'text-rose-600 bg-rose-50 dark:bg-rose-900/20 dark:text-rose-400', onClick: () => setCurrentView('whiteboard') },
+                      { label: 'Recordings', icon: <CircleDot size={18} />, color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20 dark:text-pink-400', onClick: () => setCurrentView('recordings') },
+                      { label: 'Files', icon: <FolderOpen size={18} />, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-400', onClick: () => setCurrentView('files') },
+                      { label: 'Templates', icon: <LayoutTemplate size={18} />, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 dark:text-cyan-400', onClick: () => setCurrentView('templates') },
+                    ].map((action, idx) => (
                       action.isStartMeeting ? (
                         <RippleButton key={action.label} onClick={action.onClick} className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/0 hover:border-primary/40 hover:bg-primary/10 transition-all group">
-                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform shadow-sm`}>{action.icon}</div>
+                          <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.55 + idx * 0.04 }} className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform shadow-sm`}>{action.icon}</motion.div>
                           <span className="text-sm font-medium">{action.label}</span>
                         </RippleButton>
                       ) : (
-                        <button
+                        <motion.button
                           key={action.label}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.55 + idx * 0.04 }}
                           onClick={action.onClick}
                           className="flex flex-col items-center gap-2.5 p-4 rounded-xl border hover:border-primary/30 hover:bg-muted/50 transition-all group"
                         >
@@ -569,7 +599,7 @@ export default function DashboardPage() {
                             {action.icon}
                           </div>
                           <span className="text-sm font-medium">{action.label}</span>
-                        </button>
+                        </motion.button>
                       )
                     ))}
                   </div>
@@ -578,35 +608,91 @@ export default function DashboardPage() {
             </motion.div>
           </div>
 
-          {/* Team Activity */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Team Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {teamActivities.map((activity, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8 shrink-0">
-                        <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>
-                          {activity.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm">
-                          <span className="font-medium">{activity.user}</span>{' '}
-                          <span className="text-muted-foreground">{activity.action}</span>{' '}
-                          <span className="font-medium">{activity.target}</span>
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+          {/* Who's Online + Team Activity */}
+          <div className="grid lg:grid-cols-3 gap-4">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                      </span>
+                      Who&apos;s Online
+                    </CardTitle>
+                    <Badge variant="secondary" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">{onlinePeople.length} online</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
+                    {onlinePeople.map((person, i) => (
+                      <motion.div
+                        key={person.name}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.65 + i * 0.05 }}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer"
+                      >
+                        <div className="relative">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className={`${person.color} text-white text-[10px] font-bold`}>{person.initials}</AvatarFallback>
+                          </Avatar>
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-emerald-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{person.name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{person.status}</p>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentView('chat')}><MessageCircle size={13} /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setMeetingTitle('Call with ' + person.name); setCurrentMeetingId('new-' + Date.now()); setCurrentView('meeting-room'); }}><Video size={13} /></Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+                <div className="h-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="lg:col-span-2">
+              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold">Team Activity</CardTitle>
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setCurrentView('notifications')}>View All <ArrowRight size={12} className="ml-1" /></Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
+                    {teamActivities.map((activity, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.7 + i * 0.06 }}
+                        className="flex items-center gap-3"
+                      >
+                        <Avatar className="w-8 h-8 shrink-0">
+                          <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>{activity.initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm">
+                            <span className="font-medium">{activity.user}</span>{' '}
+                            <span className="text-muted-foreground">{activity.action}</span>{' '}
+                            <span className="font-medium">{activity.target}</span>
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+                <div className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-500" />
+              </Card>
+            </motion.div>
+          </div>
         </div>
       </main>
     </div>

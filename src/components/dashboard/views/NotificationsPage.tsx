@@ -387,18 +387,18 @@ const initialNotifications: Notification[] = [
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 const iconConfig: Record<NotificationType, { icon: React.ReactNode; bgColor: string }> = {
-  'meeting-invite': { icon: <Video className='h-4 w-4' />, bgColor: 'bg-blue-500/10 text-blue-600' },
-  'mention': { icon: <AtSign className='h-4 w-4' />, bgColor: 'bg-violet-500/10 text-violet-600' },
-  'recording-ready': { icon: <FileText className='h-4 w-4' />, bgColor: 'bg-emerald-500/10 text-emerald-600' },
-  'ai-summary': { icon: <Sparkles className='h-4 w-4' />, bgColor: 'bg-violet-500/10 text-violet-600' },
-  'file-shared': { icon: <FolderOpen className='h-4 w-4' />, bgColor: 'bg-amber-500/10 text-amber-600' },
-  'member-joined': { icon: <UserPlus className='h-4 w-4' />, bgColor: 'bg-emerald-500/10 text-emerald-600' },
-  'security-alert': { icon: <Shield className='h-4 w-4' />, bgColor: 'bg-rose-500/10 text-rose-600' },
-  'maintenance': { icon: <Wrench className='h-4 w-4' />, bgColor: 'bg-amber-500/10 text-amber-600' },
-  'meeting-soon': { icon: <CalendarClock className='h-4 w-4' />, bgColor: 'bg-blue-500/10 text-blue-600' },
-  'system-update': { icon: <Megaphone className='h-4 w-4' />, bgColor: 'bg-cyan-500/10 text-cyan-600' },
-  'message': { icon: <MessageSquare className='h-4 w-4' />, bgColor: 'bg-teal-500/10 text-teal-600' },
-  'general': { icon: <Bell className='h-4 w-4' />, bgColor: 'bg-zinc-500/10 text-zinc-600' },
+  'meeting-invite': { icon: <Video className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-blue-500/20 to-blue-500/5 text-blue-600' },
+  'mention': { icon: <AtSign className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-violet-500/20 to-violet-500/5 text-violet-600' },
+  'recording-ready': { icon: <FileText className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-600' },
+  'ai-summary': { icon: <Sparkles className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-violet-500/20 to-violet-500/5 text-violet-600' },
+  'file-shared': { icon: <FolderOpen className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-amber-500/20 to-amber-500/5 text-amber-600' },
+  'member-joined': { icon: <UserPlus className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-600' },
+  'security-alert': { icon: <Shield className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-rose-500/20 to-rose-500/5 text-rose-600' },
+  'maintenance': { icon: <Wrench className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-amber-500/20 to-amber-500/5 text-amber-600' },
+  'meeting-soon': { icon: <CalendarClock className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-blue-500/20 to-blue-500/5 text-blue-600' },
+  'system-update': { icon: <Megaphone className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 text-cyan-600' },
+  'message': { icon: <MessageSquare className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-teal-500/20 to-teal-500/5 text-teal-600' },
+  'general': { icon: <Bell className='h-4 w-4' />, bgColor: 'bg-gradient-to-br from-zinc-500/20 to-zinc-500/5 text-zinc-600' },
 }
 
 const filterPills: { label: string; value: NotificationCategory }[] = [
@@ -457,7 +457,7 @@ function NotificationRow({
   return (
     <motion.div variants={item} layout>
       <Card
-        className={`bg-card/80 backdrop-blur border border-border/50 rounded-xl overflow-hidden hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer ${notification.unread ? 'border-l-2 border-l-blue-500' : ''}`}
+        className={`relative overflow-hidden bg-gradient-to-br from-card to-card/80 backdrop-blur border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/40 before:to-emerald-500/0 ${notification.unread ? 'border-l-2 border-l-blue-500' : ''}`}
         onClick={handleClick}
       >
         <CardContent className='p-4'>
@@ -465,7 +465,7 @@ function NotificationRow({
             {/* Unread dot + Icon container */}
             <div className='relative shrink-0 mt-0.5'>
               {notification.unread && (
-                <span className='absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-card z-10' />
+                <span className='absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-card z-10 animate-breathe' />
               )}
               <div className={`p-2 rounded-lg ${cfg.bgColor}`}>
                 {cfg.icon}
@@ -699,6 +699,7 @@ export default function NotificationsPage() {
             <div>
               <h1 className='text-2xl font-bold tracking-tight'>Notifications</h1>
               <p className='text-sm text-muted-foreground'>Stay updated with your team activity and system alerts</p>
+              <div className='h-1 w-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500/50 mt-2' />
             </div>
           </div>
           <Button
@@ -817,7 +818,7 @@ export default function NotificationsPage() {
           <Card className='bg-card/80 backdrop-blur border border-border/50 rounded-xl'>
             <CardContent className='flex flex-col sm:flex-row items-center justify-between gap-3 py-4 px-5'>
               <div className='flex items-center gap-3'>
-                <div className='p-2 rounded-lg bg-emerald-500/10 text-emerald-600'>
+                <div className='p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-600'>
                   <CheckCheck className='h-4 w-4' />
                 </div>
                 <div>

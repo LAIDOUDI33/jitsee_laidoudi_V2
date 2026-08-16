@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 export type AppView = 
   | 'landing' 
@@ -35,6 +36,9 @@ export type AppView =
   | 'templates'
   | 'notifications'
   | 'breakout-rooms'
+  | 'participants'
+  | 'meeting-notes'
+  | 'session-history'
 
 export interface NotificationItem {
   id: string
@@ -133,48 +137,60 @@ const defaultNotifications: NotificationItem[] = [
   },
 ]
 
-export const useAppStore = create<AppState>((set, get) => ({
-  currentView: 'landing',
-  setCurrentView: (view) => set({ previousView: get().currentView, currentView: view }),
-  previousView: null,
-  navigateBack: () => {
-    const prev = get().previousView
-    if (prev) set({ currentView: prev, previousView: null })
-  },
-  
-  user: null,
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
-  isAuthenticated: false,
-  
-  currentMeetingId: null,
-  setCurrentMeetingId: (id) => set({ currentMeetingId: id }),
-  meetingTitle: '',
-  setMeetingTitle: (title) => set({ meetingTitle: title }),
-  sidebarOpen: true,
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  meetingSidebarTab: 'chat',
-  setMeetingSidebarTab: (tab) => set({ meetingSidebarTab: tab }),
-  
-  notificationCount: 3,
-  setNotificationCount: (count) => set({ notificationCount: count }),
-  notifications: defaultNotifications,
-  markNotificationRead: (id) => {
-    const notifications = get().notifications.map(n =>
-      n.id === id ? { ...n, unread: false } : n
-    )
-    const unreadCount = notifications.filter(n => n.unread).length
-    set({ notifications, notificationCount: unreadCount })
-  },
-  markAllNotificationsRead: () => {
-    const notifications = get().notifications.map(n => ({ ...n, unread: false }))
-    set({ notifications, notificationCount: 0 })
-  },
-  addNotification: (notification) => {
-    const notifications = [notification, ...get().notifications]
-    const unreadCount = notifications.filter(n => n.unread).length
-    set({ notifications, notificationCount: unreadCount })
-  },
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      currentView: 'landing',
+      setCurrentView: (view) => set({ previousView: get().currentView, currentView: view }),
+      previousView: null,
+      navigateBack: () => {
+        const prev = get().previousView
+        if (prev) set({ currentView: prev, previousView: null })
+      },
+      
+      user: null,
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      isAuthenticated: false,
+      
+      currentMeetingId: null,
+      setCurrentMeetingId: (id) => set({ currentMeetingId: id }),
+      meetingTitle: '',
+      setMeetingTitle: (title) => set({ meetingTitle: title }),
+      sidebarOpen: true,
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      meetingSidebarTab: 'chat',
+      setMeetingSidebarTab: (tab) => set({ meetingSidebarTab: tab }),
+      
+      notificationCount: 3,
+      setNotificationCount: (count) => set({ notificationCount: count }),
+      notifications: defaultNotifications,
+      markNotificationRead: (id) => {
+        const notifications = get().notifications.map(n =>
+          n.id === id ? { ...n, unread: false } : n
+        )
+        const unreadCount = notifications.filter(n => n.unread).length
+        set({ notifications, notificationCount: unreadCount })
+      },
+      markAllNotificationsRead: () => {
+        const notifications = get().notifications.map(n => ({ ...n, unread: false }))
+        set({ notifications, notificationCount: 0 })
+      },
+      addNotification: (notification) => {
+        const notifications = [notification, ...get().notifications]
+        const unreadCount = notifications.filter(n => n.unread).length
+        set({ notifications, notificationCount: unreadCount })
+      },
 
-  searchOpen: false,
-  setSearchOpen: (open) => set({ searchOpen: open }),
-}))
+      searchOpen: false,
+      setSearchOpen: (open) => set({ searchOpen: open }),
+    }),
+    {
+      name: 'alvision-auth',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
+  )
+)

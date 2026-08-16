@@ -1,0 +1,615 @@
+     1→'use client';
+     2→
+     3→import { useAppStore } from '@/store/app-store';
+     4→import {
+     5→  Video, Users, Clock, TrendingUp, Calendar, MessageSquare, FileText, Brain,
+     6→  ArrowRight, Plus, MoreHorizontal, Mic, Monitor, Globe, Shield, ChevronRight,
+     7→  BarChart3, Activity, LayoutDashboard, FolderOpen, CircleDot, Radio,
+     8→  Settings, User, LogOut, Search, Bell
+     9→} from 'lucide-react';
+    10→import { motion } from 'framer-motion';
+    11→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    12→import { Button } from '@/components/ui/button';
+    13→import { Badge } from '@/components/ui/badge';
+    14→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    15→import { Progress } from '@/components/ui/progress';
+    16→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    17→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    18→import {
+    19→  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+    20→  AreaChart, Area, PieChart, Pie, Cell
+    21→} from 'recharts';
+    22→import { useQuery } from '@tanstack/react-query';
+    23→import { useEffect, useState, useCallback } from 'react';
+    24→
+    25→const stagger = {
+    26→  hidden: { opacity: 0 },
+    27→  show: { opacity: 1, transition: { staggerChildren: 0.07 } }
+    28→};
+    29→const fadeUp = {
+    30→  hidden: { opacity: 0, y: 20 },
+    31→  show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+    32→};
+    33→const chartFadeUp = {
+    34→  hidden: { opacity: 0, y: 20 },
+    35→  show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay: 0.35 + i * 0.12 } })
+    36→};
+    37→
+    38→function RippleButton({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+    39→  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+    40→  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    41→    const rect = e.currentTarget.getBoundingClientRect();
+    42→    const x = e.clientX - rect.left;
+    43→    const y = e.clientY - rect.top;
+    44→    const id = Date.now();
+    45→    setRipples(prev => [...prev, { id, x, y }]);
+    46→    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
+    47→    onClick?.();
+    48→  }, [onClick]);
+    49→  return (
+    50→    <button onClick={handleClick} className={`relative overflow-hidden ${className || ''}`}>
+    51→      {children}
+    52→      {ripples.map(r => (
+    53→        <motion.span
+    54→          key={r.id}
+    55→          initial={{ scale: 0, opacity: 0.35 }}
+    56→          animate={{ scale: 4, opacity: 0 }}
+    57→          transition={{ duration: 0.6, ease: 'easeOut' }}
+    58→          className='absolute rounded-full bg-white/30 pointer-events-none'
+    59→          style={{ left: r.x - 10, top: r.y - 10, width: 20, height: 20 }}
+    60→        />
+    61→      ))}
+    62→    </button>
+    63→  );
+    64→}
+    65→
+    66→const meetingActivityData = [
+    67→  { day: 'Mon', meetings: 4, participants: 18 },
+    68→  { day: 'Tue', meetings: 7, participants: 32 },
+    69→  { day: 'Wed', meetings: 5, participants: 24 },
+    70→  { day: 'Thu', meetings: 9, participants: 45 },
+    71→  { day: 'Fri', meetings: 6, participants: 28 },
+    72→  { day: 'Sat', meetings: 2, participants: 8 },
+    73→  { day: 'Sun', meetings: 1, participants: 5 },
+    74→];
+    75→
+    76→const meetingTypesData = [
+    77→  { name: 'Video', value: 40 },
+    78→  { name: 'Audio', value: 25 },
+    79→  { name: 'Webinar', value: 20 },
+    80→  { name: 'Town Hall', value: 15 },
+    81→];
+    82→
+    83→const PIE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#38bdf8'];
+    84→
+    85→interface Meeting {
+    86→  id: string;
+    87→  title: string;
+    88→  date: string;
+    89→  duration: string;
+    90→  participants: number;
+    91→  status: 'Active' | 'Ended' | 'Scheduled';
+    92→}
+    93→
+    94→const mockMeetings: Meeting[] = [
+    95→  { id: '1', title: 'Sprint Planning - Q4', date: 'Today, 10:00 AM', duration: '45 min', participants: 8, status: 'Active' },
+    96→  { id: '2', title: 'Design Review', date: 'Today, 2:00 PM', duration: '30 min', participants: 5, status: 'Scheduled' },
+    97→  { id: '3', title: 'Client Onboarding - Acme Corp', date: 'Yesterday, 3:00 PM', duration: '1h 12min', participants: 12, status: 'Ended' },
+    98→  { id: '4', title: 'Engineering Standup', date: 'Yesterday, 9:30 AM', duration: '15 min', participants: 6, status: 'Ended' },
+    99→  { id: '5', title: 'Product Roadmap Discussion', date: 'Dec 18, 11:00 AM', duration: '1h 30min', participants: 15, status: 'Scheduled' },
+   100→];
+   101→
+   102→const teamActivities = [
+   103→  { user: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', action: 'started a meeting', target: 'Sprint Planning', time: '5 min ago' },
+   104→  { user: 'Alex Rivera', initials: 'AR', color: 'bg-blue-500', action: 'shared a recording', target: 'Client Review Q3', time: '23 min ago' },
+   105→  { user: 'Maya Patel', initials: 'MP', color: 'bg-green-500', action: 'joined team', target: 'Engineering', time: '1h ago' },
+   106→  { user: 'James Wilson', initials: 'JW', color: 'bg-orange-500', action: 'created an AI summary', target: 'Board Meeting Notes', time: '2h ago' },
+   107→  { user: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', action: 'scheduled a meeting', target: 'Design Sync', time: '3h ago' },
+   108→];
+   109→
+   110→export default function DashboardPage() {
+   111→  const { user, setCurrentView, currentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
+   112→  const [gradientPhase, setGradientPhase] = useState(0);
+   113→
+   114→  useEffect(() => {
+   115→    const interval = setInterval(() => setGradientPhase(p => (p + 1) % 360), 3000);
+   116→    return () => clearInterval(interval);
+   117→  }, []);
+   118→
+   119→  const { data: meetingsData } = useQuery<{ success: boolean; meetings: Meeting[] }>({
+   120→    queryKey: ['meetings'],
+   121→    queryFn: async () => {
+   122→      try {
+   123→        const res = await fetch('/api/v1/meetings');
+   124→        if (res.ok) return res.json();
+   125→      } catch { /* fallback */ }
+   126→      return { success: true, meetings: mockMeetings };
+   127→    },
+   128→  });
+   129→  const meetings = meetingsData?.meetings || mockMeetings;
+   130→
+   131→  useEffect(() => {
+   132→    if (!user) {
+   133→      useAppStore.getState().setUser({
+   134→        id: '1', name: 'Alex Johnson', email: 'alex@alvision.com', role: 'admin',
+   135→        organizationId: 'org1', organizationName: 'Alvision Inc.',
+   136→      });
+   137→    }
+   138→  }, []);
+   139→
+   140→  const navItems = [
+   141→    { label: 'Dashboard', icon: <LayoutDashboard size={18} />, view: 'dashboard' },
+   142→    { label: 'Meetings', icon: <Video size={18} />, view: 'meetings', badge: '3 today' },
+   143→    { label: 'Teams', icon: <Users size={18} />, view: 'teams' },
+   144→    { label: 'Chat', icon: <MessageSquare size={18} />, view: 'chat', badge: '5' },
+   145→    { label: 'Files', icon: <FolderOpen size={18} />, view: 'files' },
+   146→    { label: 'Recordings', icon: <CircleDot size={18} />, view: 'recordings' },
+   147→    { label: 'AI Assistant', icon: <Brain size={18} />, view: 'ai-assistant', badge: 'AI', badgeVariant: 'secondary' as const },
+   148→    { label: 'Calendar', icon: <Calendar size={18} />, view: 'calendar' },
+   149→    { label: 'Events', icon: <Radio size={18} />, view: 'events' },
+   150→  ];
+   151→
+   152→  const bottomNavItems = [
+   153→    { label: 'Admin', icon: <Shield size={18} />, view: 'admin', adminOnly: true },
+   154→    { label: 'Settings', icon: <Settings size={18} />, view: 'settings' },
+   155→    { label: 'Profile', icon: <User size={18} />, view: 'profile' },
+   156→  ];
+   157→
+   158→  const getGreeting = () => {
+   159→    const h = new Date().getHours();
+   160→    if (h < 12) return 'Good morning';
+   161→    if (h < 18) return 'Good afternoon';
+   162→    return 'Good evening';
+   163→  };
+   164→
+   165→  const getStatusBadge = (status: string) => {
+   166→    const variants: Record<string, string> = {
+   167→      Active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+   168→      Ended: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+   169→      Scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+   170→    };
+   171→    return variants[status] || '';
+   172→  };
+   173→
+   174→  const handleJoinMeeting = () => {
+   175→    setMeetingTitle('Sprint Planning - Q4');
+   176→    setCurrentMeetingId('meeting-1');
+   177→    setCurrentView('meeting-room');
+   178→  };
+   179→
+   180→  const handleNewMeeting = () => {
+   181→    setMeetingTitle('New Meeting');
+   182→    setCurrentMeetingId('new-' + Date.now());
+   183→    setCurrentView('meeting-room');
+   184→  };
+   185→
+   186→  const initials = user?.name?.split(' ').map(n => n[0]).join('') || 'AJ';
+   187→
+   188→  return (
+   189→    <div className="flex h-screen bg-background overflow-hidden">
+   190→      {/* Sidebar */}
+   191→      <aside className="w-64 border-r bg-card flex flex-col shrink-0 max-lg:hidden">
+   192→        <div className="p-4 border-b">
+   193→          <div className="flex items-center gap-2">
+   194→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+   195→              <Video size={16} className="text-white" />
+   196→            </div>
+   197→            <span className="font-bold text-lg tracking-tight">ALVISION</span>
+   198→          </div>
+   199→        </div>
+   200→
+   201→        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+   202→          {navItems.map(item => (
+   203→            <button
+   204→              key={item.view}
+   205→              onClick={() => setCurrentView(item.view as 'dashboard')}
+   206→              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
+   207→                ${currentView === item.view
+   208→                  ? 'bg-primary/10 text-primary'
+   209→                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+   210→                }`}
+   211→            >
+   212→              {item.icon}
+   213→              <span className="flex-1">{item.label}</span>
+   214→              {item.badge && (
+   215→                <Badge variant={item.badgeVariant || 'default'} className="text-[10px] px-1.5 py-0">
+   216→                  {item.badge}
+   217→                </Badge>
+   218→              )}
+   219→            </button>
+   220→          ))}
+   221→
+   222→          <div className="my-2 border-t" />
+   223→
+   224→          {bottomNavItems.map(item => {
+   225→            if (item.adminOnly && !user?.role?.includes('admin')) return null;
+   226→            return (
+   227→              <button
+   228→                key={item.view}
+   229→                onClick={() => setCurrentView(item.view as 'dashboard')}
+   230→                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
+   231→                  ${currentView === item.view
+   232→                    ? 'bg-primary/10 text-primary'
+   233→                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+   234→                  }`}
+   235→              >
+   236→                {item.icon}
+   237→                <span className="flex-1">{item.label}</span>
+   238→              </button>
+   239→            );
+   240→          })}
+   241→        </nav>
+   242→
+   243→        <div className="p-4 border-t">
+   244→          <div className="flex items-center gap-3">
+   245→            <Avatar className="w-9 h-9">
+   246→              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials}</AvatarFallback>
+   247→            </Avatar>
+   248→            <div className="flex-1 min-w-0">
+   249→              <p className="text-sm font-medium truncate">{user?.name || 'Alex Johnson'}</p>
+   250→              <p className="text-xs text-muted-foreground truncate">{user?.role || 'Admin'}</p>
+   251→            </div>
+   252→            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+   253→              <LogOut size={16} />
+   254→            </Button>
+   255→          </div>
+   256→        </div>
+   257→      </aside>
+   258→
+   259→      {/* Main Content */}
+   260→      <main className="flex-1 overflow-y-auto">
+   261→        {/* Top Bar */}
+   262→        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b px-4 lg:px-6 py-3 flex items-center gap-4">
+   263→          <div className="flex-1">
+   264→            <h1 className="text-lg font-semibold">Dashboard</h1>
+   265→          </div>
+   266→          <div className="relative hidden sm:block w-64">
+   267→            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+   268→            <input
+   269→              type="text"
+   270→              placeholder="Search meetings, people..."
+   271→              className="w-full h-9 pl-9 pr-4 rounded-lg border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+   272→            />
+   273→          </div>
+   274→          <Button variant="ghost" size="icon" className="relative h-9 w-9">
+   275→            <Bell size={18} />
+   276→            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">3</span>
+   277→          </Button>
+   278→          <Avatar className="h-8 w-8 cursor-pointer">
+   279→            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
+   280→          </Avatar>
+   281→        </header>
+   282→
+   283→        <div className="p-4 lg:p-6 space-y-6">
+   284→          {/* Welcome Banner */}
+   285→          <motion.div
+   286→            initial={{ opacity: 0, y: -10 }}
+   287→            animate={{ opacity: 1, y: 0 }}
+   288→            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-6 lg:p-8 text-white"
+   289→          >
+   290→            <div className="absolute inset-0 opacity-10">
+   291→              <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-white/20 blur-2xl" />
+   292→              <div className="absolute bottom-4 left-12 w-24 h-24 rounded-full bg-white/20 blur-2xl" />
+   293→            </div>
+   294→            <div className="relative z-10">
+   295→              <h2 className="text-2xl lg:text-3xl font-bold mb-2">{getGreeting()}, {user?.name?.split(' ')[0] || 'Alex'}!</h2>
+   296→              <p className="text-blue-100 mb-6">Here&apos;s what&apos;s happening with your team today.</p>
+   297→              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   298→                {[
+   299→                  { label: 'Meetings Today', value: '4', icon: <Video size={16} /> },
+   300→                  { label: 'Unread Messages', value: '12', icon: <MessageSquare size={16} /> },
+   301→                  { label: 'Pending Actions', value: '5', icon: <Clock size={16} /> },
+   302→                  { label: 'New Recordings', value: '3', icon: <Mic size={16} /> },
+   303→                ].map((stat) => (
+   304→                  <div key={stat.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
+   305→                    <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{stat.icon}</div>
+   306→                    <div>
+   307→                      <p className="text-xl font-bold">{stat.value}</p>
+   308→                      <p className="text-xs text-blue-200">{stat.label}</p>
+   309→                    </div>
+   310→                  </div>
+   311→                ))}
+   312→              </div>
+   313→            </div>
+   314→          </motion.div>
+   315→
+   316→          {/* Stats Cards */}
+   317→          <div className="relative">
+   318→            {/* Decorative dot pattern behind stats */}
+   319→            <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden rounded-xl" aria-hidden="true">
+   320→              <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+   321→            </div>
+   322→            <motion.div variants={stagger} initial="hidden" animate="show" className="relative grid grid-cols-2 lg:grid-cols-4 gap-4">
+   323→              {[
+   324→                { title: 'Active Meetings', value: '12', icon: <TrendingUp size={20} />, badge: '+8%', badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', gradientFrom: 'from-emerald-500/20', gradientTo: 'to-emerald-500/0' },
+   325→                { title: 'Total Participants', value: '248', icon: <Users size={20} />, gradientFrom: 'from-sky-500/20', gradientTo: 'to-sky-500/0' },
+   326→                { title: 'AI Summaries', value: '47', icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', gradientFrom: 'from-violet-500/20', gradientTo: 'to-violet-500/0' },
+   327→                { title: 'Recording Hours', value: '156h', icon: <Clock size={20} />, gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-500/0' },
+   328→              ].map((card, idx) => (
+   329→                <motion.div key={card.title} variants={fadeUp}>
+   330→                  <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30 transition-all duration-[3000ms]"
+   331→                    style={{ backgroundPosition: `${gradientPhase}% ${gradientPhase}%` }}
+   332→                  >
+   333→                    <Card className="relative overflow-hidden bg-card rounded-xl">
+   334→                      <CardContent className="p-4 lg:p-5">
+   335→                        <div className="flex items-start justify-between mb-3">
+   336→                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+   337→                            {card.icon}
+   338→                          </div>
+   339→                          {card.badge && (
+   340→                            <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
+   341→                              {card.badge}
+   342→                            </Badge>
+   343→                          )}
+   344→                        </div>
+   345→                        <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
+   346→                        <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
+   347→                      </CardContent>
+   348→                      {/* Subtle gradient accent at bottom */}
+   349→                      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradientFrom} ${card.gradientTo}`} />
+   350→                    </Card>
+   351→                  </div>
+   352→                </motion.div>
+   353→              ))}
+   354→            </motion.div>
+   355→          </div>
+   356→
+   357→          {/* Charts Row */}
+   358→          <div className="grid lg:grid-cols-2 gap-4">
+   359→            <motion.div custom={0} variants={chartFadeUp} initial="hidden" animate="show">
+   360→              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+   361→                <CardHeader className="pb-2">
+   362→                  <div className="flex items-center justify-between">
+   363→                    <CardTitle className="text-base font-semibold">Meeting Activity</CardTitle>
+   364→                    <Select defaultValue="7d">
+   365→                      <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+   366→                      <SelectContent>
+   367→                        <SelectItem value="7d">Last 7 days</SelectItem>
+   368→                        <SelectItem value="30d">Last 30 days</SelectItem>
+   369→                      </SelectContent>
+   370→                    </Select>
+   371→                  </div>
+   372→                </CardHeader>
+   373→                <CardContent>
+   374→                  <div className="h-64">
+   375→                    <ResponsiveContainer width="100%" height="100%">
+   376→                      <AreaChart data={meetingActivityData}>
+   377→                        <defs>
+   378→                          <linearGradient id="meetingGrad" x1="0" y1="0" x2="0" y2="1">
+   379→                            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+   380→                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+   381→                          </linearGradient>
+   382→                        </defs>
+   383→                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+   384→                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+   385→                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+   386→                        <Area type="monotone" dataKey="meetings" stroke="#3b82f6" strokeWidth={2} fill="url(#meetingGrad)" />
+   387→                      </AreaChart>
+   388→                    </ResponsiveContainer>
+   389→                  </div>
+   390→                </CardContent>
+   391→              </Card>
+   392→            </motion.div>
+   393→
+   394→            <motion.div custom={1} variants={chartFadeUp} initial="hidden" animate="show">
+   395→              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+   396→                <CardHeader className="pb-2">
+   397→                  <CardTitle className="text-base font-semibold">Meeting Types</CardTitle>
+   398→                </CardHeader>
+   399→                <CardContent>
+   400→                  <div className="h-64 flex items-center">
+   401→                    <ResponsiveContainer width="50%" height="100%">
+   402→                      <PieChart>
+   403→                        <Pie
+   404→                          data={meetingTypesData}
+   405→                          cx="50%"
+   406→                          cy="50%"
+   407→                          innerRadius={55}
+   408→                          outerRadius={80}
+   409→                          paddingAngle={3}
+   410→                          dataKey="value"
+   411→                        >
+   412→                          {meetingTypesData.map((_, index) => (
+   413→                            <Cell key={index} fill={PIE_COLORS[index]} />
+   414→                          ))}
+   415→                        </Pie>
+   416→                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+   417→                      </PieChart>
+   418→                    </ResponsiveContainer>
+   419→                    <div className="flex-1 space-y-3">
+   420→                      {meetingTypesData.map((item, i) => (
+   421→                        <div key={item.name} className="flex items-center gap-3">
+   422→                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i] }} />
+   423→                          <span className="text-sm flex-1">{item.name}</span>
+   424→                          <span className="text-sm font-semibold">{item.value}%</span>
+   425→                        </div>
+   426→                      ))}
+   427→                    </div>
+   428→                  </div>
+   429→                </CardContent>
+   430→              </Card>
+   431→            </motion.div>
+   432→          </div>
+   433→
+   434→          {/* Recent Meetings */}
+   435→          <motion.div variants={stagger} initial="hidden" animate="show">
+   436→            <motion.div variants={fadeUp}>
+   437→              <Card>
+   438→                <CardHeader className="pb-3">
+   439→                  <div className="flex items-center justify-between">
+   440→                    <CardTitle className="text-base font-semibold">Recent Meetings</CardTitle>
+   441→                    <Button variant="ghost" size="sm" onClick={() => setCurrentView('meetings')} className="text-sm">
+   442→                      View All <ChevronRight size={14} className="ml-1" />
+   443→                    </Button>
+   444→                  </div>
+   445→                </CardHeader>
+   446→                <CardContent className="p-0">
+   447→                  <div className="overflow-x-auto">
+   448→                    <table className="w-full text-sm">
+   449→                      <thead>
+   450→                        <tr className="border-b text-left text-muted-foreground">
+   451→                          <th className="px-4 lg:px-6 py-3 font-medium">Meeting</th>
+   452→                          <th className="px-4 lg:px-6 py-3 font-medium hidden md:table-cell">Date</th>
+   453→                          <th className="px-4 lg:px-6 py-3 font-medium hidden sm:table-cell">Duration</th>
+   454→                          <th className="px-4 lg:px-6 py-3 font-medium hidden lg:table-cell">Participants</th>
+   455→                          <th className="px-4 lg:px-6 py-3 font-medium">Status</th>
+   456→                          <th className="px-4 lg:px-6 py-3 font-medium text-right">Actions</th>
+   457→                        </tr>
+   458→                      </thead>
+   459→                      <tbody>
+   460→                        {meetings.map((meeting) => (
+   461→                          <tr key={meeting.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+   462→                            <td className="px-4 lg:px-6 py-3.5">
+   463→                              <div className="flex items-center gap-3">
+   464→                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+   465→                                  <Video size={14} className="text-primary" />
+   466→                                </div>
+   467→                                <span className="font-medium truncate max-w-[200px]">{meeting.title}</span>
+   468→                              </div>
+   469→                            </td>
+   470→                            <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden md:table-cell">{meeting.date}</td>
+   471→                            <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden sm:table-cell">{meeting.duration}</td>
+   472→                            <td className="px-4 lg:px-6 py-3.5 hidden lg:table-cell">
+   473→                              <div className="flex items-center gap-1.5 text-muted-foreground">
+   474→                                <Users size={14} /> {meeting.participants}
+   475→                              </div>
+   476→                            </td>
+   477→                            <td className="px-4 lg:px-6 py-3.5">
+   478→                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(meeting.status)}`}>
+   479→                                {meeting.status === 'Active' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />}
+   480→                                {meeting.status}
+   481→                              </span>
+   482→                            </td>
+   483→                            <td className="px-4 lg:px-6 py-3.5 text-right">
+   484→                              <div className="flex items-center justify-end gap-1">
+   485→                                {meeting.status === 'Active' && (
+   486→                                  <Button size="sm" className="h-7 text-xs" onClick={handleJoinMeeting}>Join</Button>
+   487→                                )}
+   488→                                {meeting.status === 'Ended' && (
+   489→                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCurrentView('recordings')}>
+   490→                                    <CircleDot size={12} className="mr-1" /> Recording
+   491→                                  </Button>
+   492→                                )}
+   493→                                {meeting.status === 'Scheduled' && (
+   494→                                  <Button variant="outline" size="sm" className="h-7 text-xs">Details</Button>
+   495→                                )}
+   496→                              </div>
+   497→                            </td>
+   498→                          </tr>
+   499→                        ))}
+   500→                      </tbody>
+   501→                    </table>
+   502→                  </div>
+   503→                </CardContent>
+   504→              </Card>
+   505→            </motion.div>
+   506→          </motion.div>
+   507→
+   508→          {/* AI Insights + Quick Actions */}
+   509→          <div className="grid lg:grid-cols-3 gap-4">
+   510→            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+   511→              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+   512→                <CardHeader className="pb-3">
+   513→                  <div className="flex items-center gap-2">
+   514→                    <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+   515→                      <Brain size={16} className="text-violet-600 dark:text-violet-400" />
+   516→                    </div>
+   517→                    <CardTitle className="text-base font-semibold">AI Insights</CardTitle>
+   518→                  </div>
+   519→                </CardHeader>
+   520→                <CardContent className="space-y-3">
+   521→                  {[
+   522→                    { text: '47 meetings summarized this week', icon: <FileText size={14} /> },
+   523→                    { text: '12 action items pending', icon: <Clock size={14} /> },
+   524→                    { text: '3 meetings need follow-up', icon: <MessageSquare size={14} /> },
+   525→                  ].map((item) => (
+   526→                    <div key={item.text} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+   527→                      <div className="text-muted-foreground">{item.icon}</div>
+   528→                      <span className="text-sm flex-1">{item.text}</span>
+   529→                      <ChevronRight size={14} className="text-muted-foreground" />
+   530→                    </div>
+   531→                  ))}
+   532→                  <Button variant="ghost" className="w-full text-sm text-primary" onClick={() => setCurrentView('ai-assistant')}>
+   533→                    View All Insights <ArrowRight size={14} className="ml-1" />
+   534→                  </Button>
+   535→                </CardContent>
+   536→              </Card>
+   537→            </motion.div>
+   538→
+   539→            <motion.div
+   540→              initial={{ opacity: 0, y: 20 }}
+   541→              animate={{ opacity: 1, y: 0 }}
+   542→              transition={{ delay: 0.55 }}
+   543→              className="lg:col-span-2"
+   544→            >
+   545→              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+   546→                <CardHeader className="pb-3">
+   547→                  <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+   548→                </CardHeader>
+   549→                <CardContent>
+   550→                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+   551→                    {[
+   552→                      { label: 'New Meeting', icon: <Plus size={18} />, color: 'text-sky-600 bg-sky-50 dark:bg-sky-900/20 dark:text-sky-400', onClick: handleNewMeeting, isStartMeeting: true },
+   553→                      { label: 'Schedule', icon: <Calendar size={18} />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', onClick: () => setCurrentView('calendar') },
+   554→                      { label: 'Join Meeting', icon: <Video size={18} />, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', onClick: handleJoinMeeting },
+   555→                      { label: 'AI Assistant', icon: <Brain size={18} />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400', onClick: () => setCurrentView('ai-assistant') },
+   556→                    ].map((action) => (
+   557→                      action.isStartMeeting ? (
+   558→                        <RippleButton key={action.label} onClick={action.onClick} className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/0 hover:border-primary/40 hover:bg-primary/10 transition-all group">
+   559→                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform shadow-sm`}>{action.icon}</div>
+   560→                          <span className="text-sm font-medium">{action.label}</span>
+   561→                        </RippleButton>
+   562→                      ) : (
+   563→                        <button
+   564→                          key={action.label}
+   565→                          onClick={action.onClick}
+   566→                          className="flex flex-col items-center gap-2.5 p-4 rounded-xl border hover:border-primary/30 hover:bg-muted/50 transition-all group"
+   567→                        >
+   568→                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform`}>
+   569→                            {action.icon}
+   570→                          </div>
+   571→                          <span className="text-sm font-medium">{action.label}</span>
+   572→                        </button>
+   573→                      )
+   574→                    ))}
+   575→                  </div>
+   576→                </CardContent>
+   577→              </Card>
+   578→            </motion.div>
+   579→          </div>
+   580→
+   581→          {/* Team Activity */}
+   582→          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+   583→            <Card>
+   584→              <CardHeader className="pb-3">
+   585→                <CardTitle className="text-base font-semibold">Team Activity</CardTitle>
+   586→              </CardHeader>
+   587→              <CardContent>
+   588→                <div className="space-y-4">
+   589→                  {teamActivities.map((activity, i) => (
+   590→                    <div key={i} className="flex items-center gap-3">
+   591→                      <Avatar className="w-8 h-8 shrink-0">
+   592→                        <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>
+   593→                          {activity.initials}
+   594→                        </AvatarFallback>
+   595→                      </Avatar>
+   596→                      <div className="flex-1 min-w-0">
+   597→                        <p className="text-sm">
+   598→                          <span className="font-medium">{activity.user}</span>{' '}
+   599→                          <span className="text-muted-foreground">{activity.action}</span>{' '}
+   600→                          <span className="font-medium">{activity.target}</span>
+   601→                        </p>
+   602→                      </div>
+   603→                      <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
+   604→                    </div>
+   605→                  ))}
+   606→                </div>
+   607→              </CardContent>
+   608→            </Card>
+   609→          </motion.div>
+   610→        </div>
+   611→      </main>
+   612→    </div>
+   613→  );
+   614→}
+   615→

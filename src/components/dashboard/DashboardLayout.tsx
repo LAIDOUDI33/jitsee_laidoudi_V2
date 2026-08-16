@@ -53,11 +53,15 @@ import { LayoutDashboard,
   LayoutTemplate,
   Bell,
   LayoutGrid,
+  UserPlus,
+  NotebookPen,
+  History,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
 import QuickStartMeeting from '@/components/shared/QuickStartMeeting'
 import OnboardingModal from '@/components/shared/OnboardingModal'
+import KeyboardShortcuts, { useKeyboardShortcuts } from '@/components/shared/KeyboardShortcuts'
 import { useOnboarding } from '@/hooks/useOnboarding'
 
 const newBadgeViews = new Set<AppView>(['whiteboard', 'analytics'])
@@ -90,6 +94,9 @@ const mainNavItems: NavItem[] = [
   { label: 'Templates', icon: <LayoutTemplate className='h-4 w-4' />, view: 'templates' },
   { label: 'Notifications', icon: <Bell className='h-4 w-4' />, view: 'notifications' },
   { label: 'Breakout Rooms', icon: <LayoutGrid className='h-4 w-4' />, view: 'breakout-rooms' },
+  { label: 'Participants', icon: <UserPlus className='h-4 w-4' />, view: 'participants' },
+  { label: 'Meeting Notes', icon: <NotebookPen className='h-4 w-4' />, view: 'meeting-notes' },
+  { label: 'Session History', icon: <History className='h-4 w-4' />, view: 'session-history' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -297,7 +304,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showSoundWave, setShowSoundWave] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { currentView, setCurrentView, user, setUser, setSearchOpen } = useAppStore()
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts()
+  useEffect(() => {
+    const toggleHandler = () => setShortcutsOpen(prev => !prev)
+    window.addEventListener('toggle-shortcuts', toggleHandler)
+    return () => window.removeEventListener('toggle-shortcuts', toggleHandler)
+  }, [])
 
   // Animate sound-wave on quick start hover
   useEffect(() => {
@@ -324,6 +340,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     templates: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Templates' }],
     notifications: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Notifications' }],
     'breakout-rooms': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Breakout Rooms' }],
+    participants: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Participant Management' }],
+    'meeting-notes': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Notes' }],
+    'session-history': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Session History' }],
     admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
     'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
     'admin-orgs': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Organizations' }],
@@ -360,6 +379,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     templates: 'Meeting Templates',
     notifications: 'Notifications',
     'breakout-rooms': 'Breakout Rooms',
+    participants: 'Participant Management',
+    'meeting-notes': 'Meeting Notes',
+    'session-history': 'Session History',
   }
 
   const handleSignOut = () => {
@@ -379,6 +401,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onClose={() => setShowOnboarding(false)}
         onComplete={completeOnboarding}
       />
+      <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <div className='h-screen flex bg-background overflow-hidden'>
         {/* Desktop sidebar */}
         <aside

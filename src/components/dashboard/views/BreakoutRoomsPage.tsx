@@ -185,8 +185,8 @@ const STATUS_CONFIG: Record<RoomStatus, { label: string; color: string; dotClass
 /* -------------------------------------------------------------------------- */
 
 const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.07 } },
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.07 } },
 };
 
 const itemVariants = {
@@ -840,6 +840,7 @@ export default function BreakoutRoomsPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Breakout Rooms</h2>
               <p className="text-sm text-muted-foreground mt-0.5">Manage rooms, assign participants, and control timers.</p>
+              <div className='h-1 w-12 rounded-full bg-gradient-to-r from-amber-500 to-orange-500/50 mt-2' />
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -850,7 +851,7 @@ export default function BreakoutRoomsPage() {
               {settings.timeLimitMinutes > 0 && (
                 <span className="text-xs text-muted-foreground">/ {formatTime(settings.timeLimitMinutes * 60)}</span>
               )}
-              {anyRunning && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+              {anyRunning && <span className="h-2 w-2 rounded-full bg-amber-500 animate-breathe" />}
             </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={handleAutoAssign}>
               <Shuffle className="h-4 w-4" />
@@ -951,7 +952,7 @@ export default function BreakoutRoomsPage() {
             {rooms.filter((r) => r.status === 'not-started').length} Not Started
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-breathe" />
             {rooms.filter((r) => r.status === 'in-progress').length} In Progress
           </span>
           <span className="flex items-center gap-1.5">
@@ -1007,10 +1008,9 @@ function RoomCard({ room, index, onRoomClick, onBroadcast, onTimerToggle, onTime
   return (
     <motion.div variants={itemVariants}>
       <Card
-        className="group relative overflow-hidden border border-border/50 bg-card/80 backdrop-blur-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300 cursor-pointer"
+        className="group relative overflow-hidden border border-border/50 bg-gradient-to-br from-card to-card/80 backdrop-blur-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300 cursor-pointer before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-amber-500/60 before:to-orange-500/60"
         onClick={() => onRoomClick(room.id)}
       >
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-500 via-orange-500 to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
 
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
@@ -1075,7 +1075,7 @@ function RoomCard({ room, index, onRoomClick, onBroadcast, onTimerToggle, onTime
                 {formatTime(room.elapsedSeconds)}
               </span>
               {room.timerMode === 'running' && (
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-breathe" />
               )}
             </div>
             <div className="flex items-center gap-1">

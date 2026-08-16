@@ -240,3 +240,58 @@ html { scroll-behavior: smooth; }
   background-image: radial-gradient(circle, oklch(0.35 0.03 250 / 0.2) 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+/* Enhanced dark mode: richer backgrounds */
+.dark .bg-gradient-to-br { }
+.dark .bg-card { 
+  background: oklch(0.17 0.015 250);
+  border-color: oklch(0.28 0.02 250);
+}
+.dark .bg-muted { 
+  background: oklch(0.21 0.015 250);
+}
+.dark .bg-muted\/50 { 
+  background: oklch(0.21 0.015 250 / 0.5);
+}
+
+/* Smooth dark mode transitions */
+* {
+  transition-property: background-color, border-color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+/* Selection highlight */
+::selection {
+  background: oklch(0.55 0.18 250 / 0.25);
+  color: oklch(0.13 0.015 250);
+}
+
+/* Focus ring improvement */
+:focus-visible {
+  outline: 2px solid oklch(0.55 0.18 250);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Improved dark mode shadows */
+.dark .shadow-lg {
+  box-shadow: 0 10px 30px -5px oklch(0 0 0 / 0.4), 0 4px 10px -4px oklch(0 0 0 / 0.3);
+}
+.dark .shadow-xl {
+  box-shadow: 0 20px 40px -8px oklch(0 0 0 / 0.5), 0 8px 16px -6px oklch(0 0 0 / 0.3);
+}
+.dark .hover\:shadow-lg:hover {
+  box-shadow: 0 10px 30px -5px oklch(0 0 0 / 0.4), 0 4px 10px -4px oklch(0 0 0 / 0.3);
+}
+
+/* Subtle noise texture overlay for dark mode */
+.dark body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}

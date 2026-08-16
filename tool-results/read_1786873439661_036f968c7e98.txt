@@ -1,0 +1,978 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { toast } from 'sonner'
+     6→import { Card, CardContent } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    12→import { Checkbox } from '@/components/ui/checkbox'
+    13→import { Label } from '@/components/ui/label'
+    14→import { Separator } from '@/components/ui/separator'
+    15→import {
+    16→  Table,
+    17→  TableBody,
+    18→  TableCell,
+    19→  TableHead,
+    20→  TableHeader,
+    21→  TableRow,
+    22→} from '@/components/ui/table'
+    23→import {
+    24→  Select,
+    25→  SelectContent,
+    26→  SelectItem,
+    27→  SelectTrigger,
+    28→  SelectValue,
+    29→} from '@/components/ui/select'
+    30→import {
+    31→  Dialog,
+    32→  DialogContent,
+    33→  DialogDescription,
+    34→  DialogFooter,
+    35→  DialogHeader,
+    36→  DialogTitle,
+    37→} from '@/components/ui/dialog'
+    38→import {
+    39→  DropdownMenu,
+    40→  DropdownMenuContent,
+    41→  DropdownMenuItem,
+    42→  DropdownMenuLabel,
+    43→  DropdownMenuSeparator,
+    44→  DropdownMenuTrigger,
+    45→} from '@/components/ui/dropdown-menu'
+    46→import {
+    47→  Tooltip,
+    48→  TooltipContent,
+    49→  TooltipProvider,
+    50→  TooltipTrigger,
+    51→} from '@/components/ui/tooltip'
+    52→import {
+    53→  Users,
+    54→  Search,
+    55→  Download,
+    56→  MessageSquare,
+    57→  MicOff,
+    58→  UserMinus,
+    59→  MoreHorizontal,
+    60→  Video,
+    61→  LayoutGrid,
+    62→  LayoutList,
+    63→  UserPlus,
+    64→  ChevronDown,
+    65→  Clock,
+    66→  X,
+    67→  Send,
+    68→  ArrowUpDown,
+    69→  ShieldCheck,
+    70→  LogOut,
+    71→  DoorOpen,
+    72→} from 'lucide-react'
+    73→
+    74→/* -------------------------------------------------------------------------- */
+    75→/*                                   TYPES                                    */
+    76→/* -------------------------------------------------------------------------- */
+    77→
+    78→type ParticipantRole = 'Host' | 'Co-host' | 'Presenter' | 'Participant' | 'Guest'
+    79→type ParticipantStatus = 'online' | 'offline' | 'in-meeting'
+    80→
+    81→interface Participant {
+    82→  id: string
+    83→  name: string
+    84→  email: string
+    85→  role: ParticipantRole
+    86→  organization: string
+    87→  status: ParticipantStatus
+    88→  lastActive: string
+    89→  inMeeting: string | null
+    90→  initials: string
+    91→  gradient: string
+    92→  muted: boolean
+    93→}
+    94→
+    95→/* -------------------------------------------------------------------------- */
+    96→/*                                MOCK DATA                                   */
+    97→/* -------------------------------------------------------------------------- */
+    98→
+    99→const gradients = [
+   100→  'from-emerald-500 to-teal-600',
+   101→  'from-violet-500 to-purple-600',
+   102→  'from-rose-500 to-pink-600',
+   103→  'from-amber-500 to-orange-600',
+   104→  'from-cyan-500 to-blue-600',
+   105→  'from-sky-500 to-indigo-600',
+   106→  'from-fuchsia-500 to-pink-600',
+   107→  'from-lime-500 to-green-600',
+   108→  'from-red-500 to-rose-600',
+   109→  'from-teal-500 to-cyan-600',
+   110→]
+   111→
+   112→const organizations = [
+   113→  'ALVISION Inc.',
+   114→  'Acme Corp',
+   115→  'TechNova Labs',
+   116→  'Global Consulting',
+   117→  'Nexus Digital',
+   118→  'Orion Systems',
+   119→  'Pinnacle Partners',
+   120→  'Quantum Dynamics',
+   121→]
+   122→
+   123→const initialParticipants: Participant[] = [
+   124→  { id: 'pt-1', name: 'Sarah Chen', email: 'sarah.chen@alvision.io', role: 'Host', organization: 'ALVISION Inc.', status: 'in-meeting', lastActive: '2 min ago', inMeeting: 'Sprint Planning Q4', initials: 'SC', gradient: gradients[0], muted: false },
+   125→  { id: 'pt-2', name: 'Marcus Rivera', email: 'marcus.r@acme.com', role: 'Co-host', organization: 'Acme Corp', status: 'in-meeting', lastActive: '1 min ago', inMeeting: 'Sprint Planning Q4', initials: 'MR', gradient: gradients[1], muted: false },
+   126→  { id: 'pt-3', name: 'Elena Volkov', email: 'elena.v@technova.io', role: 'Presenter', organization: 'TechNova Labs', status: 'online', lastActive: 'Just now', inMeeting: null, initials: 'EV', gradient: gradients[2], muted: false },
+   127→  { id: 'pt-4', name: 'James Wilson', email: 'james.w@globalconsult.com', role: 'Participant', organization: 'Global Consulting', status: 'in-meeting', lastActive: '5 min ago', inMeeting: 'Client Review', initials: 'JW', gradient: gradients[3], muted: true },
+   128→  { id: 'pt-5', name: 'Aisha Patel', email: 'aisha.p@alvision.io', role: 'Co-host', organization: 'ALVISION Inc.', status: 'online', lastActive: '3 min ago', inMeeting: null, initials: 'AP', gradient: gradients[4], muted: false },
+   129→  { id: 'pt-6', name: 'Tomás Garcia', email: 'tomas.g@nexusdigital.com', role: 'Participant', organization: 'Nexus Digital', status: 'offline', lastActive: '2h ago', inMeeting: null, initials: 'TG', gradient: gradients[5], muted: false },
+   130→  { id: 'pt-7', name: 'Lina Johansson', email: 'lina.j@orionsys.com', role: 'Presenter', organization: 'Orion Systems', status: 'online', lastActive: 'Just now', inMeeting: null, initials: 'LJ', gradient: gradients[6], muted: false },
+   131→  { id: 'pt-8', name: 'David Kim', email: 'david.k@pinnacle.com', role: 'Participant', organization: 'Pinnacle Partners', status: 'offline', lastActive: '1d ago', inMeeting: null, initials: 'DK', gradient: gradients[7], muted: false },
+   132→  { id: 'pt-9', name: 'Rachel Morgan', email: 'rachel.m@alvision.io', role: 'Host', organization: 'ALVISION Inc.', status: 'in-meeting', lastActive: '1 min ago', inMeeting: 'Design Sync', initials: 'RM', gradient: gradients[8], muted: false },
+   133→  { id: 'pt-10', name: 'Carlos Mendes', email: 'carlos.m@quantumd.io', role: 'Participant', organization: 'Quantum Dynamics', status: 'online', lastActive: '10 min ago', inMeeting: null, initials: 'CM', gradient: gradients[9], muted: false },
+   134→  { id: 'pt-11', name: 'Priya Sharma', email: 'priya.s@alvision.io', role: 'Guest', organization: 'ALVISION Inc.', status: 'in-meeting', lastActive: '3 min ago', inMeeting: 'Sprint Planning Q4', initials: 'PS', gradient: gradients[0], muted: true },
+   135→  { id: 'pt-12', name: 'Alexander Novak', email: 'alex.n@acme.com', role: 'Participant', organization: 'Acme Corp', status: 'offline', lastActive: '5h ago', inMeeting: null, initials: 'AN', gradient: gradients[1], muted: false },
+   136→  { id: 'pt-13', name: 'Mei Lin', email: 'mei.l@technova.io', role: 'Co-host', organization: 'TechNova Labs', status: 'online', lastActive: '2 min ago', inMeeting: null, initials: 'ML', gradient: gradients[2], muted: false },
+   137→  { id: 'pt-14', name: 'Omar Hassan', email: 'omar.h@globalconsult.com', role: 'Participant', organization: 'Global Consulting', status: 'in-meeting', lastActive: 'Just now', inMeeting: 'Client Review', initials: 'OH', gradient: gradients[3], muted: false },
+   138→  { id: 'pt-15', name: 'Sophie Laurent', email: 'sophie.l@nexusdigital.com', role: 'Guest', organization: 'Nexus Digital', status: 'offline', lastActive: '3d ago', inMeeting: null, initials: 'SL', gradient: gradients[4], muted: false },
+   139→  { id: 'pt-16', name: 'Ryan Tanaka', email: 'ryan.t@orionsys.com', role: 'Presenter', organization: 'Orion Systems', status: 'online', lastActive: '15 min ago', inMeeting: null, initials: 'RT', gradient: gradients[5], muted: false },
+   140→  { id: 'pt-17', name: 'Isabella Rossi', email: 'isabella.r@pinnacle.com', role: 'Participant', organization: 'Pinnacle Partners', status: 'offline', lastActive: '12h ago', inMeeting: null, initials: 'IR', gradient: gradients[6], muted: false },
+   141→  { id: 'pt-18', name: 'Noah Anderson', email: 'noah.a@alvision.io', role: 'Participant', organization: 'ALVISION Inc.', status: 'in-meeting', lastActive: '1 min ago', inMeeting: 'Design Sync', initials: 'NA', gradient: gradients[7], muted: false },
+   142→  { id: 'pt-19', name: 'Yuki Tanaka', email: 'yuki.t@quantumd.io', role: 'Co-host', organization: 'Quantum Dynamics', status: 'online', lastActive: '5 min ago', inMeeting: null, initials: 'YT', gradient: gradients[8], muted: false },
+   143→  { id: 'pt-20', name: 'Diego Morales', email: 'diego.m@acme.com', role: 'Guest', organization: 'Acme Corp', status: 'offline', lastActive: '2d ago', inMeeting: null, initials: 'DM', gradient: gradients[9], muted: false },
+   144→  { id: 'pt-21', name: 'Emma Thompson', email: 'emma.t@technova.io', role: 'Participant', organization: 'TechNova Labs', status: 'online', lastActive: '8 min ago', inMeeting: null, initials: 'ET', gradient: gradients[0], muted: false },
+   145→  { id: 'pt-22', name: 'Liam O\'Brien', email: 'liam.o@globalconsult.com', role: 'Host', organization: 'Global Consulting', status: 'in-meeting', lastActive: 'Just now', inMeeting: 'Client Review', initials: 'LO', gradient: gradients[1], muted: false },
+   146→]
+   147→
+   148→/* -------------------------------------------------------------------------- */
+   149→/*                              ROLE BADGE COLORS                             */
+   150→/* -------------------------------------------------------------------------- */
+   151→
+   152→const roleBadgeClasses: Record<ParticipantRole, string> = {
+   153→  Host: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+   154→  'Co-host': 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/20',
+   155→  Presenter: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20',
+   156→  Participant: 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20',
+   157→  Guest: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/20',
+   158→}
+   159→
+   160→const statusDotClasses: Record<ParticipantStatus, string> = {
+   161→  online: 'bg-emerald-500 animate-breathe',
+   162→  offline: 'bg-zinc-400',
+   163→  'in-meeting': 'bg-emerald-500 animate-breathe ring-2 ring-emerald-500/30',
+   164→}
+   165→
+   166→/* -------------------------------------------------------------------------- */
+   167→/*                              ANIMATION HELPERS                             */
+   168→/* -------------------------------------------------------------------------- */
+   169→
+   170→const container = {
+   171→  hidden: { opacity: 0 },
+   172→  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+   173→}
+   174→
+   175→const item = {
+   176→  hidden: { opacity: 0, y: 16 },
+   177→  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+   178→}
+   179→
+   180→function AnimatedCounter({ target }: { target: number }) {
+   181→  const [count, setCount] = useState(0)
+   182→  const started = useRef(false)
+   183→  useEffect(() => {
+   184→    if (started.current) return
+   185→    started.current = true
+   186→    const duration = 1200
+   187→    const startTime = performance.now()
+   188→    const step = (now: number) => {
+   189→      const progress = Math.min((now - startTime) / duration, 1)
+   190→      const eased = 1 - Math.pow(1 - progress, 3)
+   191→      setCount(Math.round(eased * target))
+   192→      if (progress < 1) requestAnimationFrame(step)
+   193→    }
+   194→    requestAnimationFrame(step)
+   195→  }, [target])
+   196→  return <span>{count}</span>
+   197→}
+   198→
+   199→/* -------------------------------------------------------------------------- */
+   200→/*                              MAIN COMPONENT                                */
+   201→/* -------------------------------------------------------------------------- */
+   202→
+   203→export default function ParticipantsPage() {
+   204→  // ── State ────────────────────────────────────────────────────────────────
+   205→  const [participants, setParticipants] = useState<Participant[]>(initialParticipants)
+   206→  const [search, setSearch] = useState('')
+   207→  const [roleFilter, setRoleFilter] = useState<string>('all')
+   208→  const [statusFilter, setStatusFilter] = useState<string>('all')
+   209→  const [sortBy, setSortBy] = useState<string>('name')
+   210→  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
+   211→  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+   212→  const [inviteOpen, setInviteOpen] = useState(false)
+   213→  const [inviteEmails, setInviteEmails] = useState('')
+   214→  const [inviteRole, setInviteRole] = useState<ParticipantRole>('Participant')
+   215→  const [inviteMessage, setInviteMessage] = useState('')
+   216→  const [sendingInvite, setSendingInvite] = useState(false)
+   217→
+   218→  // ── Computed values ─────────────────────────────────────────────────────
+   219→  const totalParticipants = participants.length
+   220→  const onlineCount = participants.filter(p => p.status === 'online' || p.status === 'in-meeting').length
+   221→  const inMeetingCount = participants.filter(p => p.status === 'in-meeting').length
+   222→  const pendingInvites = 4
+   223→
+   224→  const filteredParticipants = useMemo(() => {
+   225→    let result = [...participants]
+   226→
+   227→    // Search
+   228→    if (search) {
+   229→      const q = search.toLowerCase()
+   230→      result = result.filter(p =>
+   231→        p.name.toLowerCase().includes(q) ||
+   232→        p.email.toLowerCase().includes(q) ||
+   233→        p.organization.toLowerCase().includes(q)
+   234→      )
+   235→    }
+   236→
+   237→    // Role filter
+   238→    if (roleFilter !== 'all') {
+   239→      result = result.filter(p => p.role === roleFilter)
+   240→    }
+   241→
+   242→    // Status filter
+   243→    if (statusFilter !== 'all') {
+   244→      result = result.filter(p => p.status === statusFilter)
+   245→    }
+   246→
+   247→    // Sort
+   248→    switch (sortBy) {
+   249→      case 'name':
+   250→        result.sort((a, b) => a.name.localeCompare(b.name))
+   251→        break
+   252→      case 'role': {
+   253→        const roleOrder: Record<ParticipantRole, number> = { Host: 0, 'Co-host': 1, Presenter: 2, Participant: 3, Guest: 4 }
+   254→        result.sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
+   255→        break
+   256→      }
+   257→      case 'last-active': {
+   258→        const timeOrder: Record<ParticipantStatus, number> = { 'in-meeting': 0, online: 1, offline: 2 }
+   259→        result.sort((a, b) => timeOrder[a.status] - timeOrder[b.status])
+   260→        break
+   261→      }
+   262→    }
+   263→
+   264→    return result
+   265→  }, [participants, search, roleFilter, statusFilter, sortBy])
+   266→
+   267→  const allSelected = filteredParticipants.length > 0 && filteredParticipants.every(p => selectedIds.has(p.id))
+   268→
+   269→  // ── Handlers ────────────────────────────────────────────────────────────
+   270→  const toggleSelect = useCallback((id: string) => {
+   271→    setSelectedIds(prev => {
+   272→      const next = new Set(prev)
+   273→      if (next.has(id)) next.delete(id)
+   274→      else next.add(id)
+   275→      return next
+   276→    })
+   277→  }, [])
+   278→
+   279→  const toggleSelectAll = useCallback(() => {
+   280→    if (allSelected) {
+   281→      setSelectedIds(new Set())
+   282→    } else {
+   283→      setSelectedIds(new Set(filteredParticipants.map(p => p.id)))
+   284→    }
+   285→  }, [allSelected, filteredParticipants])
+   286→
+   287→  const handleRoleChange = useCallback((id: string, newRole: ParticipantRole) => {
+   288→    setParticipants(prev => prev.map(p => p.id === id ? { ...p, role: newRole } : p))
+   289→    toast.success(`Role updated to ${newRole}`)
+   290→  }, [])
+   291→
+   292→  const handleMute = useCallback((id: string) => {
+   293→    setParticipants(prev => prev.map(p => p.id === id ? { ...p, muted: !p.muted } : p))
+   294→    const p = participants.find(p => p.id === id)
+   295→    toast.success(p?.muted ? `${p?.name} unmuted` : `${p?.name} muted`)
+   296→  }, [participants])
+   297→
+   298→  const handleRemove = useCallback((id: string) => {
+   299→    const p = participants.find(p => p.id === id)
+   300→    setParticipants(prev => prev.filter(p => p.id !== id))
+   301→    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n })
+   302→    toast.success(`${p?.name} removed`)
+   303→  }, [participants])
+   304→
+   305→  const handleMoveToWaitingRoom = useCallback((id: string) => {
+   306→    toast.success('Participant moved to waiting room')
+   307→  }, [])
+   308→
+   309→  const handleDisconnect = useCallback((id: string) => {
+   310→    const p = participants.find(p => p.id === id)
+   311→    setParticipants(prev => prev.map(p => p.id === id ? { ...p, status: 'offline' as const, inMeeting: null } : p))
+   312→    toast.success(`${p?.name} disconnected`)
+   313→  }, [participants])
+   314→
+   315→  const handleSendMessage = useCallback((name: string) => {
+   316→    toast.success(`Message sent to ${name}`)
+   317→  }, [])
+   318→
+   319→  // Bulk actions
+   320→  const handleBulkMute = useCallback(() => {
+   321→    setParticipants(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, muted: true } : p))
+   322→    toast.success(`${selectedIds.size} participant(s) muted`)
+   323→    setSelectedIds(new Set())
+   324→  }, [selectedIds])
+   325→
+   326→  const handleBulkRemove = useCallback(() => {
+   327→    setParticipants(prev => prev.filter(p => !selectedIds.has(p.id)))
+   328→    toast.success(`${selectedIds.size} participant(s) removed`)
+   329→    setSelectedIds(new Set())
+   330→  }, [selectedIds])
+   331→
+   332→  const handleBulkRoleChange = useCallback((newRole: ParticipantRole) => {
+   333→    setParticipants(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, role: newRole } : p))
+   334→    toast.success(`${selectedIds.size} participant(s) role changed to ${newRole}`)
+   335→    setSelectedIds(new Set())
+   336→  }, [selectedIds])
+   337→
+   338→  const handleExport = useCallback(() => {
+   339→    toast.success('Participant list exported as CSV')
+   340→  }, [])
+   341→
+   342→  const handleInvite = useCallback(async () => {
+   343→    if (!inviteEmails.trim()) {
+   344→      toast.error('Please enter at least one email address')
+   345→      return
+   346→    }
+   347→    setSendingInvite(true)
+   348→    await new Promise(resolve => setTimeout(resolve, 1200))
+   349→    setSendingInvite(false)
+   350→    setInviteOpen(false)
+   351→    setInviteEmails('')
+   352→    setInviteMessage('')
+   353→    setInviteRole('Participant')
+   354→    const emailCount = inviteEmails.split(',').filter(e => e.trim()).length
+   355→    toast.success(`Invitations sent to ${emailCount} participant(s)`)
+   356→  }, [inviteEmails])
+   357→
+   358→  // ── Render ──────────────────────────────────────────────────────────────
+   359→  return (
+   360→    <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
+   361→      {/* ── Header ── */}
+   362→      <motion.div variants={item} className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
+   363→        <div className='flex items-center gap-3'>
+   364→          <div className='p-2 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600'>
+   365→            <Users className='h-6 w-6' />
+   366→          </div>
+   367→          <div>
+   368→            <h1 className='text-2xl font-bold tracking-tight'>Participant Management</h1>
+   369→            <p className='text-sm text-muted-foreground'>Manage participants, roles, and meeting access</p>
+   370→          </div>
+   371→        </div>
+   372→        <div className='flex items-center gap-2'>
+   373→          <Button
+   374→            variant='outline'
+   375→            size='sm'
+   376→            className='h-9 gap-2 rounded-lg'
+   377→            onClick={handleExport}
+   378→          >
+   379→            <Download className='h-4 w-4' />
+   380→            Export
+   381→          </Button>
+   382→          <Button
+   383→            size='sm'
+   384→            className='h-9 gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-200'
+   385→            onClick={() => setInviteOpen(true)}
+   386→          >
+   387→            <UserPlus className='h-4 w-4' />
+   388→            Invite Participants
+   389→          </Button>
+   390→        </div>
+   391→      </motion.div>
+   392→
+   393→      {/* ── Stats Row ── */}
+   394→      <motion.div variants={item} className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+   395→        <Card className='bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300'>
+   396→          <CardContent className='flex items-center gap-3 py-4 px-5'>
+   397→            <div className='p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600'>
+   398→              <Users className='h-5 w-5' />
+   399→            </div>
+   400→            <div>
+   401→              <p className='text-2xl font-bold'><AnimatedCounter target={totalParticipants} /></p>
+   402→              <p className='text-xs text-muted-foreground'>Total Participants</p>
+   403→            </div>
+   404→          </CardContent>
+   405→          <div className='h-0.5 bg-gradient-to-r from-emerald-500/50 to-teal-500/30 rounded-b-xl' />
+   406→        </Card>
+   407→
+   408→        <Card className='bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300'>
+   409→          <CardContent className='flex items-center gap-3 py-4 px-5'>
+   410→            <div className='p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/10 text-emerald-600'>
+   411→              <div className='relative'>
+   412→                <span className='h-2.5 w-2.5 rounded-full bg-emerald-500 block animate-breathe' />
+   413→              </div>
+   414→            </div>
+   415→            <div>
+   416→              <p className='text-2xl font-bold text-emerald-600'><AnimatedCounter target={onlineCount} /></p>
+   417→              <p className='text-xs text-muted-foreground'>Online Now</p>
+   418→            </div>
+   419→          </CardContent>
+   420→          <div className='h-0.5 bg-gradient-to-r from-emerald-500/50 to-green-500/30 rounded-b-xl' />
+   421→        </Card>
+   422→
+   423→        <Card className='bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-violet-500/10 hover:-translate-y-0.5 transition-all duration-300'>
+   424→          <CardContent className='flex items-center gap-3 py-4 px-5'>
+   425→            <div className='p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/10 text-violet-600'>
+   426→              <Video className='h-5 w-5' />
+   427→            </div>
+   428→            <div>
+   429→              <p className='text-2xl font-bold text-violet-600'><AnimatedCounter target={inMeetingCount} /></p>
+   430→              <p className='text-xs text-muted-foreground'>In Meetings</p>
+   431→            </div>
+   432→          </CardContent>
+   433→          <div className='h-0.5 bg-gradient-to-r from-violet-500/50 to-purple-500/30 rounded-b-xl' />
+   434→        </Card>
+   435→
+   436→        <Card className='bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-0.5 transition-all duration-300'>
+   437→          <CardContent className='flex items-center gap-3 py-4 px-5'>
+   438→            <div className='p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-600'>
+   439→              <Send className='h-5 w-5' />
+   440→            </div>
+   441→            <div>
+   442→              <div className='flex items-center gap-2'>
+   443→                <p className='text-2xl font-bold text-amber-600'>{pendingInvites}</p>
+   444→                <Badge className='bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[10px] px-1.5 py-0'>
+   445→                  pending
+   446→                </Badge>
+   447→              </div>
+   448→              <p className='text-xs text-muted-foreground'>Pending Invites</p>
+   449→            </div>
+   450→          </CardContent>
+   451→          <div className='h-0.5 bg-gradient-to-r from-amber-500/50 to-orange-500/30 rounded-b-xl' />
+   452→        </Card>
+   453→      </motion.div>
+   454→
+   455→      {/* ── Search & Filter Bar ── */}
+   456→      <motion.div variants={item} className='flex flex-col sm:flex-row items-stretch sm:items-center gap-3'>
+   457→        <div className='relative flex-1 max-w-sm'>
+   458→          <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+   459→          <Input
+   460→            placeholder='Search participants...'
+   461→            value={search}
+   462→            onChange={(e) => setSearch(e.target.value)}
+   463→            className='pl-9 h-9'
+   464→          />
+   465→        </div>
+   466→
+   467→        <Select value={roleFilter} onValueChange={setRoleFilter}>
+   468→          <SelectTrigger size='sm' className='w-[140px] rounded-lg'>
+   469→            <SelectValue placeholder='Role' />
+   470→          </SelectTrigger>
+   471→          <SelectContent>
+   472→            <SelectItem value='all'>All Roles</SelectItem>
+   473→            <SelectItem value='Host'>Host</SelectItem>
+   474→            <SelectItem value='Co-host'>Co-host</SelectItem>
+   475→            <SelectItem value='Presenter'>Presenter</SelectItem>
+   476→            <SelectItem value='Participant'>Participant</SelectItem>
+   477→            <SelectItem value='Guest'>Guest</SelectItem>
+   478→          </SelectContent>
+   479→        </Select>
+   480→
+   481→        <Select value={statusFilter} onValueChange={setStatusFilter}>
+   482→          <SelectTrigger size='sm' className='w-[140px] rounded-lg'>
+   483→            <SelectValue placeholder='Status' />
+   484→          </SelectTrigger>
+   485→          <SelectContent>
+   486→            <SelectItem value='all'>All Status</SelectItem>
+   487→            <SelectItem value='online'>Online</SelectItem>
+   488→            <SelectItem value='offline'>Offline</SelectItem>
+   489→            <SelectItem value='in-meeting'>In Meeting</SelectItem>
+   490→          </SelectContent>
+   491→        </Select>
+   492→
+   493→        <Select value={sortBy} onValueChange={setSortBy}>
+   494→          <SelectTrigger size='sm' className='w-[140px] rounded-lg'>
+   495→            <ArrowUpDown className='h-3.5 w-3.5 mr-1.5 text-muted-foreground' />
+   496→            <SelectValue placeholder='Sort by' />
+   497→          </SelectTrigger>
+   498→          <SelectContent>
+   499→            <SelectItem value='name'>Name</SelectItem>
+   500→            <SelectItem value='role'>Role</SelectItem>
+   501→            <SelectItem value='last-active'>Last Active</SelectItem>
+   502→          </SelectContent>
+   503→        </Select>
+   504→
+   505→        {/* View Toggle */}
+   506→        <div className='flex items-center border rounded-lg p-0.5 bg-muted/30'>
+   507→          <Button
+   508→            variant={viewMode === 'table' ? 'default' : 'ghost'}
+   509→            size='sm'
+   510→            className='h-7 w-7 p-0 rounded-md'
+   511→            onClick={() => setViewMode('table')}
+   512→          >
+   513→            <LayoutList className='h-3.5 w-3.5' />
+   514→          </Button>
+   515→          <Button
+   516→            variant={viewMode === 'grid' ? 'default' : 'ghost'}
+   517→            size='sm'
+   518→            className='h-7 w-7 p-0 rounded-md'
+   519→            onClick={() => setViewMode('grid')}
+   520→          >
+   521→            <LayoutGrid className='h-3.5 w-3.5' />
+   522→          </Button>
+   523→        </div>
+   524→      </motion.div>
+   525→
+   526→      {/* ── Bulk Actions Bar ── */}
+   527→      <AnimatePresence>
+   528→        {selectedIds.size > 0 && (
+   529→          <motion.div
+   530→            initial={{ opacity: 0, y: -8, height: 0 }}
+   531→            animate={{ opacity: 1, y: 0, height: 'auto' }}
+   532→            exit={{ opacity: 0, y: -8, height: 0 }}
+   533→            transition={{ duration: 0.2 }}
+   534→          >
+   535→            <Card className='border-emerald-500/30 bg-emerald-500/5 rounded-xl overflow-hidden'>
+   536→              <CardContent className='flex items-center gap-3 py-3 px-4'>
+   537→                <span className='text-sm font-medium text-emerald-700 dark:text-emerald-400'>
+   538→                  {selectedIds.size} selected
+   539→                </span>
+   540→                <Separator orientation='vertical' className='h-5' />
+   541→                <Button variant='outline' size='sm' className='h-7 text-xs gap-1.5 rounded-lg' onClick={handleBulkMute}>
+   542→                  <MicOff className='h-3 w-3' />
+   543→                  Mute All
+   544→                </Button>
+   545→                <Button variant='outline' size='sm' className='h-7 text-xs gap-1.5 rounded-lg' onClick={() => handleBulkRoleChange('Participant')}>
+   546→                  <ShieldCheck className='h-3 w-3' />
+   547→                  Change Role
+   548→                </Button>
+   549→                <Button variant='outline' size='sm' className='h-7 text-xs gap-1.5 rounded-lg text-destructive hover:text-destructive' onClick={handleBulkRemove}>
+   550→                  <UserMinus className='h-3 w-3' />
+   551→                  Remove
+   552→                </Button>
+   553→                <div className='ml-auto'>
+   554→                  <Button variant='ghost' size='sm' className='h-7 text-xs rounded-lg' onClick={() => setSelectedIds(new Set())}>
+   555→                    <X className='h-3 w-3 mr-1' />
+   556→                    Clear
+   557→                  </Button>
+   558→                </div>
+   559→              </CardContent>
+   560→            </Card>
+   561→          </motion.div>
+   562→        )}
+   563→      </AnimatePresence>
+   564→
+   565→      {/* ── Table View ── */}
+   566→      <motion.div variants={item}>
+   567→        {viewMode === 'table' ? (
+   568→          <Card className='border border-border/50 rounded-xl overflow-hidden'>
+   569→            <div className='h-0.5 bg-gradient-to-r from-emerald-500/60 via-teal-500/40 to-transparent' />
+   570→            <div className='max-h-[520px] overflow-y-auto custom-scrollbar'>
+   571→              <Table>
+   572→                <TableHeader>
+   573→                  <TableRow className='bg-muted/30 hover:bg-muted/30'>
+   574→                    <TableHead className='w-10 pl-4'>
+   575→                      <Checkbox
+   576→                        checked={allSelected}
+   577→                        onCheckedChange={toggleSelectAll}
+   578→                        className='rounded-md'
+   579→                      />
+   580→                    </TableHead>
+   581→                    <TableHead className='pl-0'>Participant</TableHead>
+   582→                    <TableHead>Role</TableHead>
+   583→                    <TableHead className='hidden md:table-cell'>Organization</TableHead>
+   584→                    <TableHead>Status</TableHead>
+   585→                    <TableHead className='hidden lg:table-cell'>Last Active</TableHead>
+   586→                    <TableHead className='text-right pr-4'>Actions</TableHead>
+   587→                  </TableRow>
+   588→                </TableHeader>
+   589→                <TableBody>
+   590→                  {filteredParticipants.map((p) => (
+   591→                    <TableRow
+   592→                      key={p.id}
+   593→                      className={`group transition-colors duration-150 ${selectedIds.has(p.id) ? 'bg-emerald-500/5' : ''}`}
+   594→                    >
+   595→                      <TableCell className='pl-4'>
+   596→                        <Checkbox
+   597→                          checked={selectedIds.has(p.id)}
+   598→                          onCheckedChange={() => toggleSelect(p.id)}
+   599→                          className='rounded-md'
+   600→                        />
+   601→                      </TableCell>
+   602→                      <TableCell className='pl-0'>
+   603→                        <div className='flex items-center gap-3'>
+   604→                          <div className='relative shrink-0'>
+   605→                            <Avatar className='h-9 w-9'>
+   606→                              <AvatarFallback className={`bg-gradient-to-br ${p.gradient} text-white text-xs font-bold`}>
+   607→                                {p.initials}
+   608→                              </AvatarFallback>
+   609→                            </Avatar>
+   610→                            <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${statusDotClasses[p.status]}`} />
+   611→                          </div>
+   612→                          <div className='min-w-0'>
+   613→                            <div className='flex items-center gap-2'>
+   614→                              <p className='text-sm font-medium truncate'>{p.name}</p>
+   615→                              {p.inMeeting && (
+   616→                                <Badge className='bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5 py-0 h-4 gap-0.5'>
+   617→                                  <Video className='h-2.5 w-2.5' />
+   618→                                  In Meeting
+   619→                                </Badge>
+   620→                              )}
+   621→                            </div>
+   622→                            <p className='text-xs text-muted-foreground truncate'>{p.email}</p>
+   623→                          </div>
+   624→                        </div>
+   625→                      </TableCell>
+   626→                      <TableCell>
+   627→                        <DropdownMenu>
+   628→                          <DropdownMenuTrigger asChild>
+   629→                            <button className='cursor-pointer'>
+   630→                              <Badge variant='outline' className={`text-[11px] px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity ${roleBadgeClasses[p.role]}`}>
+   631→                                {p.role}
+   632→                                <ChevronDown className='ml-1 h-2.5 w-2.5 opacity-50' />
+   633→                              </Badge>
+   634→                            </button>
+   635→                          </DropdownMenuTrigger>
+   636→                          <DropdownMenuContent align='start' className='w-40'>
+   637→                            <DropdownMenuLabel className='text-xs text-muted-foreground'>Change Role</DropdownMenuLabel>
+   638→                            <DropdownMenuSeparator />
+   639→                            {(['Host', 'Co-host', 'Presenter', 'Participant', 'Guest'] as ParticipantRole[]).map(role => (
+   640→                              <DropdownMenuItem
+   641→                                key={role}
+   642→                                onClick={() => handleRoleChange(p.id, role)}
+   643→                                className={p.role === role ? 'font-medium' : ''}
+   644→                              >
+   645→                                {role === p.role && '✓ '}{role}
+   646→                              </DropdownMenuItem>
+   647→                            ))}
+   648→                          </DropdownMenuContent>
+   649→                        </DropdownMenu>
+   650→                      </TableCell>
+   651→                      <TableCell className='hidden md:table-cell'>
+   652→                        <span className='text-sm text-muted-foreground'>{p.organization}</span>
+   653→                      </TableCell>
+   654→                      <TableCell>
+   655→                        <div className='flex items-center gap-1.5'>
+   656→                          <span className={`h-2 w-2 rounded-full shrink-0 ${statusDotClasses[p.status]}`} />
+   657→                          <span className='text-sm capitalize'>{p.status.replace('-', ' ')}</span>
+   658→                        </div>
+   659→                      </TableCell>
+   660→                      <TableCell className='hidden lg:table-cell'>
+   661→                        <div className='flex items-center gap-1.5 text-sm text-muted-foreground'>
+   662→                          <Clock className='h-3.5 w-3.5' />
+   663→                          {p.lastActive}
+   664→                        </div>
+   665→                      </TableCell>
+   666→                      <TableCell className='text-right pr-4'>
+   667→                        <div className='flex items-center justify-end gap-1'>
+   668→                          <TooltipProvider delayDuration={0}>
+   669→                            <Tooltip>
+   670→                              <TooltipTrigger asChild>
+   671→                                <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity' onClick={() => handleSendMessage(p.name)}>
+   672→                                  <MessageSquare className='h-3.5 w-3.5' />
+   673→                                </Button>
+   674→                              </TooltipTrigger>
+   675→                              <TooltipContent>Message</TooltipContent>
+   676→                            </Tooltip>
+   677→                          </TooltipProvider>
+   678→                          <TooltipProvider delayDuration={0}>
+   679→                            <Tooltip>
+   680→                              <TooltipTrigger asChild>
+   681→                                <Button variant='ghost' size='sm' className={`h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity ${p.muted ? 'text-amber-500' : ''}`} onClick={() => handleMute(p.id)}>
+   682→                                  <MicOff className='h-3.5 w-3.5' />
+   683→                                </Button>
+   684→                              </TooltipTrigger>
+   685→                              <TooltipContent>{p.muted ? 'Unmute' : 'Mute'}</TooltipContent>
+   686→                            </Tooltip>
+   687→                          </TooltipProvider>
+   688→                          <TooltipProvider delayDuration={0}>
+   689→                            <Tooltip>
+   690→                              <TooltipTrigger asChild>
+   691→                                <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive' onClick={() => handleRemove(p.id)}>
+   692→                                  <UserMinus className='h-3.5 w-3.5' />
+   693→                                </Button>
+   694→                              </TooltipTrigger>
+   695→                              <TooltipContent>Remove</TooltipContent>
+   696→                            </Tooltip>
+   697→                          </TooltipProvider>
+   698→                          <DropdownMenu>
+   699→                            <DropdownMenuTrigger asChild>
+   700→                              <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity'>
+   701→                                <MoreHorizontal className='h-3.5 w-3.5' />
+   702→                              </Button>
+   703→                            </DropdownMenuTrigger>
+   704→                            <DropdownMenuContent align='end' className='w-48'>
+   705→                              <DropdownMenuLabel className='text-xs'>Actions for {p.name}</DropdownMenuLabel>
+   706→                              <DropdownMenuSeparator />
+   707→                              <DropdownMenuItem onClick={() => handleRoleChange(p.id, 'Presenter')}>
+   708→                                <ShieldCheck className='h-4 w-4 mr-2' />
+   709→                                Change Role
+   710→                              </DropdownMenuItem>
+   711→                              <DropdownMenuItem onClick={() => handleMoveToWaitingRoom(p.id)}>
+   712→                                <DoorOpen className='h-4 w-4 mr-2' />
+   713→                                Move to Waiting Room
+   714→                              </DropdownMenuItem>
+   715→                              <DropdownMenuSeparator />
+   716→                              <DropdownMenuItem onClick={() => handleDisconnect(p.id)} className='text-destructive focus:text-destructive'>
+   717→                                <LogOut className='h-4 w-4 mr-2' />
+   718→                                Disconnect
+   719→                              </DropdownMenuItem>
+   720→                            </DropdownMenuContent>
+   721→                          </DropdownMenu>
+   722→                        </div>
+   723→                      </TableCell>
+   724→                    </TableRow>
+   725→                  ))}
+   726→                </TableBody>
+   727→              </Table>
+   728→            </div>
+   729→            {filteredParticipants.length === 0 && (
+   730→              <div className='text-center py-12 text-muted-foreground'>
+   731→                <Users className='h-10 w-10 mx-auto mb-3 opacity-50' />
+   732→                <p className='text-sm font-medium'>No participants found</p>
+   733→                <p className='text-xs mt-1'>Try adjusting your search or filters</p>
+   734→              </div>
+   735→            )}
+   736→          </Card>
+   737→        ) : (
+   738→          /* ── Grid View ── */
+   739→          <>
+   740→            <div className='flex items-center justify-between mb-3'>
+   741→              <p className='text-sm text-muted-foreground'>{filteredParticipants.length} participant(s)</p>
+   742→              {filteredParticipants.length > 0 && (
+   743→                <div className='flex items-center gap-2'>
+   744→                  <Button variant='outline' size='sm' className='h-7 text-xs gap-1.5 rounded-lg' onClick={toggleSelectAll}>
+   745→                    <Checkbox checked={allSelected} className='rounded-md mr-1' />
+   746→                    Select All
+   747→                  </Button>
+   748→                </div>
+   749→              )}
+   750→            </div>
+   751→            <motion.div
+   752→              className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'
+   753→              variants={container}
+   754→              initial='hidden'
+   755→              animate='show'
+   756→            >
+   757→              {filteredParticipants.map((p) => (
+   758→                <motion.div key={p.id} variants={item} whileHover={{ y: -2 }}>
+   759→                  <Card
+   760→                    className={`bg-card border rounded-xl overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 relative ${
+   761→                      selectedIds.has(p.id)
+   762→                        ? 'border-emerald-500/50 ring-1 ring-emerald-500/20'
+   763→                        : 'border-border/50'
+   764→                    }`}
+   765→                  >
+   766→                    <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${p.gradient}`} />
+   767→                    <CardContent className='p-4'>
+   768→                      <div className='flex items-start gap-3'>
+   769→                        <div className='relative shrink-0'>
+   770→                          <Avatar className='h-10 w-10'>
+   771→                            <AvatarFallback className={`bg-gradient-to-br ${p.gradient} text-white text-xs font-bold`}>
+   772→                              {p.initials}
+   773→                            </AvatarFallback>
+   774→                          </Avatar>
+   775→                          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${statusDotClasses[p.status]}`} />
+   776→                        </div>
+   777→                        <div className='flex-1 min-w-0'>
+   778→                          <div className='flex items-center gap-2'>
+   779→                            <h3 className='text-sm font-bold truncate'>{p.name}</h3>
+   780→                            {p.muted && (
+   781→                              <TooltipProvider delayDuration={0}>
+   782→                                <Tooltip>
+   783→                                  <TooltipTrigger asChild>
+   784→                                    <MicOff className='h-3.5 w-3.5 text-amber-500 shrink-0' />
+   785→                                  </TooltipTrigger>
+   786→                                  <TooltipContent>Muted</TooltipContent>
+   787→                                </Tooltip>
+   788→                              </TooltipProvider>
+   789→                            )}
+   790→                          </div>
+   791→                          <p className='text-xs text-muted-foreground truncate'>{p.email}</p>
+   792→                          <div className='flex items-center gap-1.5 mt-1'>
+   793→                            <Badge variant='outline' className={`text-[10px] px-1.5 py-0 rounded-full ${roleBadgeClasses[p.role]}`}>
+   794→                              {p.role}
+   795→                            </Badge>
+   796→                            {p.inMeeting && (
+   797→                              <Badge className='bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5 py-0 rounded-full gap-0.5'>
+   798→                                <Video className='h-2.5 w-2.5' />
+   799→                                In Meeting
+   800→                              </Badge>
+   801→                            )}
+   802→                          </div>
+   803→                        </div>
+   804→                        <Checkbox
+   805→                          checked={selectedIds.has(p.id)}
+   806→                          onCheckedChange={() => toggleSelect(p.id)}
+   807→                          className='rounded-md shrink-0'
+   808→                        />
+   809→                      </div>
+   810→
+   811→                      <div className='mt-3 space-y-1.5'>
+   812→                        <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+   813→                          <span className='h-2 w-2 rounded-full shrink-0 bg-muted-foreground/30' />
+   814→                          <span className='truncate'>{p.organization}</span>
+   815→                        </div>
+   816→                        <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+   817→                          <Clock className='h-3 w-3 shrink-0' />
+   818→                          <span>{p.lastActive}</span>
+   819→                        </div>
+   820→                      </div>
+   821→
+   822→                      <Separator className='my-3' />
+   823→
+   824→                      <div className='flex items-center gap-1.5'>
+   825→                        <TooltipProvider delayDuration={0}>
+   826→                          <Tooltip>
+   827→                            <TooltipTrigger asChild>
+   828→                              <Button variant='outline' size='sm' className='h-7 flex-1 text-xs gap-1 rounded-lg' onClick={() => handleSendMessage(p.name)}>
+   829→                                <MessageSquare className='h-3 w-3' />
+   830→                                Message
+   831→                              </Button>
+   832→                            </TooltipTrigger>
+   833→                            <TooltipContent>Send message</TooltipContent>
+   834→                          </Tooltip>
+   835→                        </TooltipProvider>
+   836→                        <TooltipProvider delayDuration={0}>
+   837→                          <Tooltip>
+   838→                            <TooltipTrigger asChild>
+   839→                              <Button variant='outline' size='sm' className={`h-7 w-7 p-0 rounded-lg ${p.muted ? 'text-amber-500 border-amber-500/30' : ''}`} onClick={() => handleMute(p.id)}>
+   840→                                <MicOff className='h-3 w-3' />
+   841→                              </Button>
+   842→                            </TooltipTrigger>
+   843→                            <TooltipContent>{p.muted ? 'Unmute' : 'Mute'}</TooltipContent>
+   844→                          </Tooltip>
+   845→                        </TooltipProvider>
+   846→                        <DropdownMenu>
+   847→                          <DropdownMenuTrigger asChild>
+   848→                            <Button variant='outline' size='sm' className='h-7 w-7 p-0 rounded-lg'>
+   849→                              <MoreHorizontal className='h-3 w-3' />
+   850→                            </Button>
+   851→                          </DropdownMenuTrigger>
+   852→                          <DropdownMenuContent align='end' className='w-48'>
+   853→                            <DropdownMenuLabel className='text-xs'>Actions</DropdownMenuLabel>
+   854→                            <DropdownMenuSeparator />
+   855→                            <DropdownMenuItem onClick={() => handleRoleChange(p.id, 'Host')}>
+   856→                              <ShieldCheck className='h-4 w-4 mr-2' />
+   857→                              Change Role
+   858→                            </DropdownMenuItem>
+   859→                            <DropdownMenuItem onClick={() => handleMoveToWaitingRoom(p.id)}>
+   860→                              <DoorOpen className='h-4 w-4 mr-2' />
+   861→                              Move to Waiting Room
+   862→                            </DropdownMenuItem>
+   863→                            <DropdownMenuSeparator />
+   864→                            <DropdownMenuItem onClick={() => handleRemove(p.id)} className='text-destructive focus:text-destructive'>
+   865→                              <UserMinus className='h-4 w-4 mr-2' />
+   866→                              Remove
+   867→                            </DropdownMenuItem>
+   868→                            <DropdownMenuItem onClick={() => handleDisconnect(p.id)} className='text-destructive focus:text-destructive'>
+   869→                              <LogOut className='h-4 w-4 mr-2' />
+   870→                              Disconnect
+   871→                            </DropdownMenuItem>
+   872→                          </DropdownMenuContent>
+   873→                        </DropdownMenu>
+   874→                      </div>
+   875→                    </CardContent>
+   876→                  </Card>
+   877→                </motion.div>
+   878→              ))}
+   879→            </motion.div>
+   880→            {filteredParticipants.length === 0 && (
+   881→              <div className='text-center py-12 text-muted-foreground'>
+   882→                <Users className='h-10 w-10 mx-auto mb-3 opacity-50' />
+   883→                <p className='text-sm font-medium'>No participants found</p>
+   884→                <p className='text-xs mt-1'>Try adjusting your search or filters</p>
+   885→              </div>
+   886→            )}
+   887→          </>
+   888→        )}
+   889→      </motion.div>
+   890→
+   891→      {/* ── Invite Dialog ── */}
+   892→      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+   893→        <DialogContent className='sm:max-w-md rounded-xl'>
+   894→          <DialogHeader>
+   895→            <DialogTitle className='flex items-center gap-2'>
+   896→              <div className='p-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600'>
+   897→                <UserPlus className='h-4 w-4' />
+   898→              </div>
+   899→              Invite Participants
+   900→            </DialogTitle>
+   901→            <DialogDescription>Send invitations to new participants via email.</DialogDescription>
+   902→          </DialogHeader>
+   903→
+   904→          <div className='space-y-4 py-2'>
+   905→            <div className='space-y-2'>
+   906→              <Label htmlFor='invite-emails'>Email Addresses</Label>
+   907→              <Textarea
+   908→                id='invite-emails'
+   909→                placeholder='Enter email addresses separated by commas...'
+   910→                value={inviteEmails}
+   911→                onChange={(e) => setInviteEmails(e.target.value)}
+   912→                rows={3}
+   913→                className='resize-none'
+   914→              />
+   915→              <p className='text-xs text-muted-foreground'>Separate multiple emails with commas</p>
+   916→            </div>
+   917→
+   918→            <div className='space-y-2'>
+   919→              <Label>Role</Label>
+   920→              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as ParticipantRole)}>
+   921→                <SelectTrigger className='rounded-lg'>
+   922→                  <SelectValue />
+   923→                </SelectTrigger>
+   924→                <SelectContent>
+   925→                  <SelectItem value='Host'>Host</SelectItem>
+   926→                  <SelectItem value='Co-host'>Co-host</SelectItem>
+   927→                  <SelectItem value='Presenter'>Presenter</SelectItem>
+   928→                  <SelectItem value='Participant'>Participant</SelectItem>
+   929→                  <SelectItem value='Guest'>Guest</SelectItem>
+   930→                </SelectContent>
+   931→              </Select>
+   932→            </div>
+   933→
+   934→            <div className='space-y-2'>
+   935→              <Label htmlFor='invite-message'>Personal Message (optional)</Label>
+   936→              <Textarea
+   937→                id='invite-message'
+   938→                placeholder='Add a personal message to the invitation...'
+   939→                value={inviteMessage}
+   940→                onChange={(e) => setInviteMessage(e.target.value)}
+   941→                rows={3}
+   942→                className='resize-none'
+   943→              />
+   944→            </div>
+   945→          </div>
+   946→
+   947→          <DialogFooter className='gap-2 sm:gap-0'>
+   948→            <Button variant='outline' onClick={() => setInviteOpen(false)} className='rounded-lg'>
+   949→              Cancel
+   950→            </Button>
+   951→            <Button
+   952→              onClick={handleInvite}
+   953→              disabled={sendingInvite}
+   954→              className='rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md shadow-emerald-500/20'
+   955→            >
+   956→              {sendingInvite ? (
+   957→                <>
+   958→                  <motion.div
+   959→                    className='h-4 w-4 border-2 border-white/30 border-t-white rounded-full'
+   960→                    animate={{ rotate: 360 }}
+   961→                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+   962→                  />
+   963→                  Sending...
+   964→                </>
+   965→              ) : (
+   966→                <>
+   967→                  <Send className='h-4 w-4 mr-2' />
+   968→                  Send Invitations
+   969→                </>
+   970→              )}
+   971→            </Button>
+   972→          </DialogFooter>
+   973→        </DialogContent>
+   974→      </Dialog>
+   975→    </motion.div>
+   976→  )
+   977→}
+   978→
