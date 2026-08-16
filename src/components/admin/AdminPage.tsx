@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -82,6 +83,28 @@ const quickActions = [
   { label: 'View Reports', view: 'dashboard' as const, icon: <BarChart3 className='h-4 w-4' />, count: 'Analytics', color: 'from-fuchsia-500/10 to-fuchsia-500/5 text-fuchsia-600' },
 ]
 
+function AnimatedCounter({ target, prefix = '', suffix = '' }: { target: number; prefix?: string; suffix?: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    const duration = 1200
+    const startTime = performance.now()
+    const step = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [target])
+
+  return <span ref={ref}>{prefix}{count.toLocaleString()}{suffix}</span>
+}
+
 function CircularGauge({ value, color, track }: { value: number; color: string; track: string }) {
   const radius = 28
   const stroke = 4
@@ -128,6 +151,35 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } }
 
+function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [tilt, setTilt] = useState({ x: 0, y: 0 })
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width - 0.5
+    const y = (e.clientY - rect.top) / rect.height - 0.5
+    setTilt({ x: y * -6, y: x * 6 })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setTilt({ x: 0, y: 0 })
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ transform: `perspective(600px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`, transition: 'transform 0.15s ease-out' }}
+      className={className}
+    >
+      {children}
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const { setCurrentView } = useAppStore()
   const banner = statusBannerConfig[overallStatus]
@@ -147,7 +199,7 @@ export default function AdminPage() {
               <p className='text-sm text-muted-foreground'>Manage users, organizations, security policies, and system configuration.</p>
             </div>
             <div className='hidden sm:flex items-center gap-2 shrink-0'>
-              <div className={`w-2.5 h-2.5 rounded-full ${banner.dotColor} animate-pulse`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${banner.dotColor} animate-breathe`} />
               <span className={`text-xs font-medium ${overallStatus === 'green' ? 'text-emerald-600' : overallStatus === 'yellow' ? 'text-amber-600' : 'text-red-500'}`}>{banner.text}</span>
             </div>
             <Badge variant='outline' className='gap-1.5 shrink-0'><Cpu className='h-3 w-3' /> Super Admin</Badge>
@@ -172,7 +224,9 @@ export default function AdminPage() {
                   </div>
                   <div className='flex items-center justify-between gap-2'>
                     <div>
-                      <p className='text-2xl font-bold tracking-tight'>{m.value}</p>
+                      <p className='text-2xl font-bold tracking-tight'>
+                        <AnimatedCounter target={parseInt(m.value.replace(/[^0-9.]/g, ''))} suffix={m.value.match(/[A-Z ]/i)?.[0] ? ` ${m.value.match(/[^0-9,. ]+$/)?.[0] || ''}` : ''} />
+                      </p>
                       <p className='text-xs text-muted-foreground mt-0.5'>{m.label}</p>
                     </div>
                     <CircularGauge value={m.gauge} color={cm.gaugeColor} track={cm.gaugeTrack} />
@@ -197,19 +251,19 @@ export default function AdminPage() {
             <CardContent>
               <div className='grid grid-cols-2 gap-2'>
                 {quickActions.map(a => (
-                  <motion.button
-                    key={a.label}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => setCurrentView(a.view)}
-                    className='flex flex-col items-center gap-2 p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-all duration-200 text-center group'
-                  >
-                    <div className={`p-2.5 rounded-xl bg-gradient-to-br ${a.color} transition-transform group-hover:scale-110`}>{a.icon}</div>
-                    <div>
-                      <p className='text-xs font-medium'>{a.label}</p>
-                      <p className='text-[10px] text-muted-foreground'>{a.count}</p>
-                    </div>
-                  </motion.button>
+                  <TiltCard key={a.label} className='rounded-lg'>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setCurrentView(a.view)}
+                      className='w-full flex flex-col items-center gap-2 p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-all duration-200 text-center group'
+                    >
+                      <div className={`p-2.5 rounded-xl bg-gradient-to-br ${a.color} transition-transform group-hover:scale-110`}>{a.icon}</div>
+                      <div>
+                        <p className='text-xs font-medium'>{a.label}</p>
+                        <p className='text-[10px] text-muted-foreground'>{a.count}</p>
+                      </div>
+                    </motion.button>
+                  </TiltCard>
                 ))}
               </div>
             </CardContent>
@@ -223,24 +277,37 @@ export default function AdminPage() {
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-sm flex items-center gap-2'><Activity className='h-4 w-4 text-emerald-500' /> System Health</CardTitle>
                 <Badge variant='outline' className={`gap-1.5 text-[10px] ${banner.badgeBg}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${banner.dotColor} ${overallStatus !== 'green' ? 'animate-pulse' : ''}`} />{systemHealth.filter(s => s.status === 'healthy').length}/{systemHealth.length} Healthy
+                  <span className={`w-1.5 h-1.5 rounded-full ${banner.dotColor} animate-breathe`} />{systemHealth.filter(s => s.status === 'healthy').length}/{systemHealth.length} Healthy
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className='space-y-2'>
-              {systemHealth.map(s => (
-                <div key={s.service} className={`flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors ${s.status === 'degraded' ? 'bg-amber-500/5 border border-amber-200/50 dark:border-amber-800/30' : s.status === 'down' ? 'bg-red-500/5 border border-red-200/50' : ''}`}>
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColor[s.status]} ${s.status !== 'healthy' ? 'animate-pulse' : ''}`} />
-                  <div className='flex-1 min-w-0'>
-                    <p className='text-sm font-medium'>{s.service}</p>
-                    <p className='text-xs text-muted-foreground'>Uptime: {s.uptime}</p>
+              {systemHealth.map(s => {
+                const uptimeVal = parseFloat(s.uptime)
+                return (
+                  <div key={s.service} className={`flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors ${s.status === 'degraded' ? 'bg-amber-500/5 border border-amber-200/50 dark:border-amber-800/30' : s.status === 'down' ? 'bg-red-500/5 border border-red-200/50' : ''}`}>
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColor[s.status]} ${s.status !== 'healthy' ? 'animate-breathe' : ''}`} />
+                    <div className='flex-1 min-w-0'>
+                      <p className='text-sm font-medium'>{s.service}</p>
+                      <div className='flex items-center gap-2 mt-1'>
+                        <div className='flex-1 h-1.5 rounded-full bg-muted overflow-hidden'>
+                          <motion.div
+                            className={`h-full rounded-full ${s.status === 'healthy' ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : s.status === 'degraded' ? 'bg-gradient-to-r from-amber-500 to-orange-400' : 'bg-gradient-to-r from-red-500 to-rose-400'}`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${uptimeVal}%` }}
+                            transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                          />
+                        </div>
+                        <span className='text-[10px] text-muted-foreground shrink-0'>{s.uptime}</span>
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      <p className={`text-sm font-mono ${s.status === 'degraded' ? 'text-amber-600' : s.status === 'down' ? 'text-red-500' : ''}`}>{s.latency}</p>
+                      <p className='text-[10px] text-muted-foreground'>latency</p>
+                    </div>
                   </div>
-                  <div className='text-right'>
-                    <p className={`text-sm font-mono ${s.status === 'degraded' ? 'text-amber-600' : s.status === 'down' ? 'text-red-500' : ''}`}>{s.latency}</p>
-                    <p className='text-[10px] text-muted-foreground'>latency</p>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </CardContent>
           </Card>
         </motion.div>

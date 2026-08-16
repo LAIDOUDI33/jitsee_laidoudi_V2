@@ -6,13 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import {
   Video,
@@ -31,6 +29,8 @@ import {
   TrendingUp,
   Timer,
   Sparkles,
+  Check,
+  Link2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -120,6 +120,8 @@ export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>(mockMeetings)
   const [createOpen, setCreateOpen] = useState(false)
   const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', duration: '30m', type: 'scheduled', description: '' })
+  const [activeTab, setActiveTab] = useState('upcoming')
+  const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set())
 
   const filtered = meetings.filter(m =>
     m.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -203,22 +205,41 @@ export default function MeetingsPage() {
     }
   }
 
-  const handleCopyLink = (roomId: string) => {
+  const handleCopyLink = (roomId: string, id: string) => {
     navigator.clipboard.writeText(`https://alvision.ai/room/${roomId}`)
+    setCopiedIds(prev => new Set(prev).add(id))
     toast.success('Room link copied to clipboard!')
+    setTimeout(() => {
+      setCopiedIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }, 2000)
+  }
+
+  function parseDurationMinutes(dur: string): number {
+    const m = dur.match(/(\d+)h\s*(?:(\d+)m)?/)
+    if (m) return parseInt(m[1]) * 60 + (parseInt(m[2]) || 0)
+    const m2 = dur.match(/(\d+)m/)
+    return m2 ? parseInt(m2[1]) : 30
   }
 
   const MeetingCard = ({ m }: { m: Meeting }) => {
     const countdown = getCountdown(m.date, m.time)
+    const isCopied = copiedIds.has(m.id)
     const participantAvatars = Array.from({ length: Math.min(m.participants, 3) }).map((_, i) => (
       <Avatar key={i} className='h-6 w-6 border-2 border-card -ml-2 first:ml-0'>
         <AvatarFallback className={`text-[8px] text-white ${avatarColors[i % avatarColors.length]}`}>{String.fromCharCode(65 + i)}</AvatarFallback>
       </Avatar>
     ))
     const fillPct = m.maxParticipants > 0 ? Math.round((m.participants / m.maxParticipants) * 100) : 0
+    // Simulated duration progress for active meetings
+    const totalMinutes = parseDurationMinutes(m.duration)
+    const elapsedPct = m.status === 'active' ? Math.min(65, Math.max(10, Math.round((Date.now() % 30000) / 30000 * 70 + 15))) : 0
 
     return (
-      <motion.div variants={item}>
+      <motion.div variants={item} layout>
         <Card className={`group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border-l-4 before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0 ${typeBorderColors[m.type]}`}>
           <CardContent className='p-4'>
             <div className='flex items-start justify-between gap-3'>
@@ -226,8 +247,13 @@ export default function MeetingsPage() {
                 <div className='flex items-center gap-2 mb-1.5'>
                   <span className='text-muted-foreground'>{typeIcons[m.type]}</span>
                   <h3 className='font-semibold text-sm truncate'>{m.title}</h3>
-                  <Badge variant='outline' className={`text-[10px] gap-1 shrink-0 ${statusConfig[m.status]?.color || ''}`}>
-                    {statusConfig[m.status]?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' />}
+                  <Badge variant='outline' className={`text-[10px] gap-1.5 shrink-0 ${statusConfig[m.status]?.color || ''}`}>
+                    {statusConfig[m.status]?.pulse && (
+                      <span className='relative flex h-2 w-2'>
+                        <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75' />
+                        <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500' />
+                      </span>
+                    )}
                     {statusConfig[m.status]?.label || m.status}
                   </Badge>
                 </div>
@@ -237,6 +263,23 @@ export default function MeetingsPage() {
                   <span className='flex items-center gap-1'>{m.duration}</span>
                 </div>
                 {m.description && <p className='text-xs text-muted-foreground mt-1.5 line-clamp-1'>{m.description}</p>}
+                {/* Duration progress bar for active meetings */}
+                {m.status === 'active' && totalMinutes > 0 && (
+                  <div className='mt-2'>
+                    <div className='flex items-center justify-between text-[10px] text-muted-foreground mb-1'>
+                      <span className='flex items-center gap-1'><Timer className='h-3 w-3 text-emerald-500' /> In progress</span>
+                      <span>{Math.round(totalMinutes * elapsedPct / 100)}m / {totalMinutes}m</span>
+                    </div>
+                    <div className='h-1.5 rounded-full bg-emerald-500/10 overflow-hidden'>
+                      <motion.div
+                        className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400'
+                        initial={{ width: 0 }}
+                        animate={{ width: `${elapsedPct}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className='flex items-center gap-3 mt-2.5'>
                   <div className='flex items-center gap-2'>
                     <div className='flex'>{participantAvatars}</div>
@@ -256,6 +299,39 @@ export default function MeetingsPage() {
                 )}
               </div>
               <div className='flex items-center gap-2 shrink-0'>
+                {/* Copy Link button with animated checkmark */}
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  className='h-8 w-8 p-0 hover:scale-110 active:scale-95 transition-transform'
+                  onClick={() => handleCopyLink(m.roomId, m.id)}
+                >
+                  <AnimatePresence mode='wait'>
+                    {isCopied ? (
+                      <motion.span
+                        key='check'
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 90 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        className='flex items-center justify-center text-emerald-500'
+                      >
+                        <Check className='h-4 w-4' />
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key='link'
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        className='flex items-center justify-center'
+                      >
+                        <Link2 className='h-4 w-4' />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Button>
                 {m.status === 'active' ? (
                   <Button size='sm' className='gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleJoin(m)}>
                     <Video className='h-3.5 w-3.5' /> Join
@@ -272,7 +348,7 @@ export default function MeetingsPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='end'>
-                    <DropdownMenuItem className='gap-2' onClick={() => handleCopyLink(m.roomId)}><Copy className='h-4 w-4' /> Copy Room Link</DropdownMenuItem>
+                    <DropdownMenuItem className='gap-2' onClick={() => handleCopyLink(m.roomId, m.id)}><Copy className='h-4 w-4' /> Copy Room Link</DropdownMenuItem>
                     <DropdownMenuItem className='gap-2' onClick={() => handleJoin(m)}><Video className='h-4 w-4' /> {m.status === 'active' ? 'Join Now' : 'Start Early'}</DropdownMenuItem>
                     {m.status !== 'ended' && <DropdownMenuSeparator />}
                     {m.status !== 'ended' && <DropdownMenuItem className='gap-2 text-red-600'><VideoOff className='h-4 w-4' /> Cancel Meeting</DropdownMenuItem>}
@@ -463,54 +539,84 @@ export default function MeetingsPage() {
         </motion.div>
       </div>
 
-      {/* Meeting lists */}
-      <Tabs defaultValue='upcoming'>
-        <TabsList>
-          <TabsTrigger value='upcoming'>Upcoming & Active ({upcoming.length})</TabsTrigger>
-          <TabsTrigger value='past'>Past ({past.length})</TabsTrigger>
-        </TabsList>
-        <TabsContent value='upcoming' className='mt-4'>
-          <motion.div variants={container} initial='hidden' animate='show' className='space-y-3 max-h-[calc(100vh-420px)] overflow-y-auto pr-1'>
-            <AnimatePresence>
-              {upcoming.map(m => <MeetingCard key={m.id} m={m} />)}
-            </AnimatePresence>
-            {upcoming.length === 0 && (
-              <div className='flex flex-col items-center justify-center py-16'>
-                <div className='relative'>
-                  <Video className='h-16 w-16 text-muted-foreground/20' />
-                  <div className='absolute inset-0 flex items-center justify-center'>
-                    <Video className='h-8 w-8 text-muted-foreground/40' />
+      {/* Meeting lists with animated tab underline */}
+      <div>
+        <div className='relative flex gap-1 border-b border-border/50 mb-4'>
+          {[
+            { value: 'upcoming', label: `Upcoming & Active (${upcoming.length})` },
+            { value: 'past', label: `Past (${past.length})` },
+          ].map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === tab.value ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.value && (
+                <motion.div
+                  layoutId='meeting-tab-underline'
+                  className='absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/60 rounded-full'
+                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+        <AnimatePresence mode='wait'>
+          {activeTab === 'upcoming' ? (
+            <motion.div
+              key='upcoming'
+              variants={container} initial='hidden' animate='show'
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              className='space-y-3 max-h-[calc(100vh-420px)] overflow-y-auto pr-1'
+            >
+              <AnimatePresence>
+                {upcoming.map(m => <MeetingCard key={m.id} m={m} />)}
+              </AnimatePresence>
+              {upcoming.length === 0 && (
+                <div className='flex flex-col items-center justify-center py-16'>
+                  <div className='relative'>
+                    <Video className='h-16 w-16 text-muted-foreground/20' />
+                    <div className='absolute inset-0 flex items-center justify-center'>
+                      <Video className='h-8 w-8 text-muted-foreground/40' />
+                    </div>
                   </div>
+                  <p className='font-medium mt-4'>No upcoming meetings</p>
+                  <p className='text-sm text-muted-foreground mt-1'>Schedule a new meeting to get started</p>
+                  <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => setCreateOpen(true)}>
+                    <Plus className='h-4 w-4' /> Create Meeting
+                  </Button>
                 </div>
-                <p className='font-medium mt-4'>No upcoming meetings</p>
-                <p className='text-sm text-muted-foreground mt-1'>Schedule a new meeting to get started</p>
-                <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => setCreateOpen(true)}>
-                  <Plus className='h-4 w-4' /> Create Meeting
-                </Button>
-              </div>
-            )}
-          </motion.div>
-        </TabsContent>
-        <TabsContent value='past' className='mt-4'>
-          <motion.div variants={container} initial='hidden' animate='show' className='space-y-3 max-h-[calc(100vh-420px)] overflow-y-auto pr-1'>
-            <AnimatePresence>
-              {past.map(m => <MeetingCard key={m.id} m={m} />)}
-            </AnimatePresence>
-            {past.length === 0 && (
-              <div className='flex flex-col items-center justify-center py-16'>
-                <div className='relative'>
-                  <VideoOff className='h-16 w-16 text-muted-foreground/20' />
-                  <div className='absolute inset-0 flex items-center justify-center'>
-                    <VideoOff className='h-8 w-8 text-muted-foreground/40' />
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key='past'
+              variants={container} initial='hidden' animate='show'
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              className='space-y-3 max-h-[calc(100vh-420px)] overflow-y-auto pr-1'
+            >
+              <AnimatePresence>
+                {past.map(m => <MeetingCard key={m.id} m={m} />)}
+              </AnimatePresence>
+              {past.length === 0 && (
+                <div className='flex flex-col items-center justify-center py-16'>
+                  <div className='relative'>
+                    <VideoOff className='h-16 w-16 text-muted-foreground/20' />
+                    <div className='absolute inset-0 flex items-center justify-center'>
+                      <VideoOff className='h-8 w-8 text-muted-foreground/40' />
+                    </div>
                   </div>
+                  <p className='font-medium mt-4'>No past meetings</p>
+                  <p className='text-sm text-muted-foreground mt-1'>Your completed meetings will appear here</p>
                 </div>
-                <p className='font-medium mt-4'>No past meetings</p>
-                <p className='text-sm text-muted-foreground mt-1'>Your completed meetings will appear here</p>
-              </div>
-            )}
-          </motion.div>
-        </TabsContent>
-      </Tabs>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }

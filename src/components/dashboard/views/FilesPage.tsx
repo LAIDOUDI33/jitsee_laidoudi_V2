@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,7 +33,6 @@ import {
   FileSpreadsheet,
   FileImage,
   FileType,
-  Eye,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -56,24 +55,24 @@ interface FileItem {
   folder?: string
 }
 
-const fileIconConfig: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  document: { icon: <FileText className='h-5 w-5' />, color: 'text-sky-500', bg: 'bg-sky-500/10' },
-  spreadsheet: { icon: <FileSpreadsheet className='h-5 w-5' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-  presentation: { icon: <FileText className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  video: { icon: <FileVideo className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  audio: { icon: <FileAudio className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  image: { icon: <FileImage className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  folder: { icon: <FolderUp className='h-5 w-5' />, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+const fileIconConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; gradientBg: string }> = {
+  document: { icon: <FileText className='h-5 w-5' />, color: 'text-sky-500', bg: 'bg-sky-500/10', gradientBg: 'bg-gradient-to-br from-sky-500/15 to-sky-500/5' },
+  spreadsheet: { icon: <FileSpreadsheet className='h-5 w-5' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10', gradientBg: 'bg-gradient-to-br from-emerald-500/15 to-emerald-500/5' },
+  presentation: { icon: <FileText className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10', gradientBg: 'bg-gradient-to-br from-orange-500/15 to-orange-500/5' },
+  video: { icon: <FileVideo className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10', gradientBg: 'bg-gradient-to-br from-purple-500/15 to-purple-500/5' },
+  audio: { icon: <FileAudio className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10', gradientBg: 'bg-gradient-to-br from-purple-500/15 to-purple-500/5' },
+  image: { icon: <FileImage className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10', gradientBg: 'bg-gradient-to-br from-orange-500/15 to-orange-500/5' },
+  folder: { icon: <FolderUp className='h-5 w-5' />, color: 'text-amber-500', bg: 'bg-amber-500/10', gradientBg: 'bg-gradient-to-br from-amber-500/15 to-amber-500/5' },
 }
 
-const gridIconConfig: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  document: { icon: <FileText className='h-10 w-10' />, color: 'text-sky-500', bg: 'bg-sky-500/10' },
-  spreadsheet: { icon: <FileSpreadsheet className='h-10 w-10' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-  presentation: { icon: <FileText className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  video: { icon: <FileVideo className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  audio: { icon: <FileAudio className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  image: { icon: <FileImage className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  folder: { icon: <FolderUp className='h-10 w-10' />, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+const gridIconConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; gradientBg: string }> = {
+  document: { icon: <FileText className='h-10 w-10' />, color: 'text-sky-500', bg: 'bg-sky-500/10', gradientBg: 'bg-gradient-to-br from-sky-500/20 to-sky-500/5' },
+  spreadsheet: { icon: <FileSpreadsheet className='h-10 w-10' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10', gradientBg: 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5' },
+  presentation: { icon: <FileText className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10', gradientBg: 'bg-gradient-to-br from-orange-500/20 to-orange-500/5' },
+  video: { icon: <FileVideo className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10', gradientBg: 'bg-gradient-to-br from-purple-500/20 to-purple-500/5' },
+  audio: { icon: <FileAudio className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10', gradientBg: 'bg-gradient-to-br from-purple-500/20 to-purple-500/5' },
+  image: { icon: <FileImage className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10', gradientBg: 'bg-gradient-to-br from-orange-500/20 to-orange-500/5' },
+  folder: { icon: <FolderUp className='h-10 w-10' />, color: 'text-amber-500', bg: 'bg-amber-500/10', gradientBg: 'bg-gradient-to-br from-amber-500/20 to-amber-500/5' },
 }
 
 function parseSizeToBytes(size: string): number {
@@ -83,6 +82,14 @@ function parseSizeToBytes(size: string): number {
   if (match[2] === 'GB') return val * 1024 * 1024 * 1024
   if (match[2] === 'MB') return val * 1024 * 1024
   return val * 1024
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const val = bytes / Math.pow(1024, i)
+  return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`
 }
 
 const mockFiles: FileItem[] = [
@@ -117,6 +124,50 @@ export default function FilesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [uploadOpen, setUploadOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  // Simulated upload progress animation when dialog is open
+  const uploadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const uploadStartRef = useRef(false)
+
+  const startUploadSimulation = useCallback(() => {
+    if (uploadStartRef.current) return
+    uploadStartRef.current = true
+    setUploadProgress(0)
+    uploadIntervalRef.current = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 100) {
+          if (uploadIntervalRef.current) clearInterval(uploadIntervalRef.current)
+          uploadStartRef.current = false
+          return 100
+        }
+        // Eased progress: fast start, slow end
+        const increment = prev < 30 ? 8 : prev < 70 ? 4 : prev < 90 ? 2 : 0.5
+        return Math.min(prev + increment, 100)
+      })
+    }, 150)
+  }, [])
+
+  const stopUploadSimulation = useCallback(() => {
+    if (uploadIntervalRef.current) clearInterval(uploadIntervalRef.current)
+    uploadIntervalRef.current = null
+    uploadStartRef.current = false
+    setUploadProgress(0)
+  }, [])
+
+  const handleUploadOpenChange = useCallback((open: boolean) => {
+    setUploadOpen(open)
+    if (open) {
+      startUploadSimulation()
+    } else {
+      stopUploadSimulation()
+    }
+  }, [startUploadSimulation, stopUploadSimulation])
+
+  useEffect(() => {
+    return () => {
+      if (uploadIntervalRef.current) clearInterval(uploadIntervalRef.current)
+    }
+  }, [])
 
   const filtered = mockFiles.filter(f => {
     const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase())
@@ -279,7 +330,7 @@ export default function FilesPage() {
                     <TableCell><Checkbox checked={selected.has(file.id)} onCheckedChange={() => toggleSelect(file.id)} /></TableCell>
                     <TableCell>
                       <div className='flex items-center gap-3'>
-                        <div className={`shrink-0 p-2 rounded-lg ${iconCfg.bg}`}><span className={iconCfg.color}>{iconCfg.icon}</span></div>
+                        <div className={`shrink-0 p-2 rounded-lg ${iconCfg.gradientBg} group-hover:shadow-sm transition-all duration-300`}><span className={iconCfg.color}>{iconCfg.icon}</span></div>
                         <div className='min-w-0'>
                           <p className='font-medium text-sm truncate max-w-[200px]'>{file.name}</p>
                           <div className='flex items-center gap-1.5 mt-0.5'>
@@ -334,11 +385,13 @@ export default function FilesPage() {
             const iconCfg = gridIconConfig[file.type]
             return (
               <motion.div key={file.id} variants={item}>
-                <Card className='group cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5'>
-                  <CardContent className='p-4 flex flex-col items-center text-center'>
-                    <div className={`p-4 rounded-2xl ${iconCfg.bg} mb-3 group-hover:scale-110 transition-transform`}><span className={iconCfg.color}>{iconCfg.icon}</span></div>
+                <Card className='group cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 relative overflow-hidden'>
+                  {/* Subtle hover glow effect */}
+                  <div className='absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none' style={{ boxShadow: 'inset 0 0 30px hsl(var(--primary) / 0.05), 0 0 20px hsl(var(--primary) / 0.08)' }} />
+                  <CardContent className='p-4 flex flex-col items-center text-center relative'>
+                    <div className={`p-4 rounded-2xl ${iconCfg.gradientBg} mb-3 group-hover:scale-110 group-hover:shadow-md transition-all duration-300`}><span className={iconCfg.color}>{iconCfg.icon}</span></div>
                     <p className='text-sm font-medium truncate w-full'>{file.name}</p>
-                    <p className='text-xs text-muted-foreground mt-1 font-mono'>{file.size}</p>
+                    <p className='text-xs text-muted-foreground mt-1 font-mono'>{formatFileSize(file.sizeBytes)}</p>
                     <div className='flex items-center gap-2 mt-2'>
                       {file.shared && <Badge variant='outline' className='text-[9px] gap-0.5 border-primary/20 text-primary bg-primary/5'><Share2 className='h-2.5 w-2.5' />Shared</Badge>}
                       <span className='text-[10px] text-muted-foreground uppercase'>{file.type}</span>
@@ -357,7 +410,7 @@ export default function FilesPage() {
       )}
 
       {/* Upload dialog */}
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+      <Dialog open={uploadOpen} onOpenChange={handleUploadOpenChange}>
         <DialogContent>
           <DialogHeader>
             <div className='flex items-center gap-3 mb-2'>
@@ -370,6 +423,38 @@ export default function FilesPage() {
               </div>
             </div>
           </DialogHeader>
+          {/* Simulated upload progress bar */}
+          <AnimatePresence>
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className='space-y-1.5 mb-4'
+              >
+                <div className='flex items-center justify-between text-xs'>
+                  <span className='text-muted-foreground'>Simulated upload in progress...</span>
+                  <motion.span
+                    key={Math.round(uploadProgress)}
+                    initial={{ opacity: 0.7 }}
+                    animate={{ opacity: 1 }}
+                    className='font-mono text-primary font-medium'
+                  >
+                    {Math.round(uploadProgress)}%
+                  </motion.span>
+                </div>
+                <div className='relative h-2 rounded-full bg-primary/10 overflow-hidden'>
+                  <motion.div
+                    className='h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/60'
+                    initial={{ width: 0 }}
+                    animate={{ width: `${uploadProgress}%` }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                  />
+                  <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2s_infinite]' style={{ backgroundSize: '200% 100%', backgroundPosition: `${uploadProgress}% 0` }} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div
             className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ${dragOver ? 'border-primary/60 bg-primary/10 shadow-[0_0_20px_hsl(var(--primary)/0.15)]' : 'border-primary/20 hover:border-primary/40 bg-primary/5'}`}
             onDragOver={e => { e.preventDefault(); setDragOver(true) }}

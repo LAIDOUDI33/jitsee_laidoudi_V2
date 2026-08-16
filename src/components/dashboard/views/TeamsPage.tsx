@@ -136,6 +136,47 @@ const sprintProgress = ['t1', 't2', 't3'].reduce<Record<string, number>>((acc, i
   return acc
 }, {})
 
+// 7-day activity heatmap data (0-4 intensity levels)
+const heatmapData: Record<string, number[]> = ['t1', 't2', 't3'].reduce((acc, id) => {
+  acc[id] = Array.from({ length: 7 }, () => Math.floor(Math.random() * 5))
+  return acc
+}, {} as Record<string, number[]>)
+
+const heatmapColors: Record<number, string> = {
+  0: 'bg-muted',
+  1: 'bg-emerald-200 dark:bg-emerald-900/50',
+  2: 'bg-emerald-400/60 dark:bg-emerald-700/60',
+  3: 'bg-emerald-500/80 dark:bg-emerald-500/70',
+  4: 'bg-emerald-600 dark:bg-emerald-400',
+}
+
+function ActivityHeatmap({ data }: { data: number[] }) {
+  return (
+    <div className='flex items-center gap-1.5'>
+      <span className='text-[10px] text-muted-foreground shrink-0 mr-1'>7d activity</span>
+      <div className='flex gap-[3px]'>
+        {data.map((level, i) => (
+          <motion.div
+            key={i}
+            className={`w-3.5 h-3.5 rounded-[3px] ${heatmapColors[level]}`}
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.06, duration: 0.25 }}
+            title={`Day ${i + 1}: level ${level}`}
+          />
+        ))}
+      </div>
+      <div className='flex items-center gap-[2px] ml-2'>
+        <span className='text-[9px] text-muted-foreground'>Less</span>
+        {[0, 1, 2, 3, 4].map(l => (
+          <div key={l} className={`w-2.5 h-2.5 rounded-[2px] ${heatmapColors[l]}`} />
+        ))}
+        <span className='text-[9px] text-muted-foreground'>More</span>
+      </div>
+    </div>
+  )
+}
+
 function TeamSparkline({ data, color }: { data: number[]; color: string }) {
   const maxVal = Math.max(...data)
   return (
@@ -380,15 +421,17 @@ export default function TeamsPage() {
           return (
             <motion.div key={team.id} variants={item}>
               <Card
-                className={`cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 overflow-hidden ${selectedTeam?.id === team.id ? 'ring-2 ring-primary' : ''}`}
+                className={`group cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 overflow-hidden ${selectedTeam?.id === team.id ? 'ring-2 ring-primary' : ''}`}
                 onClick={() => setSelectedTeam(team)}
               >
-                {/* Gradient header banner */}
-                <div className={`h-12 bg-gradient-to-r ${team.color.replace('bg-', 'from-').replace('-500', '-500/15')} to-transparent`} />
+                {/* Gradient header banner with shimmer */}
+                <div className={`h-12 relative overflow-hidden bg-gradient-to-r ${team.color.replace('bg-', 'from-').replace('-500', '-500/15')} to-transparent`}>
+                  <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer' />
+                </div>
                 <CardHeader className='pb-3'>
                   <div className='flex items-start justify-between'>
                     <div className='flex items-center gap-3'>
-                      <div className={`w-11 h-11 rounded-xl ${team.color} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+                      <div className={`w-11 h-11 rounded-xl ${team.color} flex items-center justify-center text-white font-bold text-sm shadow-lg transition-transform duration-300 group-hover:scale-110`}>
                         {team.name[0]}
                       </div>
                       <div>
@@ -524,7 +567,8 @@ export default function TeamsPage() {
                     </div>
                   </TabsContent>
                   <TabsContent value='activity' className='mt-4'>
-                    <div className='flex flex-col items-center justify-center py-12'>
+                    <ActivityHeatmap data={heatmapData[selectedTeam.id] || heatmapData['t1']} />
+                    <div className='flex flex-col items-center justify-center py-8'>
                       <div className='relative'>
                         <Zap className='h-16 w-16 text-muted-foreground/20' />
                         <div className='absolute inset-0 flex items-center justify-center'>
@@ -537,6 +581,10 @@ export default function TeamsPage() {
                   </TabsContent>
                 </Tabs>
               </CardContent>
+              {/* Activity heatmap strip at bottom of detail panel */}
+              <div className='px-6 pb-4'>
+                <ActivityHeatmap data={heatmapData[selectedTeam.id] || heatmapData['t1']} />
+              </div>
             </Card>
           </motion.div>
         )}

@@ -6,7 +6,7 @@ import {
   Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
   ArrowLeft, ArrowRight, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
   Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard,
-  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen, BarChart3
+  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen, BarChart3, ImageIcon, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import PollBuilder, { PollConfig } from '@/components/shared/PollBuilder';
+import VirtualBackgrounds, { VirtualBgOption } from '@/components/shared/VirtualBackgrounds';
+import LiveTranscriptionPanel from '@/components/shared/LiveTranscriptionPanel';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // ─── Interfaces ───────────────────────────────────────────────
@@ -338,7 +341,11 @@ export default function MeetingRoomPage() {
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [votedPolls, setVotedPolls] = useState<Record<string, string>>({});
+  const [pollBuilderOpen, setPollBuilderOpen] = useState(false);
+  const [virtualBgOpen, setVirtualBgOpen] = useState(false);
+  const [virtualBg, setVirtualBg] = useState<string>('none');
   const [captionsVisible, setCaptionsVisible] = useState(true);
+  const [transcriptionOpen, setTranscriptionOpen] = useState(false);
   const [currentCaptionIndex, setCurrentCaptionIndex] = useState(0);
   const [captionKey, setCaptionKey] = useState(0);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
@@ -579,6 +586,14 @@ export default function MeetingRoomPage() {
     toast.success('Vote recorded!', { description: `You voted for "${optionLabel}"` });
   };
 
+  const handleCreatePoll = (config: PollConfig) => {
+    toast.success(`Poll "${config.question}" created with ${config.options.length} options`);
+  };
+
+  const handleApplyVirtualBg = (bg: VirtualBgOption) => {
+    setVirtualBg(bg.id);
+  };
+
   const handleTogglePin = (id: string) => {
     setPinnedParticipant(prev => prev === id ? null : id);
     toast(pinnedParticipant === id ? 'Unpinned participant' : 'Pinned participant');
@@ -686,6 +701,7 @@ export default function MeetingRoomPage() {
 
   // ─── Render ─────────────────────────────────────────────────
   return (
+    <>
     <TooltipProvider delayDuration={200}>
     <div ref={meetingContainerRef} className="h-screen w-screen flex bg-slate-950 text-white overflow-hidden">
 
@@ -987,6 +1003,21 @@ export default function MeetingRoomPage() {
               label={captionsVisible ? 'Hide Captions' : 'Show Captions'}
               onClick={() => setCaptionsVisible(!captionsVisible)}
             />
+            {/* Live Transcription Panel */}
+            <ToolbarButton
+              active={transcriptionOpen}
+              icon={<FileText size={20} />}
+              label={transcriptionOpen ? 'Hide Transcription' : 'Live Transcription'}
+              onClick={() => setTranscriptionOpen(!transcriptionOpen)}
+            />
+            {/* Virtual Backgrounds */}
+            <ToolbarButton
+              active={virtualBg !== 'none'}
+              icon={<ImageIcon size={20} />}
+              label={virtualBg !== 'none' ? 'Change Background' : 'Virtual Background'}
+              onClick={() => setVirtualBgOpen(true)}
+              glowColor="emerald"
+            />
             {/* Reactions */}
             <div className="relative">
               <ToolbarButton
@@ -1047,7 +1078,7 @@ export default function MeetingRoomPage() {
                     {/* Other options */}
                     <div className="p-1.5">
                       <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
-                      <button onClick={() => { toggleSidebar('polls'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                      <button onClick={() => { toggleSidebar('polls'); setShowMoreMenu(false); setPollBuilderOpen(true); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
                         <Plus size={16} /> Create Poll
                       </button>
                       <button onClick={() => { setShowMoreMenu(false); toast('Whiteboard coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
@@ -1541,7 +1572,7 @@ export default function MeetingRoomPage() {
                       <h3 className="text-sm font-semibold">Polls</h3>
                       <p className="text-[10px] text-white/30">Vote and create polls</p>
                     </div>
-                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg" onClick={() => toast.info('Poll creation coming soon')}>
+                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg" onClick={() => setPollBuilderOpen(true)}>
                       <Plus size={12} className="mr-1" /> Create
                     </Button>
                   </div>
@@ -1630,6 +1661,24 @@ export default function MeetingRoomPage() {
       </AnimatePresence>
     </div>
     </TooltipProvider>
+    {/* ── Live Transcription Panel ── */}
+    <AnimatePresence>
+      {transcriptionOpen && <LiveTranscriptionPanel />}
+    </AnimatePresence>
+    {/* ── Poll Builder Dialog ── */}
+    <PollBuilder
+      open={pollBuilderOpen}
+      onOpenChange={setPollBuilderOpen}
+      onCreatePoll={handleCreatePoll}
+    />
+    {/* ── Virtual Backgrounds Dialog ── */}
+    <VirtualBackgrounds
+      open={virtualBgOpen}
+      onOpenChange={setVirtualBgOpen}
+      selectedId={virtualBg}
+      onApply={handleApplyVirtualBg}
+    />
+    </>
   );
 }
 

@@ -1,0 +1,680 @@
+     1→'use client'
+     2→
+     3→import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+     4→import { useAppStore } from '@/store/app-store'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { ScrollArea } from '@/components/ui/scroll-area'
+    10→import { Separator } from '@/components/ui/separator'
+    11→import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+    12→import { toast } from 'sonner'
+    13→import {
+    14→  Hash,
+    15→  Search,
+    16→  Send,
+    17→  Paperclip,
+    18→  Smile,
+    19→  AtSign,
+    20→  Phone,
+    21→  Pin,
+    22→  Users,
+    23→  Plus,
+    24→  MoreVertical,
+    25→  Check,
+    26→  CheckCheck,
+    27→  Circle,
+    28→  ChevronDown,
+    29→  ChevronRight,
+    30→  PanelRightOpen,
+    31→  PanelRightClose,
+    32→  Sparkles,
+    33→  Megaphone,
+    34→  Wifi,
+    35→  WifiOff,
+    36→  Loader2,
+    37→} from 'lucide-react'
+    38→import { motion, AnimatePresence } from 'framer-motion'
+    39→import { useChat } from '@/hooks/useChat'
+    40→
+    41→interface ChatMessage {
+    42→  id: string
+    43→  channelId: string
+    44→  senderId: string
+    45→  senderName: string
+    46→  content: string
+    47→  timestamp: string
+    48→  avatar?: string
+    49→  status?: 'sent' | 'delivered' | 'read'
+    50→  isBot?: boolean
+    51→  reactions?: Record<string, number>
+    52→}
+    53→
+    54→interface Channel {
+    55→  id: string
+    56→  name: string
+    57→  type: 'text' | 'video' | 'announcement'
+    58→  unread: number
+    59→  lastMessage?: string
+    60→  pinned?: boolean
+    61→  category?: string
+    62→}
+    63→
+    64→const channels: Channel[] = [
+    65→  { id: 'c5', name: 'announcements', type: 'announcement', unread: 2, lastMessage: 'Alex: Team offsite next Friday', pinned: true, category: 'General' },
+    66→  { id: 'c1', name: 'general', type: 'text', unread: 3, lastMessage: 'Sarah: The new build is deployed!', pinned: true, category: 'General' },
+    67→  { id: 'c3', name: 'random', type: 'text', unread: 12, lastMessage: 'Lisa: Check out this article', category: 'General' },
+    68→  { id: 'c2', name: 'engineering', type: 'text', unread: 0, lastMessage: 'Mike: PR ready for review', category: 'Projects' },
+    69→  { id: 'c4', name: 'design', type: 'text', unread: 1, lastMessage: 'Emily: Updated mockups in Figma', category: 'Projects' },
+    70→  { id: 'c6', name: 'standup-notes', type: 'text', unread: 0, lastMessage: 'James: Blocked on auth service', category: 'Projects' },
+    71→]
+    72→
+    73→const messagesByChannel: Record<string, ChatMessage[]> = {
+    74→  c1: [
+    75→    { id: 'msg1', channelId: 'c1', senderId: 'u6', senderName: 'Alex Turner', content: 'Good morning team! Quick update on the roadmap.', timestamp: '9:02 AM', status: 'read', reactions: { '👍': 2 } },
+    76→    { id: 'msg2', channelId: 'c1', senderId: 'u1', senderName: 'Sarah Chen', content: 'Morning! The new build is deployed to staging. Can everyone test?', timestamp: '9:15 AM', status: 'read', reactions: { '🚀': 3 } },
+    77→    { id: 'msg3', channelId: 'c1', senderId: 'u2', senderName: 'Mike Johnson', content: 'Testing now. The video quality improvements are noticeable!', timestamp: '9:18 AM', status: 'read' },
+    78→    { id: 'msg4', channelId: 'c1', senderId: 'u5', senderName: 'Lisa Park', content: 'Confirmed! The AI summaries are much better too. Great work on the prompt engineering.', timestamp: '9:22 AM', status: 'read', reactions: { '❤️': 1, '🔥': 2 } },
+    79→    { id: 'msg5', channelId: 'c1', senderId: 'u3', senderName: 'Emily Davis', content: 'The new UI is clean. One small thing - the participant grid could use better spacing on mobile.', timestamp: '9:30 AM', status: 'delivered' },
+    80→  ],
+    81→  c2: [
+    82→    { id: 'msg6', channelId: 'c2', senderId: 'u2', senderName: 'Mike Johnson', content: 'PR ready for review: refactor/auth-service', timestamp: '10:05 AM', status: 'read' },
+    83→    { id: 'msg7', channelId: 'c2', senderId: 'u1', senderName: 'Sarah Chen', content: 'Looking at it now. The JWT handling looks clean.', timestamp: '10:12 AM', status: 'read' },
+    84→  ],
+    85→}
+    86→
+    87→const onlineUsers = [
+    88→  { name: 'Sarah Chen', status: 'active' },
+    89→  { name: 'Mike Johnson', status: 'active' },
+    90→  { name: 'Lisa Park', status: 'idle' },
+    91→  { name: 'Emily Davis', status: 'active' },
+    92→  { name: 'Alex Turner', status: 'idle' },
+    93→]
+    94→
+    95→const typingUsers = ['Sarah Chen']
+    96→
+    97→const reactionEmojis = ['👍', '❤️', '😂', '🚀', '🔥', '👀']
+    98→
+    99→const categoryIcons: Record<string, React.ReactNode> = {
+   100→  General: <Hash className='h-3.5 w-3.5' />,
+   101→  Projects: <Sparkles className='h-3.5 w-3.5' />,
+   102→}
+   103→
+   104→function ConnectionIndicator({ isConnected, isConnecting, isReconnecting }: { isConnected: boolean; isConnecting: boolean; isReconnecting: boolean }) {
+   105→  if (isConnected) {
+   106→    return (
+   107→      <Tooltip>
+   108→        <TooltipTrigger asChild>
+   109→          <div className='flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400'>
+   110→            <Wifi className='h-3 w-3' />
+   111→            <span className='hidden lg:inline'>Live</span>
+   112→          </div>
+   113→        </TooltipTrigger>
+   114→        <TooltipContent>Connected to real-time chat</TooltipContent>
+   115→      </Tooltip>
+   116→    )
+   117→  }
+   118→  if (isConnecting || isReconnecting) {
+   119→    return (
+   120→      <Tooltip>
+   121→        <TooltipTrigger asChild>
+   122→          <div className='flex items-center gap-1.5 text-[11px] text-amber-500'>
+   123→            <Loader2 className='h-3 w-3 animate-spin' />
+   124→            <span className='hidden lg:inline'>{isReconnecting ? 'Reconnecting' : 'Connecting'}</span>
+   125→          </div>
+   126→        </TooltipTrigger>
+   127→        <TooltipContent>{isReconnecting ? 'Reconnecting to chat service...' : 'Connecting to chat service...'}</TooltipContent>
+   128→      </Tooltip>
+   129→    )
+   130→  }
+   131→  return (
+   132→    <Tooltip>
+   133→      <TooltipTrigger asChild>
+   134→        <div className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
+   135→          <WifiOff className='h-3 w-3' />
+   136→          <span className='hidden lg:inline'>Offline</span>
+   137→        </div>
+   138→      </TooltipTrigger>
+   139→      <TooltipContent>Chat service unavailable — using local mode</TooltipContent>
+   140→    </Tooltip>
+   141→  )
+   142→}
+   143→
+   144→function StatusIcon({ status }: { status?: string }) {
+   145→  if (status === 'read') return <CheckCheck className='h-3.5 w-3.5 text-primary' />
+   146→  if (status === 'delivered') return <CheckCheck className='h-3.5 w-3.5 text-muted-foreground' />
+   147→  if (status === 'sent') return <Check className='h-3.5 w-3.5 text-muted-foreground' />
+   148→  return null
+   149→}
+   150→
+   151→export default function ChatPage() {
+   152→  const { user } = useAppStore()
+   153→  const [activeChannel, setActiveChannel] = useState('c1')
+   154→  const [input, setInput] = useState('')
+   155→  const [searchQuery, setSearchQuery] = useState('')
+   156→  const [localMessages, setLocalMessages] = useState<Record<string, ChatMessage[]>>({})
+   157→  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+   158→  const [showOnlinePanel, setShowOnlinePanel] = useState(true)
+   159→  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null)
+   160→  const [showReactions, setShowReactions] = useState<string | null>(null)
+   161→  const scrollRef = useRef<HTMLDivElement>(null)
+   162→  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   163→
+   164→  // ── Real-time chat hook ──────────────────────────────────────────────
+   165→  const {
+   166→    status: wsStatus,
+   167→    messages: wsMessages,
+   168→    typingUsers: wsTypingUsers,
+   169→    onlineUsers: wsOnlineUsers,
+   170→    sendMessage,
+   171→    joinChannel,
+   172→    setTyping,
+   173→  } = useChat({
+   174→    userId: user?.id || 'local-user',
+   175→    userName: user?.name || 'You',
+   176→  })
+   177→
+   178→  const isConnected = wsStatus === 'connected'
+   179→  const isReconnecting = wsStatus === 'reconnecting'
+   180→  const isConnecting = wsStatus === 'connecting'
+   181→
+   182→  // Merge WS messages with local fallback messages
+   183→  const allMessages = useMemo(() => {
+   184→    // If WebSocket has messages for this channel, prefer them
+   185→    if (isConnected && wsMessages[activeChannel]?.length) {
+   186→      return wsMessages[activeChannel]
+   187→    }
+   188→    // Fall back to local state, then to static demo data
+   189→    if (localMessages[activeChannel]?.length) {
+   190→      return localMessages[activeChannel]
+   191→    }
+   192→    return messagesByChannel[activeChannel] || []
+   193→  }, [isConnected, wsMessages, localMessages, activeChannel])
+   194→
+   195→  // Online users from WebSocket or fallback
+   196→  const effectiveOnlineUsers = useMemo(() => {
+   197→    if (isConnected && wsOnlineUsers.length > 0) {
+   198→      return wsOnlineUsers.map(u => ({ name: u.userName, status: u.status }))
+   199→    }
+   200→    return onlineUsers
+   201→  }, [isConnected, wsOnlineUsers])
+   202→
+   203→  // Typing users from WebSocket or fallback
+   204→  const effectiveTypingUsers = useMemo(() => {
+   205→    if (isConnected) {
+   206→      return wsTypingUsers[activeChannel] || []
+   207→    }
+   208→    return typingUsers
+   209→  }, [isConnected, wsTypingUsers, activeChannel])
+   210→
+   211→  // Join channel when activeChannel changes
+   212→  useEffect(() => {
+   213→    if (isConnected) {
+   214→      joinChannel(activeChannel)
+   215→    }
+   216→  }, [activeChannel, isConnected, joinChannel])
+   217→
+   218→  const messages = allMessages
+   219→  const channel = channels.find(c => c.id === activeChannel)
+   220→
+   221→  const groupedChannels = useMemo(() => {
+   222→    const groups: Record<string, Channel[]> = {}
+   223→    channels
+   224→      .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+   225→      .forEach(c => {
+   226→        const cat = c.category || 'Other'
+   227→        if (!groups[cat]) groups[cat] = []
+   228→        groups[cat].push(c)
+   229→      })
+   230→    return groups
+   231→  }, [searchQuery])
+   232→
+   233→  useEffect(() => {
+   234→    if (scrollRef.current) {
+   235→      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+   236→    }
+   237→  }, [messages.length])
+   238→
+   239→  const handleSend = useCallback(async () => {
+   240→    if (!input.trim()) return
+   241→    const trimmed = input.trim()
+   242→    setInput('')
+   243→
+   244→    const msgData = {
+   245→      id: `msg-${Date.now()}`,
+   246→      senderId: user?.id || 'me',
+   247→      senderName: user?.name || 'You',
+   248→      content: trimmed,
+   249→      avatar: user?.avatar || undefined,
+   250→    }
+   251→
+   252→    if (isConnected) {
+   253→      // Send via WebSocket
+   254→      sendMessage(activeChannel, msgData)
+   255→      // Clear typing
+   256→      setTyping(activeChannel, false)
+   257→      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+   258→    } else {
+   259→      // Fallback: HTTP API + local state
+   260→      const msg: ChatMessage = {
+   261→        ...msgData,
+   262→        channelId: activeChannel,
+   263→        timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+   264→        status: 'sent',
+   265→        reactions: {},
+   266→      }
+   267→      // Optimistically add to local state
+   268→      setLocalMessages(prev => ({
+   269→        ...prev,
+   270→        [activeChannel]: [...(prev[activeChannel] || []), msg],
+   271→      }))
+   272→      // Also POST to HTTP API (fire-and-forget)
+   273→      try {
+   274→        await fetch('/api/v1/chat', {
+   275→          method: 'POST',
+   276→          headers: { 'Content-Type': 'application/json' },
+   277→          body: JSON.stringify({ channelId: activeChannel, ...msgData }),
+   278→        })
+   279→      } catch {
+   280→        // silent fallback — message already shown locally
+   281→      }
+   282→    }
+   283→  }, [input, activeChannel, user, isConnected, sendMessage, setTyping])
+   284→
+   285→  const handleReact = (msgId: string, emoji: string) => {
+   286→    setLocalMessages(prev => {
+   287→      const channelMsgs = prev[activeChannel] || []
+   288→      return {
+   289→        ...prev,
+   290→        [activeChannel]: channelMsgs.map(m => {
+   291→          if (m.id !== msgId) return m
+   292→          const reactions = { ...(m.reactions || {}) }
+   293→          reactions[emoji] = (reactions[emoji] || 0) + 1
+   294→          return { ...m, reactions }
+   295→        }),
+   296→      }
+   297→    })
+   298→    setShowReactions(null)
+   299→  }
+   300→
+   301→  const handleCopyMessage = (content: string) => {
+   302→    navigator.clipboard.writeText(content)
+   303→    toast.success('Message copied!')
+   304→  }
+   305→
+   306→  const toggleCategory = (cat: string) => {
+   307→    setCollapsedCategories(prev => {
+   308→      const next = new Set(prev)
+   309→      if (next.has(cat)) next.delete(cat)
+   310→      else next.add(cat)
+   311→      return next
+   312→    })
+   313→  }
+   314→
+   315→  // Typing indicator via WebSocket
+   316→  const handleInputChange = useCallback((value: string) => {
+   317→    setInput(value)
+   318→    if (isConnected) {
+   319→      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+   320→      setTyping(activeChannel, true)
+   321→      typingTimerRef.current = setTimeout(() => {
+   322→        setTyping(activeChannel, false)
+   323→      }, 3000)
+   324→    }
+   325→  }, [activeChannel, isConnected, setTyping])
+   326→
+   327→  const unreadCount = channels.reduce((a, c) => a + c.unread, 0)
+   328→
+   329→  return (
+   330→    <div className='flex h-[calc(100vh-10rem)] border rounded-xl overflow-hidden bg-gradient-to-br from-card to-card/80 border-border/50'>
+   331→      {/* Channel list sidebar */}
+   332→      <div className='w-64 border-r flex flex-col shrink-0 hidden md:flex bg-card'>
+   333→        {/* Channel header */}
+   334→        <div className='p-3 border-b'>
+   335→          <div className='flex items-center justify-between mb-3'>
+   336→            <div className='flex items-center gap-2'>
+   337→              <h3 className='font-semibold text-sm'>Channels</h3>
+   338→              {unreadCount > 0 && (
+   339→                <Badge variant='secondary' className='h-5 min-w-[20px] px-1.5 text-[10px] font-bold bg-primary/10 text-primary'>{unreadCount}</Badge>
+   340→              )}
+   341→            </div>
+   342→            <Button variant='ghost' size='icon' className='h-7 w-7 hover:scale-105 transition-transform'><Plus className='h-4 w-4' /></Button>
+   343→          </div>
+   344→          <div className='relative'>
+   345→            <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground' />
+   346→            <Input placeholder='Search channels...' className='pl-8 h-8 text-xs' value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+   347→          </div>
+   348→        </div>
+   349→        {/* Channel list with categories */}
+   350→        <ScrollArea className='flex-1'>
+   351→          <div className='p-2 space-y-1'>
+   352→            {Object.entries(groupedChannels).map(([category, chs]) => {
+   353→              const isCollapsed = collapsedCategories.has(category)
+   354→              const catUnread = chs.reduce((a, c) => a + c.unread, 0)
+   355→              return (
+   356→                <div key={category}>
+   357→                  <button
+   358→                    onClick={() => toggleCategory(category)}
+   359→                    className='flex items-center gap-1 w-full px-1 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider hover:text-foreground transition-colors'
+   360→                  >
+   361→                    {isCollapsed ? <ChevronRight className='h-3 w-3' /> : <ChevronDown className='h-3 w-3' />}
+   362→                    {categoryIcons[category]}
+   363→                    <span className='flex-1 text-left'>{category}</span>
+   364→                    {catUnread > 0 && !isCollapsed && (
+   365→                      <span className='h-4 min-w-[16px] px-1 text-[10px] font-bold rounded bg-primary/10 text-primary flex items-center justify-center'>{catUnread}</span>
+   366→                    )}
+   367→                  </button>
+   368→                  <AnimatePresence>
+   369→                    {!isCollapsed && (
+   370→                      <motion.div
+   371→                        initial={{ height: 0, opacity: 0 }}
+   372→                        animate={{ height: 'auto', opacity: 1 }}
+   373→                        exit={{ height: 0, opacity: 0 }}
+   374→                        transition={{ duration: 0.2 }}
+   375→                        className='overflow-hidden space-y-0.5'
+   376→                      >
+   377→                        {chs.map(c => (
+   378→                          <button
+   379→                            key={c.id}
+   380→                            onClick={() => setActiveChannel(c.id)}
+   381→                            className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all text-left group ${
+   382→                              activeChannel === c.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+   383→                            }`}
+   384→                          >
+   385→                            {c.type === 'announcement' ? <Megaphone className='h-4 w-4 shrink-0 text-amber-500' /> : <Hash className='h-4 w-4 shrink-0' />}
+   386→                            <span className='flex-1 truncate'>{c.name}</span>
+   387→                            {c.pinned && <Pin className='h-3 w-3 text-muted-foreground/30 shrink-0' />}
+   388→                            {c.unread > 0 && (
+   389→                              <Badge variant='secondary' className={`h-5 min-w-[20px] px-1.5 text-[10px] font-bold shrink-0 ${activeChannel === c.id ? 'bg-primary text-primary-foreground' : ''}`}>{c.unread}</Badge>
+   390→                            )}
+   391→                          </button>
+   392→                        ))}
+   393→                      </motion.div>
+   394→                    )}
+   395→                  </AnimatePresence>
+   396→                </div>
+   397→              )
+   398→            })}
+   399→          </div>
+   400→        </ScrollArea>
+   401→        {/* Online users footer */}
+   402→        <div className='border-t p-3'>
+   403→          <p className='text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-2 flex items-center gap-1.5'>
+   404→            <Circle className='h-2 w-2 fill-emerald-500 text-emerald-500' /> Online — {effectiveOnlineUsers.length}
+   405→          </p>
+   406→          <div className='space-y-1.5 max-h-32 overflow-y-auto'>
+   407→            {effectiveOnlineUsers.map(u => (
+   408→              <div key={u.name} className='flex items-center gap-2 px-1 group cursor-pointer hover:bg-muted/50 rounded-md py-0.5 -mx-1 px-1 transition-colors'>
+   409→                <div className='relative'>
+   410→                  <div className={`w-2 h-2 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+   411→                </div>
+   412→                <span className='text-xs text-muted-foreground truncate group-hover:text-foreground transition-colors'>{u.name}</span>
+   413→              </div>
+   414→            ))}
+   415→          </div>
+   416→        </div>
+   417→      </div>
+   418→
+   419→      {/* Chat area */}
+   420→      <div className='flex-1 flex flex-col min-w-0'>
+   421→        {/* Chat header */}
+   422→        <div className='h-14 border-b flex items-center justify-between px-4 shrink-0 bg-card/50 backdrop-blur-sm'>
+   423→          <div className='flex items-center gap-2.5'>
+   424→            {channel?.type === 'announcement' ? <Megaphone className='h-5 w-5 text-amber-500' /> : <Hash className='h-5 w-5 text-muted-foreground' />}
+   425→            <div>
+   426→              <h3 className='font-semibold text-sm'>{channel?.name || 'general'}</h3>
+   427→              <p className='text-[11px] text-muted-foreground'>{channel?.type || 'text'} channel</p>
+   428→            </div>
+   429→            {channel?.type === 'announcement' && (
+   430→              <Badge variant='outline' className='text-[10px] gap-1 border-amber-200 dark:border-amber-800 text-amber-600 bg-amber-500/5'>
+   431→                <Megaphone className='h-3 w-3' /> Announcement
+   432→              </Badge>
+   433→            )}
+   434→          </div>
+   435→          <div className='flex items-center gap-1'>
+   436→            <ConnectionIndicator isConnected={isConnected} isConnecting={isConnecting} isReconnecting={isReconnecting} />
+   437→            <Separator orientation='vertical' className='h-5 mx-1' />
+   438→            <Button variant='ghost' size='icon' className='h-8 w-8 hover:scale-105 transition-transform'><Phone className='h-4 w-4' /></Button>
+   439→            <Button
+   440→              variant={showOnlinePanel ? 'secondary' : 'ghost'}
+   441→              size='icon'
+   442→              className='h-8 w-8 hover:scale-105 transition-transform'
+   443→              onClick={() => setShowOnlinePanel(!showOnlinePanel)}
+   444→            >
+   445→              {showOnlinePanel ? <PanelRightClose className='h-4 w-4' /> : <PanelRightOpen className='h-4 w-4' />}
+   446→            </Button>
+   447→            <Button variant='ghost' size='icon' className='h-8 w-8 hover:scale-105 transition-transform'><Pin className='h-4 w-4' /></Button>
+   448→            <Button variant='ghost' size='icon' className='h-8 w-8 hover:scale-105 transition-transform'><MoreVertical className='h-4 w-4' /></Button>
+   449→          </div>
+   450→        </div>
+   451→
+   452→        {/* Messages */}
+   453→        <div ref={scrollRef} className='flex-1 overflow-y-auto p-4 space-y-1'>
+   454→          {messages.length === 0 && (
+   455→            <div className='flex flex-col items-center justify-center py-16'>
+   456→              <div className='relative'>
+   457→                <Hash className='h-16 w-16 text-muted-foreground/20' />
+   458→                <div className='absolute inset-0 flex items-center justify-center'>
+   459→                  <Hash className='h-8 w-8 text-muted-foreground/40' />
+   460→                </div>
+   461→              </div>
+   462→              <p className='font-medium mt-4'>No messages yet</p>
+   463→              <p className='text-sm text-muted-foreground mt-1'>Start the conversation in #{channel?.name}</p>
+   464→              <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => document.querySelector<HTMLInputElement>('input[placeholder]')?.focus()}>
+   465→                <Send className='h-4 w-4' /> Send First Message
+   466→              </Button>
+   467→            </div>
+   468→          )}
+   469→          {messages.map((msg, i) => {
+   470→            const isMe = msg.senderId === (user?.id || 'me')
+   471→            const showAvatar = i === 0 || messages[i - 1].senderId !== msg.senderId
+   472→            return (
+   473→              <div
+   474→                key={msg.id}
+   475→                className={`flex gap-3 group relative ${showAvatar ? 'mt-4' : ''}`}
+   476→                onMouseEnter={() => setHoveredMessage(msg.id)}
+   477→                onMouseLeave={() => { setHoveredMessage(null); setShowReactions(null) }}
+   478→              >
+   479→                {showAvatar ? (
+   480→                  <Avatar className='h-9 w-9 shrink-0 mt-0.5'>
+   481→                    <AvatarFallback className='text-[10px] bg-muted'>
+   482→                      {msg.senderName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+   483→                    </AvatarFallback>
+   484→                  </Avatar>
+   485→                ) : <div className='w-9 shrink-0' />}
+   486→                <div className='flex-1 min-w-0'>
+   487→                  {showAvatar && (
+   488→                    <div className='flex items-baseline gap-2 mb-0.5'>
+   489→                      <span className='text-sm font-semibold hover:underline cursor-pointer'>{msg.senderName}</span>
+   490→                      <span className='text-[11px] text-muted-foreground'>{msg.timestamp}</span>
+   491→                    </div>
+   492→                  )}
+   493→                  <div className='flex items-end gap-2'>
+   494→                    <div className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed max-w-[85%] ${
+   495→                      isMe
+   496→                        ? 'bg-primary text-primary-foreground rounded-br-md'
+   497→                        : 'bg-muted rounded-bl-md'
+   498→                    }`}>
+   499→                      {msg.content}
+   500→                    </div>
+   501→                    {isMe && <StatusIcon status={msg.status} />}
+   502→                  </div>
+   503→                  {/* Reactions */}
+   504→                  {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+   505→                    <div className='flex flex-wrap gap-1 mt-1.5'>
+   506→                      {Object.entries(msg.reactions).map(([emoji, count]) => (
+   507→                        <button
+   508→                          key={emoji}
+   509→                          onClick={() => handleReact(msg.id, emoji)}
+   510→                          className='flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-border/50 bg-background text-xs hover:bg-muted transition-colors hover:scale-105 active:scale-[0.98] transition-transform'
+   511→                        >
+   512→                          <span>{emoji}</span>
+   513→                          <span className='text-muted-foreground'>{count}</span>
+   514→                        </button>
+   515→                      ))}
+   516→                    </div>
+   517→                  )}
+   518→                  {/* Hover actions */}
+   519→                  {hoveredMessage === msg.id && !isMe && (
+   520→                    <motion.div
+   521→                      initial={{ opacity: 0, y: 4 }}
+   522→                      animate={{ opacity: 1, y: 0 }}
+   523→                      className='absolute -top-3 right-0 flex items-center gap-0.5 bg-background border border-border/50 rounded-lg shadow-sm p-0.5 z-10'
+   524→                    >
+   525→                      <Tooltip>
+   526→                        <TooltipTrigger asChild>
+   527→                          <button
+   528→                            className='p-1 hover:bg-muted rounded transition-colors'
+   529→                            onClick={() => setShowReactions(showReactions === msg.id ? null : msg.id)}
+   530→                          >
+   531→                            <Smile className='h-3.5 w-3.5 text-muted-foreground' />
+   532→                          </button>
+   533→                        </TooltipTrigger>
+   534→                        <TooltipContent>React</TooltipContent>
+   535→                      </Tooltip>
+   536→                      <Tooltip>
+   537→                        <TooltipTrigger asChild>
+   538→                          <button className='p-1 hover:bg-muted rounded transition-colors' onClick={() => handleCopyMessage(msg.content)}>
+   539→                            <CheckCheck className='h-3.5 w-3.5 text-muted-foreground' />
+   540→                          </button>
+   541→                        </TooltipTrigger>
+   542→                        <TooltipContent>Copy</TooltipContent>
+   543→                      </Tooltip>
+   544→                      <Tooltip>
+   545→                        <TooltipTrigger asChild>
+   546→                          <button className='p-1 hover:bg-muted rounded transition-colors'>
+   547→                            <MoreVertical className='h-3.5 w-3.5 text-muted-foreground' />
+   548→                          </button>
+   549→                        </TooltipTrigger>
+   550→                        <TooltipContent>More</TooltipContent>
+   551→                      </Tooltip>
+   552→                    </motion.div>
+   553→                  )}
+   554→                  {/* Reaction picker */}
+   555→                  <AnimatePresence>
+   556→                    {showReactions === msg.id && (
+   557→                      <motion.div
+   558→                        initial={{ opacity: 0, scale: 0.9 }}
+   559→                        animate={{ opacity: 1, scale: 1 }}
+   560→                        exit={{ opacity: 0, scale: 0.9 }}
+   561→                        className='flex items-center gap-1 mt-1.5 p-1 bg-background border border-border/50 rounded-lg shadow-lg w-fit'
+   562→                      >
+   563→                        {reactionEmojis.map(emoji => (
+   564→                          <button
+   565→                            key={emoji}
+   566→                            onClick={() => handleReact(msg.id, emoji)}
+   567→                            className='w-8 h-8 flex items-center justify-center rounded-md hover:bg-muted transition-all hover:scale-125 text-lg'
+   568→                          >{emoji}</button>
+   569→                        ))}
+   570→                      </motion.div>
+   571→                    )}
+   572→                  </AnimatePresence>
+   573→                </div>
+   574→              </div>
+   575→            )
+   576→          })}
+   577→          {/* Typing indicator */}
+   578→          {effectiveTypingUsers.length > 0 && (
+   579→            <motion.div
+   580→              initial={{ opacity: 0, y: 8 }}
+   581→              animate={{ opacity: 1, y: 0 }}
+   582→              className='flex items-center gap-2 mt-3 text-xs text-muted-foreground'
+   583→            >
+   584→              <div className='flex items-center gap-1'>
+   585→                {effectiveTypingUsers.map(name => (
+   586→                  <span key={name} className='font-medium text-foreground'>{name}</span>
+   587→                )).reduce((prev, curr, i) => (
+   588→                  <span key={i}>{prev}{i > 0 && <span className='text-muted-foreground'>, </span>}{curr}</span>
+   589→                ))}
+   590→                <span>is typing</span>
+   591→              </div>
+   592→              <div className='flex gap-0.5'>
+   593→                {[0, 1, 2].map(i => (
+   594→                  <motion.div
+   595→                    key={i}
+   596→                    className='w-1.5 h-1.5 rounded-full bg-primary'
+   597→                    animate={{ y: [0, -4, 0] }}
+   598→                    transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+   599→                  />
+   600→                ))}
+   601→              </div>
+   602→            </motion.div>
+   603→          )}
+   604→        </div>
+   605→
+   606→        {/* Message input */}
+   607→        <div className='border-t p-3 bg-card/50 backdrop-blur-sm'>
+   608→          <div className='flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2 border border-border/50 focus-within:border-primary/30 transition-colors'>
+   609→            <Button variant='ghost' size='icon' className='h-7 w-7 shrink-0 hover:scale-110 transition-transform'><Paperclip className='h-4 w-4' /></Button>
+   610→            <Input
+   611→              placeholder={`Message #${channel?.name || 'general'}`}
+   612→              className='border-0 bg-transparent shadow-none focus-visible:ring-0 h-7 text-sm'
+   613→              value={input}
+   614→              onChange={e => handleInputChange(e.target.value)}
+   615→              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+   616→            />
+   617→            <Button variant='ghost' size='icon' className='h-7 w-7 shrink-0 hover:scale-110 transition-transform'><AtSign className='h-4 w-4' /></Button>
+   618→            <Button variant='ghost' size='icon' className='h-7 w-7 shrink-0 hover:scale-110 transition-transform'><Smile className='h-4 w-4' /></Button>
+   619→            <Button size='icon' className='h-7 w-7 shrink-0 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:scale-110 active:scale-95 transition-transform' onClick={handleSend} disabled={!input.trim()}>
+   620→              <Send className='h-4 w-4' />
+   621→            </Button>
+   622→          </div>
+   623→        </div>
+   624→      </div>
+   625→
+   626→      {/* Online users panel (right) */}
+   627→      <AnimatePresence>
+   628→        {showOnlinePanel && (
+   629→          <motion.div
+   630→            initial={{ width: 0, opacity: 0 }}
+   631→            animate={{ width: 220, opacity: 1 }}
+   632→            exit={{ width: 0, opacity: 0 }}
+   633→            transition={{ duration: 0.2 }}
+   634→            className='border-l flex flex-col shrink-0 overflow-hidden bg-card'
+   635→          >
+   636→            <div className='p-3 border-b'>
+   637→              <h4 className='font-semibold text-sm flex items-center gap-2'>
+   638→                <Users className='h-4 w-4' />
+   639→                Members
+   640→              </h4>
+   641→            </div>
+   642→            <ScrollArea className='flex-1'>
+   643→              <div className='p-2 space-y-1'>
+   644→                <p className='text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mb-1'>
+   645→                  Online — {effectiveOnlineUsers.filter(u => u.status === 'active').length}
+   646→                </p>
+   647→                {effectiveOnlineUsers.filter(u => u.status === 'active').map(u => (
+   648→                  <div key={u.name} className='flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer'>
+   649→                    <div className='relative'>
+   650→                      <Avatar className='h-7 w-7'>
+   651→                        <AvatarFallback className='text-[9px] bg-muted'>{u.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+   652→                      </Avatar>
+   653→                      <div className='absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-card' />
+   654→                    </div>
+   655→                    <span className='text-xs font-medium truncate'>{u.name}</span>
+   656→                  </div>
+   657→                ))}
+   658→                <p className='text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1 mt-3 mb-1'>
+   659→                  Idle — {effectiveOnlineUsers.filter(u => u.status === 'idle').length}
+   660→                </p>
+   661→                {effectiveOnlineUsers.filter(u => u.status === 'idle').map(u => (
+   662→                  <div key={u.name} className='flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer opacity-60'>
+   663→                    <div className='relative'>
+   664→                      <Avatar className='h-7 w-7'>
+   665→                        <AvatarFallback className='text-[9px] bg-muted'>{u.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+   666→                      </Avatar>
+   667→                      <div className='absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-card' />
+   668→                    </div>
+   669→                    <span className='text-xs font-medium truncate'>{u.name}</span>
+   670→                  </div>
+   671→                ))}
+   672→              </div>
+   673→            </ScrollArea>
+   674→          </motion.div>
+   675→        )}
+   676→      </AnimatePresence>
+   677→    </div>
+   678→  )
+   679→}
+   680→

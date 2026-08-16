@@ -1,0 +1,547 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState } from 'react'
+     4→     4→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+     5→     5→import { Button } from '@/components/ui/button'
+     6→     6→import { Input } from '@/components/ui/input'
+     7→     7→import { Badge } from '@/components/ui/badge'
+     8→     8→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+     9→     9→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+    10→    10→import { Label } from '@/components/ui/label'
+    11→    11→import { Textarea } from '@/components/ui/textarea'
+    12→    12→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    13→    13→import { toast } from 'sonner'
+    14→    14→import {
+    15→    15→  Users,
+    16→    16→  Plus,
+    17→    17→  Crown,
+    18→    18→  Shield,
+    19→    19→  UserPlus,
+    20→    20→  MessageSquare,
+    21→    21→  Video,
+    22→    22→  MoreVertical,
+    23→    23→  Search,
+    24→    24→  Settings2,
+    25→    25→  TrendingUp,
+    26→    26→  Activity,
+    27→    27→  Sparkles,
+    28→    28→  Hash,
+    29→    29→  Zap,
+    30→    30→  Check,
+    31→    31→  User,
+    32→    32→  Target,
+    33→    33→} from 'lucide-react'
+    34→    34→import {
+    35→    35→  DropdownMenu,
+    36→    36→  DropdownMenuContent,
+    37→    37→  DropdownMenuItem,
+    38→    38→  DropdownMenuTrigger,
+    39→    39→} from '@/components/ui/dropdown-menu'
+    40→    40→import { motion, AnimatePresence } from 'framer-motion'
+    41→    41→
+    42→    42→interface TeamMember {
+    43→    43→  id: string
+    44→    44→  name: string
+    45→    45→  email: string
+    46→    46→  role: 'admin' | 'member' | 'viewer'
+    47→    47→  avatar?: string
+    48→    48→  status: 'online' | 'offline' | 'away'
+    49→    49→}
+    50→    50→
+    51→    51→interface Team {
+    52→    52→  id: string
+    53→    53→  name: string
+    54→    54→  description: string
+    55→    55→  members: TeamMember[]
+    56→    56→  channels: number
+    57→    57→  meetings: number
+    58→    58→  color: string
+    59→    59→  isOwner: boolean
+    60→    60→}
+    61→    61→
+    62→    62→const roleIcons: Record<string, React.ReactNode> = {
+    63→    63→  admin: <Crown className='h-3 w-3 text-amber-500' />,
+    64→    64→  member: <Shield className='h-3 w-3 text-sky-500' />,
+    65→    65→  viewer: <Users className='h-3 w-3 text-muted-foreground' />,
+    66→    66→}
+    67→    67→
+    68→    68→const statusColors: Record<string, string> = {
+    69→    69→  online: 'bg-emerald-500',
+    70→    70→  away: 'bg-amber-500',
+    71→    71→  offline: 'bg-zinc-400',
+    72→    72→}
+    73→    73→
+    74→    74→const statusLabels: Record<string, string> = {
+    75→    75→  online: 'Online',
+    76→    76→  away: 'Away',
+    77→    77→  offline: 'Offline',
+    78→    78→}
+    79→    79→
+    80→    80→const gradientMap: Record<string, string> = {
+    81→    81→  'bg-blue-500': 'from-blue-500/20 to-blue-600/5',
+    82→    82→  'bg-violet-500': 'from-violet-500/20 to-violet-600/5',
+    83→    83→  'bg-emerald-500': 'from-emerald-500/20 to-emerald-600/5',
+    84→    84→}
+    85→    85→
+    86→    86→const mockTeams: Team[] = [
+    87→    87→  {
+    88→    88→    id: 't1', name: 'Engineering', description: 'Core platform engineering team', color: 'bg-blue-500',
+    89→    89→    isOwner: true,
+    90→    90→    members: [
+    91→    91→      { id: 'u1', name: 'Sarah Chen', email: 'sarah@alvision.ai', role: 'admin', status: 'online' },
+    92→    92→      { id: 'u2', name: 'Mike Johnson', email: 'mike@alvision.ai', role: 'member', status: 'online' },
+    93→    93→      { id: 'u3', name: 'Emily Davis', email: 'emily@alvision.ai', role: 'member', status: 'away' },
+    94→    94→      { id: 'u4', name: 'James Wilson', email: 'james@alvision.ai', role: 'viewer', status: 'offline' },
+    95→    95→      { id: 'u5', name: 'Lisa Park', email: 'lisa@alvision.ai', role: 'member', status: 'online' },
+    96→    96→    ],
+    97→    97→    channels: 8, meetings: 24,
+    98→    98→  },
+    99→    99→  {
+   100→   100→    id: 't2', name: 'Product', description: 'Product design and strategy', color: 'bg-violet-500',
+   101→   101→    isOwner: false,
+   102→   102→    members: [
+   103→   103→      { id: 'u6', name: 'Alex Turner', email: 'alex@alvision.ai', role: 'admin', status: 'online' },
+   104→   104→      { id: 'u7', name: 'Maria Garcia', email: 'maria@alvision.ai', role: 'member', status: 'offline' },
+   105→   105→      { id: 'u8', name: 'David Kim', email: 'david@alvision.ai', role: 'member', status: 'online' },
+   106→   106→    ],
+   107→   107→    channels: 5, meetings: 18,
+   108→   108→  },
+   109→   109→  {
+   110→   110→    id: 't3', name: 'Sales', description: 'Sales and customer success', color: 'bg-emerald-500',
+   111→   111→    isOwner: false,
+   112→   112→    members: [
+   113→   113→      { id: 'u9', name: 'Tom Brown', email: 'tom@alvision.ai', role: 'admin', status: 'away' },
+   114→   114→      { id: 'u10', name: 'Nina Patel', email: 'nina@alvision.ai', role: 'member', status: 'online' },
+   115→   115→    ],
+   116→   116→    channels: 3, meetings: 12,
+   117→   117→  },
+   118→   118→]
+   119→   119→
+   120→   120→const container = {
+   121→   121→  hidden: { opacity: 0 },
+   122→   122→  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+   123→   123→}
+   124→   124→const item = {
+   125→   125→  hidden: { opacity: 0, y: 16 },
+   126→   126→  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+   127→   127→}
+   128→   128→
+   129→   129→const sparklineData = ['t1', 't2', 't3'].reduce<Record<string, number[]>>((acc, id) => {
+   130→   130→  acc[id] = Array.from({ length: 7 }, () => Math.floor(Math.random() * 80) + 20)
+   131→   131→  return acc
+   132→   132→}, {})
+   133→   133→
+   134→   134→const sprintProgress = ['t1', 't2', 't3'].reduce<Record<string, number>>((acc, id) => {
+   135→   135→  acc[id] = Math.floor(Math.random() * 50) + 40
+   136→   136→  return acc
+   137→   137→}, {})
+   138→   138→
+   139→   139→function TeamSparkline({ data, color }: { data: number[]; color: string }) {
+   140→   140→  const maxVal = Math.max(...data)
+   141→   141→  return (
+   142→   142→    <div className='flex items-end gap-[2px] h-6' aria-label='Team activity last 7 days'>
+   143→   143→      {data.map((val, i) => (
+   144→   144→        <motion.div
+   145→   145→          key={i}
+   146→   146→          className={`w-[4px] rounded-sm ${color}`}
+   147→   147→          initial={{ height: 0 }}
+   148→   148→          animate={{ height: `${(val / maxVal) * 100}%` }}
+   149→   149→          transition={{ delay: i * 0.05, duration: 0.3, ease: 'easeOut' }}
+   150→   150→          title={`Day ${i + 1}: ${val}%`}
+   151→   151→        />
+   152→   152→      ))}
+   153→   153→    </div>
+   154→   154→  )
+   155→   155→}
+   156→   156→
+   157→   157→function SprintProgressBar({ progress, color }: { progress: number; color: string }) {
+   158→   158→  return (
+   159→   159→    <div className='space-y-1'>
+   160→   160→      <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
+   161→   161→        <span className='flex items-center gap-1'><Target className='h-2.5 w-2.5' />Sprint Progress</span>
+   162→   162→        <span className='font-medium'>{progress}%</span>
+   163→   163→      </div>
+   164→   164→      <div className='h-1.5 rounded-full bg-muted overflow-hidden'>
+   165→   165→        <motion.div
+   166→   166→          className={`h-full rounded-full ${color}`}
+   167→   167→          initial={{ width: 0 }}
+   168→   168→          animate={{ width: `${progress}%` }}
+   169→   169→          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
+   170→   170→        />
+   171→   171→      </div>
+   172→   172→    </div>
+   173→   173→  )
+   174→   174→}
+   175→   175→
+   176→   176→function CreateTeamStepIndicator({ step }: { step: number }) {
+   177→   177→  const steps = ['Details', 'Members', 'Settings']
+   178→   178→  return (
+   179→   179→    <div className='flex items-center gap-2 mb-4'>
+   180→   180→      {steps.map((label, i) => (
+   181→   181→        <div key={label} className='flex items-center gap-2 flex-1'>
+   182→   182→          <motion.div
+   183→   183→            className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-semibold shrink-0 transition-colors duration-300 ${
+   184→   184→              i < step
+   185→   185→                ? 'bg-primary text-primary-foreground'
+   186→   186→                : i === step
+   187→   187→                  ? 'bg-primary/15 text-primary border-2 border-primary'
+   188→   188→                  : 'bg-muted text-muted-foreground border-2 border-muted'
+   189→   189→            }`}
+   190→   190→            animate={i === step ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+   191→   191→            transition={{ duration: 0.3 }}
+   192→   192→          >
+   193→   193→            {i < step ? <Check className='h-3 w-3' /> : i + 1}
+   194→   194→          </motion.div>
+   195→   195→          <span className={`text-[11px] font-medium truncate transition-colors duration-300 ${
+   196→   196→            i <= step ? 'text-foreground' : 'text-muted-foreground'
+   197→   197→          }`}>
+   198→   198→            {label}
+   199→   199→          </span>
+   200→   200→          {i < steps.length - 1 && (
+   201→   201→            <div className={`flex-1 h-[2px] rounded-full transition-colors duration-300 ${
+   202→   202→              i < step ? 'bg-primary' : 'bg-muted'
+   203→   203→            }`} />
+   204→   204→          )}
+   205→   205→        </div>
+   206→   206→      ))}
+   207→   207→    </div>
+   208→   208→  )
+   209→   209→}
+   210→   210→
+   211→   211→export default function TeamsPage() {
+   212→   212→  const [search, setSearch] = useState('')
+   213→   213→  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
+   214→   214→  const [createOpen, setCreateOpen] = useState(false)
+   215→   215→  const [createStep, setCreateStep] = useState(0)
+   216→   216→  const [newTeam, setNewTeam] = useState({ name: '', description: '' })
+   217→   217→
+   218→   218→  const filtered = mockTeams.filter(t =>
+   219→   219→    t.name.toLowerCase().includes(search.toLowerCase())
+   220→   220→  )
+   221→   221→
+   222→   222→  const handleCreateTeam = () => {
+   223→   223→    if (!newTeam.name.trim()) return
+   224→   224→    toast.success(`Team "${newTeam.name}" created successfully!`)
+   225→   225→    setCreateOpen(false)
+   226→   226→    setNewTeam({ name: '', description: '' })
+   227→   227→    setCreateStep(0)
+   228→   228→  }
+   229→   229→
+   230→   230→  const canProceedStep = createStep === 0 ? newTeam.name.trim().length > 0 : true
+   231→   231→
+   232→   232→  const totalMembers = mockTeams.reduce((a, t) => a + t.members.length, 0)
+   233→   233→  const totalOnline = mockTeams.reduce((a, t) => a + t.members.filter(m => m.status === 'online').length, 0)
+   234→   234→
+   235→   235→  return (
+   236→   236→    <div className='space-y-6'>
+   237→   237→      {/* Header */}
+   238→   238→      <div className='relative'>
+   239→   239→        <div className='flex flex-col sm:flex-row sm:items-end justify-between gap-4'>
+   240→   240→          <div>
+   241→   241→            <h2 className='text-3xl font-bold tracking-tight'>Teams</h2>
+   242→   242→            <p className='text-muted-foreground text-sm mt-1'>Manage your organization teams, members, and collaborations</p>
+   243→   243→            <div className='h-1 w-12 rounded-full bg-gradient-to-r from-primary to-primary/50 mt-2' />
+   244→   244→          </div>
+   245→   245→          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   246→   246→            <DialogTrigger asChild>
+   247→   247→              <Button className='gap-2 bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'><Plus className='h-4 w-4' /> Create Team</Button>
+   248→   248→            </DialogTrigger>
+   249→   249→            <DialogContent>
+   250→   250→              <DialogHeader>
+   251→   251→                <div className='flex items-center gap-3 mb-2'>
+   252→   252→                  <div className='w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center'>
+   253→   253→                    <Sparkles className='h-5 w-5 text-primary-foreground' />
+   254→   254→                  </div>
+   255→   255→                  <div>
+   256→   256→                    <DialogTitle>Create New Team</DialogTitle>
+   257→   257→                    <p className='text-sm text-muted-foreground mt-0.5'>Set up a new team for your organization</p>
+   258→   258→                  </div>
+   259→   259→                </div>
+   260→   260→              </DialogHeader>
+   261→   261→              {/* Animated step indicator */}
+   262→   262→              <CreateTeamStepIndicator step={createStep} />
+   263→   263→              <div className='space-y-4 pt-2'>
+   264→   264→                <AnimatePresence mode='wait'>
+   265→   265→                  {createStep === 0 && (
+   266→   266→                    <motion.div
+   267→   267→                      key='step-details'
+   268→   268→                      initial={{ opacity: 0, x: -10 }}
+   269→   269→                      animate={{ opacity: 1, x: 0 }}
+   270→   270→                      exit={{ opacity: 0, x: 10 }}
+   271→   271→                      transition={{ duration: 0.2 }}
+   272→   272→                      className='space-y-4'
+   273→   273→                    >
+   274→   274→                      <div className='space-y-2'>
+   275→   275→                        <Label>Team Name</Label>
+   276→   276→                        <Input placeholder='e.g. Marketing, DevOps' value={newTeam.name} onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))} />
+   277→   277→                      </div>
+   278→   278→                      <div className='space-y-2'>
+   279→   279→                        <Label>Description</Label>
+   280→   280→                        <Textarea placeholder='What is this team about?' rows={3} value={newTeam.description} onChange={e => setNewTeam(p => ({ ...p, description: e.target.value }))} />
+   281→   281→                      </div>
+   282→   282→                    </motion.div>
+   283→   283→                  )}
+   284→   284→                  {createStep === 1 && (
+   285→   285→                    <motion.div
+   286→   286→                      key='step-members'
+   287→   287→                      initial={{ opacity: 0, x: -10 }}
+   288→   288→                      animate={{ opacity: 1, x: 0 }}
+   289→   289→                      exit={{ opacity: 0, x: 10 }}
+   290→   290→                      transition={{ duration: 0.2 }}
+   291→   291→                      className='flex flex-col items-center justify-center py-6'
+   292→   292→                    >
+   293→   293→                      <div className='w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3'>
+   294→   294→                        <UserPlus className='h-6 w-6 text-primary' />
+   295→   295→                      </div>
+   296→   296→                      <p className='text-sm font-medium'>Invite Team Members</p>
+   297→   297→                      <p className='text-xs text-muted-foreground mt-1'>You can add members after creating the team</p>
+   298→   298→                    </motion.div>
+   299→   299→                  )}
+   300→   300→                  {createStep === 2 && (
+   301→   301→                    <motion.div
+   302→   302→                      key='step-settings'
+   303→   303→                      initial={{ opacity: 0, x: -10 }}
+   304→   304→                      animate={{ opacity: 1, x: 0 }}
+   305→   305→                      exit={{ opacity: 0, x: 10 }}
+   306→   306→                      transition={{ duration: 0.2 }}
+   307→   307→                      className='flex flex-col items-center justify-center py-6'
+   308→   308→                    >
+   309→   309→                      <div className='w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3'>
+   310→   310→                        <Check className='h-6 w-6 text-emerald-600' />
+   311→   311→                      </div>
+   312→   312→                      <p className='text-sm font-medium'>Ready to Create!</p>
+   313→   313→                      <p className='text-xs text-muted-foreground mt-1'>Review and confirm your new team</p>
+   314→   314→                    </motion.div>
+   315→   315→                  )}
+   316→   316→                </AnimatePresence>
+   317→   317→                <div className='flex justify-between gap-3 pt-2'>
+   318→   318→                  <div className='flex gap-2'>
+   319→   319→                    <Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button>
+   320→   320→                    {createStep > 0 && (
+   321→   321→                      <Button variant='outline' onClick={() => setCreateStep(s => s - 1)}>Back</Button>
+   322→   322→                    )}
+   323→   323→                  </div>
+   324→   324→                  {createStep < 2 ? (
+   325→   325→                    <Button onClick={() => setCreateStep(s => s + 1)} disabled={!canProceedStep} className='bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'>Continue</Button>
+   326→   326→                  ) : (
+   327→   327→                    <Button onClick={handleCreateTeam} disabled={!newTeam.name.trim()} className='bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'>Create Team</Button>
+   328→   328→                  )}
+   329→   329→                </div>
+   330→   330→              </div>
+   331→   331→            </DialogContent>
+   332→   332→          </Dialog>
+   333→   333→        </div>
+   334→   334→      </div>
+   335→   335→
+   336→   336→      {/* Stats */}
+   337→   337→      <div className='grid grid-cols-3 gap-4'>
+   338→   338→        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+   339→   339→          <CardContent className='p-4 flex items-center gap-3'>
+   340→   340→            <div className='p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5'><Users className='h-5 w-5 text-primary' /></div>
+   341→   341→            <div>
+   342→   342→              <p className='text-2xl font-bold'>{mockTeams.length}</p>
+   343→   343→              <p className='text-xs text-muted-foreground'>Total Teams</p>
+   344→   344→            </div>
+   345→   345→          </CardContent>
+   346→   346→        </Card>
+   347→   347→        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+   348→   348→          <CardContent className='p-4 flex items-center gap-3'>
+   349→   349→            <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><Activity className='h-5 w-5 text-emerald-600' /></div>
+   350→   350→            <div>
+   351→   351→              <div className='flex items-center gap-2'>
+   352→   352→                <p className='text-2xl font-bold'>{totalOnline}</p>
+   353→   353→                <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />Online</span>
+   354→   354→              </div>
+   355→   355→              <p className='text-xs text-muted-foreground'>{totalMembers} total members</p>
+   356→   356→            </div>
+   357→   357→          </CardContent>
+   358→   358→        </Card>
+   359→   359→        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+   360→   360→          <CardContent className='p-4 flex items-center gap-3'>
+   361→   361→            <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-500/5'><Video className='h-5 w-5 text-violet-600' /></div>
+   362→   362→            <div>
+   363→   363→              <p className='text-2xl font-bold'>{mockTeams.reduce((a, t) => a + t.meetings, 0)}</p>
+   364→   364→              <p className='text-xs text-muted-foreground'>Team Meetings</p>
+   365→   365→            </div>
+   366→   366→          </CardContent>
+   367→   367→        </Card>
+   368→   368→      </div>
+   369→   369→
+   370→   370→      {/* Search */}
+   371→   371→      <div className='relative max-w-md'>
+   372→   372→        <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+   373→   373→        <Input placeholder='Search teams...' className='pl-9' value={search} onChange={e => setSearch(e.target.value)} />
+   374→   374→      </div>
+   375→   375→
+   376→   376→      {/* Team grid */}
+   377→   377→      <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+   378→   378→        {filtered.map(team => {
+   379→   379→          const onlineCount = team.members.filter(m => m.status === 'online').length
+   380→   380→          return (
+   381→   381→            <motion.div key={team.id} variants={item}>
+   382→   382→              <Card
+   383→   383→                className={`cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 overflow-hidden ${selectedTeam?.id === team.id ? 'ring-2 ring-primary' : ''}`}
+   384→   384→                onClick={() => setSelectedTeam(team)}
+   385→   385→              >
+   386→   386→                {/* Gradient header banner */}
+   387→   387→                <div className={`h-12 bg-gradient-to-r ${team.color.replace('bg-', 'from-').replace('-500', '-500/15')} to-transparent`} />
+   388→   388→                <CardHeader className='pb-3'>
+   389→   389→                  <div className='flex items-start justify-between'>
+   390→   390→                    <div className='flex items-center gap-3'>
+   391→   391→                      <div className={`w-11 h-11 rounded-xl ${team.color} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+   392→   392→                        {team.name[0]}
+   393→   393→                      </div>
+   394→   394→                      <div>
+   395→   395→                        <CardTitle className='text-base'>{team.name}</CardTitle>
+   396→   396→                        <CardDescription className='text-xs mt-0.5'>{team.description}</CardDescription>
+   397→   397→                      </div>
+   398→   398→                    </div>
+   399→   399→                    <DropdownMenu>
+   400→   400→                      <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+   401→   401→                        <Button variant='ghost' size='icon' className='h-8 w-8'><MoreVertical className='h-4 w-4' /></Button>
+   402→   402→                      </DropdownMenuTrigger>
+   403→   403→                      <DropdownMenuContent align='end'>
+   404→   404→                        <DropdownMenuItem className='gap-2'><Settings2 className='h-4 w-4' /> Settings</DropdownMenuItem>
+   405→   405→                        <DropdownMenuItem className='gap-2'><UserPlus className='h-4 w-4' /> Invite Members</DropdownMenuItem>
+   406→   406→                      </DropdownMenuContent>
+   407→   407→                    </DropdownMenu>
+   408→   408→                  </div>
+   409→   409→                </CardHeader>
+   410→   410→                <CardContent className='pt-0'>
+   411→   411→                  {/* Team Activity Sparkline + Sprint Progress */}
+   412→   412→                  <div className='flex items-center justify-between mb-3 gap-3'>
+   413→   413→                    <div className='flex-1'>
+   414→   414→                      <SprintProgressBar progress={sprintProgress[team.id]} color={team.color} />
+   415→   415→                    </div>
+   416→   416→                    <TeamSparkline data={sparklineData[team.id]} color={team.color} />
+   417→   417→                  </div>
+   418→   418→                  <div className='flex items-center justify-between text-sm text-muted-foreground mb-3'>
+   419→   419→                    <span className='flex items-center gap-1.5 text-xs'><MessageSquare className='h-3.5 w-3.5' />{team.channels} channels</span>
+   420→   420→                    <span className='flex items-center gap-1.5 text-xs'><Video className='h-3.5 w-3.5' />{team.meetings} meetings</span>
+   421→   421→                    <Badge variant='outline' className='text-[10px] gap-1 bg-primary/5 border-primary/20 text-primary'>
+   422→   422→                      <User className='h-2.5 w-2.5' />{team.members.length} members
+   423→   423→                    </Badge>
+   424→   424→                  </div>
+   425→   425→                  <div className='flex items-center justify-between'>
+   426→   426→                    <div className='flex -space-x-2'>
+   427→   427→                      {team.members.slice(0, 4).map(m => (
+   428→   428→                        <div key={m.id} className='relative'>
+   429→   429→                          <Avatar className='h-7 w-7 border-2 border-card'>
+   430→   430→                            <AvatarFallback className='text-[10px] bg-muted'>{m.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+   431→   431→                          </Avatar>
+   432→   432→                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${statusColors[m.status]}`} />
+   433→   433→                        </div>
+   434→   434→                      ))}
+   435→   435→                      {team.members.length > 4 && (
+   436→   436→                        <div className='h-7 w-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[10px] font-medium'>
+   437→   437→                          +{team.members.length - 4}
+   438→   438→                        </div>
+   439→   439→                      )}
+   440→   440→                    </div>
+   441→   441→                    <div className='flex items-center gap-3 text-xs text-muted-foreground'>
+   442→   442→                      <Badge variant='secondary' className='text-[10px] gap-1'><Users className='h-3 w-3' />{team.members.length}</Badge>
+   443→   443→                      <div className='flex items-center gap-1'>
+   444→   444→                        <div className='w-2 h-2 rounded-full bg-emerald-500' />
+   445→   445→                        {onlineCount} online
+   446→   446→                      </div>
+   447→   447→                    </div>
+   448→   448→                  </div>
+   449→   449→                </CardContent>
+   450→   450→              </Card>
+   451→   451→            </motion.div>
+   452→   452→          )
+   453→   453→        })}
+   454→   454→      </motion.div>
+   455→   455→
+   456→   456→      {filtered.length === 0 && (
+   457→   457→        <div className='flex flex-col items-center justify-center py-16'>
+   458→   458→          <div className='relative'>
+   459→   459→            <Users className='h-16 w-16 text-muted-foreground/20' />
+   460→   460→            <div className='absolute inset-0 flex items-center justify-center'>
+   461→   461→              <Users className='h-8 w-8 text-muted-foreground/40' />
+   462→   462→            </div>
+   463→   463→          </div>
+   464→   464→          <p className='font-medium mt-4'>No teams found</p>
+   465→   465→          <p className='text-sm text-muted-foreground mt-1'>Create a team to start collaborating</p>
+   466→   466→          <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => setCreateOpen(true)}>
+   467→   467→            <Plus className='h-4 w-4' /> Create Team
+   468→   468→          </Button>
+   469→   469→        </div>
+   470→   470→      )}
+   471→   471→
+   472→   472→      {/* Team detail panel */}
+   473→   473→      <AnimatePresence>
+   474→   474→        {selectedTeam && (
+   475→   475→          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} transition={{ duration: 0.3 }}>
+   476→   476→            <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+   477→   477→              <CardHeader>
+   478→   478→                <div className='flex items-center justify-between'>
+   479→   479→                  <div className='flex items-center gap-3'>
+   480→   480→                    <div className={`w-10 h-10 rounded-xl ${selectedTeam.color} flex items-center justify-center text-white font-bold`}>{selectedTeam.name[0]}</div>
+   481→   481→                    <div>
+   482→   482→                      <CardTitle>{selectedTeam.name}</CardTitle>
+   483→   483→                      <CardDescription>{selectedTeam.members.length} members · {selectedTeam.channels} channels</CardDescription>
+   484→   484→                    </div>
+   485→   485→                  </div>
+   486→   486→                  <div className='flex gap-2'>
+   487→   487→                    <Button variant='outline' size='sm' className='gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-transform'><Hash className='h-3.5 w-3.5' /> Channels</Button>
+   488→   488→                    <Button size='sm' className='gap-1.5 bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'><UserPlus className='h-3.5 w-3.5' /> Invite</Button>
+   489→   489→                  </div>
+   490→   490→                </div>
+   491→   491→              </CardHeader>
+   492→   492→              <CardContent>
+   493→   493→                <Tabs defaultValue='members'>
+   494→   494→                  <TabsList>
+   495→   495→                    <TabsTrigger value='members'>Members ({selectedTeam.members.length})</TabsTrigger>
+   496→   496→                    <TabsTrigger value='activity'>Activity</TabsTrigger>
+   497→   497→                  </TabsList>
+   498→   498→                  <TabsContent value='members' className='mt-4'>
+   499→   499→                    <div className='space-y-1 max-h-64 overflow-y-auto divide-y divide-border/50'>
+   500→   500→                      {selectedTeam.members.map(m => (
+   501→   501→                        <div key={m.id} className='flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors even:bg-muted/30'>
+   502→   502→                          <div className='relative'>
+   503→   503→                            <Avatar className='h-9 w-9'>
+   504→   504→                              <AvatarFallback className='text-xs bg-muted'>{m.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+   505→   505→                            </Avatar>
+   506→   506→                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${statusColors[m.status]}`} />
+   507→   507→                          </div>
+   508→   508→                          <div className='flex-1 min-w-0'>
+   509→   509→                            <p className='text-sm font-medium truncate'>{m.name}</p>
+   510→   510→                            <p className='text-xs text-muted-foreground truncate'>{m.email}</p>
+   511→   511→                          </div>
+   512→   512→                          <div className='flex items-center gap-2'>
+   513→   513→                            <Badge variant='outline' className={`text-[10px] gap-1 ${m.status === 'online' ? 'border-emerald-200 dark:border-emerald-800 text-emerald-600 bg-emerald-500/5' : m.status === 'away' ? 'border-amber-200 dark:border-amber-800 text-amber-600 bg-amber-500/5' : ''}`}>
+   514→   514→                              {m.status === 'online' && <span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' />}
+   515→   515→                              {statusLabels[m.status]}
+   516→   516→                            </Badge>
+   517→   517→                            <div className='flex items-center gap-1.5'>
+   518→   518→                              {roleIcons[m.role]}
+   519→   519→                              <Badge variant='outline' className='text-[10px] capitalize'>{m.role}</Badge>
+   520→   520→                            </div>
+   521→   521→                          </div>
+   522→   522→                        </div>
+   523→   523→                      ))}
+   524→   524→                    </div>
+   525→   525→                  </TabsContent>
+   526→   526→                  <TabsContent value='activity' className='mt-4'>
+   527→   527→                    <div className='flex flex-col items-center justify-center py-12'>
+   528→   528→                      <div className='relative'>
+   529→   529→                        <Zap className='h-16 w-16 text-muted-foreground/20' />
+   530→   530→                        <div className='absolute inset-0 flex items-center justify-center'>
+   531→   531→                          <Zap className='h-8 w-8 text-muted-foreground/40' />
+   532→   532→                        </div>
+   533→   533→                      </div>
+   534→   534→                      <p className='font-medium mt-4'>Team activity will appear here</p>
+   535→   535→                      <p className='text-sm text-muted-foreground mt-1'>Messages, file shares, and meeting activity</p>
+   536→   536→                    </div>
+   537→   537→                  </TabsContent>
+   538→   538→                </Tabs>
+   539→   539→              </CardContent>
+   540→   540→            </Card>
+   541→   541→          </motion.div>
+   542→   542→        )}
+   543→   543→      </AnimatePresence>
+   544→   544→    </div>
+   545→   545→  )
+   546→   546→}
+   547→   547→

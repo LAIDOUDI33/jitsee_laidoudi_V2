@@ -49,6 +49,8 @@ import { LayoutDashboard,
   BarChart3,
   UsersRound,
   Puzzle,
+  Webhook as WebhookIcon,
+  LayoutTemplate,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
@@ -81,6 +83,9 @@ const mainNavItems: NavItem[] = [
   { label: 'Status', icon: <Activity className='h-4 w-4' />, view: 'status' },
   { label: 'People', icon: <UsersRound className='h-4 w-4' />, view: 'people' },
   { label: 'Integrations', icon: <Puzzle className='h-4 w-4' />, view: 'integrations' },
+  { label: 'Help Center', icon: <HelpCircle className='h-4 w-4' />, view: 'help-center' },
+  { label: 'Webhooks', icon: <WebhookIcon className='h-4 w-4' />, view: 'webhooks' },
+  { label: 'Templates', icon: <LayoutTemplate className='h-4 w-4' />, view: 'templates' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -310,6 +315,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     knowledge: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Knowledge Base' }],
     calendar: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Calendar' }],
     events: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Events' }],
+    'help-center': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Help Center' }],
+    webhooks: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Webhooks & Automation' }],
+    templates: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Templates' }],
     admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
     'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
     'admin-orgs': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Organizations' }],
@@ -341,6 +349,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     settings: 'Settings',
     profile: 'Profile',
     search: 'Search',
+    'help-center': 'Help Center',
+    webhooks: 'Webhooks & Automation',
+    templates: 'Meeting Templates',
   }
 
   const handleSignOut = () => {
@@ -480,7 +491,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <Settings className='mr-2 h-4 w-4' />
                       Settings
                     </DropdownMenuItem>
-                    <DropdownMenuItem className='transition-colors duration-150 cursor-pointer'>
+                    <DropdownMenuItem onClick={() => setCurrentView('help-center')} className='transition-colors duration-150 cursor-pointer'>
                       <HelpCircle className='mr-2 h-4 w-4' />
                       Help
                     </DropdownMenuItem>

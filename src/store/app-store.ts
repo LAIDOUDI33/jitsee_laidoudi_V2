@@ -30,6 +30,9 @@ export type AppView =
   | 'admin-system'
   | 'settings'
   | 'profile'
+  | 'help-center'
+  | 'webhooks'
+  | 'templates'
 
 export interface NotificationItem {
   id: string

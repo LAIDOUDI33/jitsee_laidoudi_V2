@@ -108,6 +108,18 @@ const IntegrationsPage = dynamic(() => import('@/components/dashboard/views/Inte
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
   ssr: false,
 })
+const HelpCenterPage = dynamic(() => import('@/components/dashboard/views/HelpCenterPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const WebhooksPage = dynamic(() => import('@/components/dashboard/views/WebhooksPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const TemplatesPage = dynamic(() => import('@/components/dashboard/views/TemplatesPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -173,6 +185,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   status: StatusPage,
   people: PeoplePage,
   integrations: IntegrationsPage,
+  'help-center': HelpCenterPage,
   admin: AdminPage,
   'admin-users': AdminUsersPage,
   'admin-orgs': AdminOrgsPage,
@@ -181,6 +194,9 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'admin-system': AdminSystemPage,
   settings: SettingsPage,
   profile: ProfilePage,
+  'help-center': HelpCenterPage,
+  webhooks: WebhooksPage,
+  templates: TemplatesPage,
 }
 
 function ForgotPasswordPage() {

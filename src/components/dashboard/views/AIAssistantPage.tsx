@@ -31,6 +31,7 @@ import {
   BarChart3,
   HelpCircle,
   Trash2,
+  Loader2,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -200,7 +201,7 @@ export default function AIAssistantPage() {
         <div className='flex-1 flex flex-col border rounded-xl bg-gradient-to-br from-card to-card/80 border-border/50 overflow-hidden'>
           <div className='h-14 border-b flex items-center justify-between px-4 shrink-0 bg-card/50 backdrop-blur-sm'>
             <div className='flex items-center gap-3'>
-              <div className='w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg'>
+              <div className='w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg animate-glow-ring'>
                 <Bot className='h-5 w-5 text-primary-foreground' />
               </div>
               <div>
@@ -221,7 +222,7 @@ export default function AIAssistantPage() {
             </div>
           </div>
 
-          <div ref={scrollRef} className='flex-1 overflow-y-auto p-4 space-y-6'>
+          <div ref={scrollRef} className='flex-1 overflow-y-auto p-4 space-y-6 bg-dot-pattern'>
             {messages.length <= 1 && !loading && (
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <p className='text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider mb-3'>Suggested Prompts</p>
@@ -233,11 +234,12 @@ export default function AIAssistantPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + i * 0.05 }}
                       onClick={() => sendMessage(s.prompt)}
-                      className='flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 hover:border-primary/30 bg-background hover:bg-muted/50 transition-all hover:shadow-sm hover:shadow-primary/5 hover:-translate-y-0.5 text-sm hover:scale-[1.02] active:scale-[0.98] relative before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-r before:from-primary/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity'
+                      className='relative flex items-center gap-2 px-3 py-2 rounded-xl bg-background hover:bg-muted/50 transition-all hover:shadow-sm hover:shadow-primary/5 hover:-translate-y-0.5 text-sm hover:scale-[1.02] active:scale-[0.98] overflow-hidden disabled:opacity-50'
                       disabled={loading}
                     >
-                      <span className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</span>
-                      <span>{s.label}</span>
+                      <span className='absolute inset-0 rounded-xl p-[1.5px] bg-gradient-to-r from-primary via-emerald-500 to-teal-500 animate-border-gradient opacity-60 group-hover:opacity-100' style={{ WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude' }} />
+                      <span className={`p-1.5 rounded-lg ${s.color} relative z-10`}>{s.icon}</span>
+                      <span className='relative z-10'>{s.label}</span>
                     </motion.button>
                   ))}
                 </div>
@@ -245,7 +247,7 @@ export default function AIAssistantPage() {
             )}
 
             {messages.map(msg => (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <motion.div key={msg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <Avatar className='h-8 w-8 shrink-0 mt-0.5'>
                   <AvatarFallback className={msg.role === 'assistant' ? 'bg-gradient-to-br from-primary to-primary/60 text-white text-xs' : 'bg-primary/10 text-primary text-xs'}>
                     {msg.role === 'assistant' ? <Bot className='h-4 w-4' /> : (user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U')}
@@ -276,11 +278,35 @@ export default function AIAssistantPage() {
           </div>
 
           <div className='border-t p-3 bg-card/50 backdrop-blur-sm'>
+            {/* Typing indicator in input area when AI is thinking */}
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className='flex items-center gap-2 mb-2 px-2'
+              >
+                <div className='w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0'>
+                  <Bot className='h-3 w-3 text-primary' />
+                </div>
+                <span className='text-[11px] text-muted-foreground'>AI is thinking</span>
+                <div className='flex items-center gap-[3px]'>
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      className='w-1.5 h-1.5 rounded-full bg-primary/60'
+                      animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
             <div className='flex items-center gap-2 bg-muted/50 rounded-xl px-4 py-2.5 border border-border/50 focus-within:border-primary/30 focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-300'>
               <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0 hover:scale-110 transition-transform'><Paperclip className='h-4 w-4' /></Button>
               <input
                 className='flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground'
-                placeholder='Ask me anything about your meetings...'
+                placeholder={loading ? 'Waiting for AI response...' : 'Ask me anything about your meetings...'}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
@@ -288,7 +314,7 @@ export default function AIAssistantPage() {
               />
               <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0 hover:scale-110 transition-transform'><Mic className='h-4 w-4' /></Button>
               <Button size='icon' className='h-8 w-8 shrink-0 rounded-lg bg-gradient-to-r from-primary to-primary/90 hover:scale-110 active:scale-95 transition-transform' onClick={() => sendMessage()} disabled={!input.trim() || loading}>
-                <Send className='h-4 w-4' />
+                {loading ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}><Loader2 className='h-4 w-4' /></motion.div> : <Send className='h-4 w-4' />}
               </Button>
             </div>
             <p className='text-[10px] text-muted-foreground/60 text-center mt-2'>ALVISION {models.find(m => m.value === model)?.label || 'Pro'} · AI may produce inaccurate information.</p>

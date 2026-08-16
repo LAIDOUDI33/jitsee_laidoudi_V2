@@ -20,7 +20,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -30,6 +30,38 @@ const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
 };
+const chartFadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay: 0.35 + i * 0.12 } })
+};
+
+function RippleButton({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const id = Date.now();
+    setRipples(prev => [...prev, { id, x, y }]);
+    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
+    onClick?.();
+  }, [onClick]);
+  return (
+    <button onClick={handleClick} className={`relative overflow-hidden ${className || ''}`}>
+      {children}
+      {ripples.map(r => (
+        <motion.span
+          key={r.id}
+          initial={{ scale: 0, opacity: 0.35 }}
+          animate={{ scale: 4, opacity: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className='absolute rounded-full bg-white/30 pointer-events-none'
+          style={{ left: r.x - 10, top: r.y - 10, width: 20, height: 20 }}
+        />
+      ))}
+    </button>
+  );
+}
 
 const meetingActivityData = [
   { day: 'Mon', meetings: 4, participants: 18 },
@@ -77,6 +109,12 @@ const teamActivities = [
 
 export default function DashboardPage() {
   const { user, setCurrentView, currentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
+  const [gradientPhase, setGradientPhase] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setGradientPhase(p => (p + 1) % 360), 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const { data: meetings } = useQuery<Meeting[]>({
     queryKey: ['meetings'],
@@ -275,38 +313,50 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* Stats Cards */}
-          <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { title: 'Active Meetings', value: '12', icon: <TrendingUp size={20} />, badge: '+8%', badgeColor: 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400' },
-              { title: 'Total Participants', value: '248', icon: <Users size={20} /> },
-              { title: 'AI Summaries', value: '47', icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400' },
-              { title: 'Recording Hours', value: '156h', icon: <Clock size={20} /> },
-            ].map((card) => (
-              <motion.div key={card.title} variants={fadeUp}>
-                <Card className="relative overflow-hidden">
-                  <CardContent className="p-4 lg:p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                        {card.icon}
-                      </div>
-                      {card.badge && (
-                        <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
-                          {card.badge}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
+          <div className="relative">
+            {/* Decorative dot pattern behind stats */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden rounded-xl" aria-hidden="true">
+              <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+            </div>
+            <motion.div variants={stagger} initial="hidden" animate="show" className="relative grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { title: 'Active Meetings', value: '12', icon: <TrendingUp size={20} />, badge: '+8%', badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', gradientFrom: 'from-emerald-500/20', gradientTo: 'to-emerald-500/0' },
+                { title: 'Total Participants', value: '248', icon: <Users size={20} />, gradientFrom: 'from-sky-500/20', gradientTo: 'to-sky-500/0' },
+                { title: 'AI Summaries', value: '47', icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', gradientFrom: 'from-violet-500/20', gradientTo: 'to-violet-500/0' },
+                { title: 'Recording Hours', value: '156h', icon: <Clock size={20} />, gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-500/0' },
+              ].map((card, idx) => (
+                <motion.div key={card.title} variants={fadeUp}>
+                  <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30 transition-all duration-[3000ms]"
+                    style={{ backgroundPosition: `${gradientPhase}% ${gradientPhase}%` }}
+                  >
+                    <Card className="relative overflow-hidden bg-card rounded-xl">
+                      <CardContent className="p-4 lg:p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                            {card.icon}
+                          </div>
+                          {card.badge && (
+                            <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
+                              {card.badge}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
+                      </CardContent>
+                      {/* Subtle gradient accent at bottom */}
+                      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradientFrom} ${card.gradientTo}`} />
+                    </Card>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
 
           {/* Charts Row */}
-          <motion.div variants={stagger} initial="hidden" animate="show" className="grid lg:grid-cols-2 gap-4">
-            <motion.div variants={fadeUp}>
-              <Card>
+          <div className="grid lg:grid-cols-2 gap-4">
+            <motion.div custom={0} variants={chartFadeUp} initial="hidden" animate="show">
+              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold">Meeting Activity</CardTitle>
@@ -340,8 +390,8 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
 
-            <motion.div variants={fadeUp}>
-              <Card>
+            <motion.div custom={1} variants={chartFadeUp} initial="hidden" animate="show">
+              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold">Meeting Types</CardTitle>
                 </CardHeader>
@@ -378,7 +428,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </motion.div>
-          </motion.div>
+          </div>
 
           {/* Recent Meetings */}
           <motion.div variants={stagger} initial="hidden" animate="show">
@@ -457,7 +507,7 @@ export default function DashboardPage() {
           {/* AI Insights + Quick Actions */}
           <div className="grid lg:grid-cols-3 gap-4">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-              <Card className="h-full">
+              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
@@ -491,28 +541,35 @@ export default function DashboardPage() {
               transition={{ delay: 0.55 }}
               className="lg:col-span-2"
             >
-              <Card className="h-full">
+              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
-                      { label: 'New Meeting', icon: <Plus size={18} />, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400', onClick: handleNewMeeting },
-                      { label: 'Schedule', icon: <Calendar size={18} />, color: 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400', onClick: () => setCurrentView('calendar') },
+                      { label: 'New Meeting', icon: <Plus size={18} />, color: 'text-sky-600 bg-sky-50 dark:bg-sky-900/20 dark:text-sky-400', onClick: handleNewMeeting, isStartMeeting: true },
+                      { label: 'Schedule', icon: <Calendar size={18} />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', onClick: () => setCurrentView('calendar') },
                       { label: 'Join Meeting', icon: <Video size={18} />, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', onClick: handleJoinMeeting },
-                      { label: 'AI Assistant', icon: <Brain size={18} />, color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400', onClick: () => setCurrentView('ai-assistant') },
+                      { label: 'AI Assistant', icon: <Brain size={18} />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400', onClick: () => setCurrentView('ai-assistant') },
                     ].map((action) => (
-                      <button
-                        key={action.label}
-                        onClick={action.onClick}
-                        className="flex flex-col items-center gap-2.5 p-4 rounded-xl border hover:border-primary/30 hover:bg-muted/50 transition-all group"
-                      >
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform`}>
-                          {action.icon}
-                        </div>
-                        <span className="text-sm font-medium">{action.label}</span>
-                      </button>
+                      action.isStartMeeting ? (
+                        <RippleButton key={action.label} onClick={action.onClick} className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/0 hover:border-primary/40 hover:bg-primary/10 transition-all group">
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform shadow-sm`}>{action.icon}</div>
+                          <span className="text-sm font-medium">{action.label}</span>
+                        </RippleButton>
+                      ) : (
+                        <button
+                          key={action.label}
+                          onClick={action.onClick}
+                          className="flex flex-col items-center gap-2.5 p-4 rounded-xl border hover:border-primary/30 hover:bg-muted/50 transition-all group"
+                        >
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform`}>
+                            {action.icon}
+                          </div>
+                          <span className="text-sm font-medium">{action.label}</span>
+                        </button>
+                      )
                     ))}
                   </div>
                 </CardContent>

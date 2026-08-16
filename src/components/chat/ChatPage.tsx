@@ -378,16 +378,35 @@ export default function ChatPage() {
                           <button
                             key={c.id}
                             onClick={() => setActiveChannel(c.id)}
-                            className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all text-left group ${
-                              activeChannel === c.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all text-left group relative ${
+                              activeChannel === c.id
+                                ? 'text-primary font-medium'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             }`}
                           >
-                            {c.type === 'announcement' ? <Megaphone className='h-4 w-4 shrink-0 text-amber-500' /> : <Hash className='h-4 w-4 shrink-0' />}
-                            <span className='flex-1 truncate'>{c.name}</span>
-                            {c.pinned && <Pin className='h-3 w-3 text-muted-foreground/30 shrink-0' />}
-                            {c.unread > 0 && (
-                              <Badge variant='secondary' className={`h-5 min-w-[20px] px-1.5 text-[10px] font-bold shrink-0 ${activeChannel === c.id ? 'bg-primary text-primary-foreground' : ''}`}>{c.unread}</Badge>
+                            {/* Subtle gradient on active channel */}
+                            {activeChannel === c.id && (
+                              <motion.div
+                                layoutId='channel-active-bg'
+                                className='absolute inset-0 rounded-lg bg-gradient-to-r from-primary/10 via-primary/5 to-transparent'
+                                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                              />
                             )}
+                            <span className='relative z-10 flex items-center gap-2 w-full'>
+                              {c.type === 'announcement' ? <Megaphone className='h-4 w-4 shrink-0 text-amber-500' /> : <Hash className='h-4 w-4 shrink-0' />}
+                              <span className='flex-1 truncate'>{c.name}</span>
+                              {c.pinned && <Pin className='h-3 w-3 text-muted-foreground/30 shrink-0' />}
+                              {c.unread > 0 && (
+                                <motion.span
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                                  className='shrink-0'
+                                >
+                                  <Badge variant='secondary' className={`h-5 min-w-[20px] px-1.5 text-[10px] font-bold ${activeChannel === c.id ? 'bg-primary text-primary-foreground' : ''}`}>{c.unread}</Badge>
+                                </motion.span>
+                              )}
+                            </span>
                           </button>
                         ))}
                       </motion.div>
@@ -487,8 +506,18 @@ export default function ChatPage() {
                   {showAvatar && (
                     <div className='flex items-baseline gap-2 mb-0.5'>
                       <span className='text-sm font-semibold hover:underline cursor-pointer'>{msg.senderName}</span>
-                      <span className='text-[11px] text-muted-foreground'>{msg.timestamp}</span>
+                      <span className={`text-[11px] transition-all duration-200 ${hoveredMessage === msg.id ? 'text-foreground font-medium scale-105' : 'text-muted-foreground'}`}>{msg.timestamp}</span>
                     </div>
+                  )}
+                  {/* Show timestamp on hover for grouped messages */}
+                  {!showAvatar && hoveredMessage === msg.id && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className='text-[10px] text-muted-foreground font-medium mb-0.5 block'
+                    >
+                      {msg.timestamp}
+                    </motion.span>
                   )}
                   <div className='flex items-end gap-2'>
                     <div className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed max-w-[85%] ${
