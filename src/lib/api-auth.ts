@@ -1,13 +1,27 @@
 import { headers } from 'next/headers';
 import { db } from '@/lib/db';
+import { isBlacklisted } from './token-blacklist';
 import type { TokenPayload } from './jwt-edge';
 
 /**
  * Get the authenticated user from request headers (set by middleware).
  * Must only be called from within API route handlers (server-side).
+ * Also checks the token blacklist to reject revoked tokens.
  */
 export async function getCurrentUser() {
   const headersList = await headers();
+
+  // Check token blacklist before returning user identity
+  const authHeader = headersList.get('authorization');
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : null;
+    if (token && isBlacklisted(token)) {
+      return null;
+    }
+  }
+
   const userId = headersList.get('x-user-id');
   const userEmail = headersList.get('x-user-email');
   const userRole = headersList.get('x-user-role');
@@ -47,6 +61,19 @@ export async function getAuthenticatedUser() {
  * Require authentication — throws error response if not authenticated.
  */
 export async function requireAuth() {
+  // Check token blacklist first — return distinct error so clients
+  // know not to attempt token refresh
+  const headersList = await headers();
+  const authHeader = headersList.get('authorization');
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : null;
+    if (token && isBlacklisted(token)) {
+      throw new AuthError('TOKEN_REVOKED', 'Token revoked', 401);
+    }
+  }
+
   const user = await getAuthenticatedUser();
   if (!user) {
     throw new AuthError('UNAUTHORIZED', 'Authentication required', 401);

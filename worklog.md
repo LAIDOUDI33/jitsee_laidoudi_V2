@@ -234,3 +234,199 @@ Health check: `GET /api/health` → `{"status":"healthy",...}`
 3. **No session revocation** — JWT tokens are valid until expiry (8h)
 4. **AI API costs** — Now auth-protected, but no per-user quota
 5. **No automated tests** — Critical flows should have integration tests
+
+---
+Task ID: 2
+Agent: cleanup-agent
+Task: Remove unused packages (next-auth, next-intl)
+
+Work Log:
+- Read package.json and confirmed `next-auth@^4.24.11` and `next-intl@^4.3.4` were present in dependencies
+- Searched entire `src/` directory for imports of `next-auth` and `next-intl` — zero matches found
+- Searched `next.config.ts` and other config files for references — zero matches found
+- Only references found were in `package.json`, `bun.lock`, and `worklog.md` (the todo item itself)
+- Ran `bun remove next-auth next-intl` — both packages removed successfully, lockfile updated
+- Verified `package.json` no longer contains either package
+- Ran `bun run lint` — ESLint passed with no errors
+
+Stage Summary:
+- Successfully removed 2 unused packages: `next-auth` and `next-intl`
+- No source code or config files referenced these packages (project uses custom JWT auth via `jose` instead of next-auth)
+- ESLint passes clean after removal
+- Remaining items list item #3 ("Unused Packages") is now resolved
+---
+Task ID: 3
+Agent: security-agent
+Task: Enable middleware.ts for production API auth enforcement and enhance security headers
+
+Work Log:
+- Read `/home/z/my-project/src/middleware.ts.disabled` to understand existing middleware structure (inline JWT verification, rate limiting, RBAC)
+- Read `/home/z/my-project/next.config.ts` to check current security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy — no CSP)
+- Read `/home/z/my-project/src/lib/jwt-edge.ts` to confirm edge-compatible JWT utilities (jose library, verifyAccessToken, extractBearerToken, rateLimit)
+- Created `/home/z/my-project/src/middleware.ts` with the following capabilities:
+  - Imports `verifyAccessToken`, `extractBearerToken`, `rateLimit` from `./lib/jwt-edge` (edge-compatible, no Node.js modules)
+  - Public API routes: `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh`, `/api/health`, `/api/newsletter`, `/api/contact`
+  - Non-API routes (landing page, etc.) pass through with security headers attached
+  - Protected `/api/v1/*` routes require valid Bearer token, returning 401 with JSON error for missing/invalid tokens
+  - RBAC enforcement: `/api/v1/admin` requires `superadmin`, `/api/v1/users` requires `orgadmin`
+  - Rate limiting: 10 req/min for auth endpoints, 120 req/min per user for API endpoints
+  - Forwards user identity (x-user-id, x-user-email, x-user-role, x-user-org-id) to downstream handlers
+  - Security headers on all non-API responses: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Content-Security-Policy
+  - CSP: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; connect-src 'self' wss: ws:; frame-src https://meet.jit.si
+  - Matcher: `/((?!_next/static|_next/image|favicon.ico).*)` — runs on all routes except Next.js internal static assets
+- Added Content-Security-Policy header to `next.config.ts` headers() function with the same CSP directive values
+- Kept `src/middleware.ts.disabled` as reference (unchanged)
+- Ran `bun run lint` — passed with zero errors
+
+Stage Summary:
+- Created active `src/middleware.ts` enabling production API auth enforcement for all `/api/v1/*` routes
+- Added comprehensive CSP header with Jitsi frame-src support in both middleware and next.config.ts
+- Security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, CSP) applied at two layers: next.config.ts (global) and middleware (per-request)
+- ESLint passes clean
+- Remaining items list item #7 ("CSP Headers") is now resolved
+---
+Task ID: 5
+Agent: config-agent
+Task: Update .gitignore and add environment validation
+
+Work Log:
+- Read current .gitignore — had basic entries (node_modules, .next, *.log, db/*.db, *.db-journal, .env, __pycache__, .tool-results)
+- Updated .gitignore to be production-comprehensive:
+  - Added: out/, *.db-wal, .env.local, .env.*.local, .vscode/, .idea/, *.swp, *.swo, *~, .DS_Store, Thumbs.db, npm-debug.log*, yarn-debug.log*, yarn-error.log*, dist/, build/, coverage/, .tmp/, tmp/
+  - Kept: .env.example is NOT ignored (available for onboarding)
+  - Prisma migrations not ignored (no migrations directory exists)
+- Created `src/lib/env.ts` with runtime environment variable validation:
+  - JWT_SECRET: required in production (32+ chars), falls back to dev default otherwise
+  - DATABASE_URL: optional, defaults to `file:./dev.db`
+  - NEXT_PUBLIC_WS_URL: optional, defaults to empty string
+  - NODE_ENV: optional, defaults to `development`
+  - Exports frozen `env` object for type-safe access
+- Updated `src/lib/jwt-edge.ts`: replaced direct `process.env.JWT_SECRET` fallback with `import { env } from './env'` and destructured `JWT_SECRET`
+- Reviewed `src/lib/server/auth.ts`: no direct process.env usage (re-exports JWT from jwt-edge which now uses validated env transitively). No changes needed — adding unused import would cause lint errors.
+- Ran `bun run lint` — passed with zero errors
+
+Stage Summary:
+- `.gitignore` expanded from 10 entries to 30+ for full production coverage
+- `src/lib/env.ts` created — centralized env validation, JWT_SECRET enforced 32+ chars in production
+- `src/lib/jwt-edge.ts` updated to use validated env
+- `src/lib/server/auth.ts` reviewed — no changes needed (transitive validation via jwt-edge)
+- ESLint passes clean
+---
+Task ID: 5b
+Agent: token-revocation-agent
+Task: Implement JWT token revocation/blacklist for logout
+
+Work Log:
+- Read `src/lib/jwt-edge.ts` — understood JWT implementation (jose, HS256, 8h access tokens, no JTI claim)
+- Read `src/app/api/v1/auth/refresh/route.ts` — understood token refresh flow (refresh token → new access token)
+- Read `src/lib/api-auth.ts` — understood route-level auth (reads user identity from middleware-set headers, throws AuthError)
+- Read `src/middleware.ts` — confirmed Edge Runtime (cannot import setInterval/Buffer modules)
+- Read `src/lib/api.ts` — confirmed client-side authFetch already handles 401 with token refresh attempt
+- Created `src/lib/token-blacklist.ts`:
+  - In-memory Map<string, number> (token → expiry timestamp in ms)
+  - `blacklistToken(token)` — decodes JWT payload (base64url → JSON) to extract `exp`, stores with expiry
+  - `isBlacklisted(token)` — checks Map, auto-removes expired entries on lookup
+  - `getBlacklistSize()` — monitoring/debugging utility
+  - Auto-cleanup via `setInterval` every 10 minutes (lazily started on first blacklist call)
+  - Explicitly documented as NOT Edge-compatible (uses Buffer, setInterval)
+- Created `src/app/api/v1/auth/logout/route.ts`:
+  - POST endpoint, extracts Bearer token via `extractBearerToken`
+  - Calls `blacklistToken(token)` to invalidate
+  - Always returns 200 `{ success: true, message: "Logged out" }` (even without token or on error)
+- Updated `src/lib/api-auth.ts`:
+  - Imported `isBlacklisted` from `./token-blacklist`
+  - Added blacklist check in `getCurrentUser()` — returns null if token is blacklisted (soft rejection)
+  - Added blacklist check in `requireAuth()` — throws `AuthError('TOKEN_REVOKED', 'Token revoked', 401)` (distinct error code)
+  - This allows route handlers to return `TOKEN_REVOKED` in the error response body
+- Updated `src/lib/api.ts` (client-side):
+  - On 401 response, clones the response and checks `error.code === 'TOKEN_REVOKED'`
+  - If revoked: calls `clearAuthTokens()` immediately, skips refresh attempt
+  - If not revoked: proceeds with normal refresh flow (existing behavior)
+- Did NOT modify `src/middleware.ts` — Edge Runtime incompatible with token-blacklist.ts
+- The logout endpoint is protected by middleware (not in PUBLIC_API_ROUTES), so the token is valid when received
+- Ran `bun run lint` — passed with zero errors
+
+Stage Summary:
+- JWT token revocation implemented via in-memory blacklist (suitable for single-instance deployment)
+- `POST /api/v1/auth/logout` endpoint created — blacklists the access token
+- Route-level auth (`api-auth.ts`) checks blacklist on every `requireAuth()` call with distinct `TOKEN_REVOKED` error
+- Client-side `authFetch` handles `TOKEN_REVOKED` by clearing tokens immediately (no wasted refresh)
+- Remaining items list item #6 ("Session Revocation") is now resolved
+- ESLint passes clean
+---
+Task ID: 6
+Agent: websocket-auth-agent
+Task: Add JWT authentication to the chat-service WebSocket mini-service
+
+Work Log:
+- Read `mini-services/chat-service/index.ts` — confirmed native Bun WebSocket server on port 3010, no auth (anonymous temp IDs)
+- Read `src/lib/jwt-edge.ts` — JWT uses `jose` library, HS256, issuer `alvision`, payload: `{ userId, email, role, organizationId }`
+- Read `src/lib/env.ts` — JWT_SECRET with dev fallback `'alvision-default-secret-change-in-production'`
+- Read `mini-services/chat-service/package.json` — no dependencies
+- Installed `jose@^6.2.9` in chat-service via `bun add jose`
+- Rewrote `mini-services/chat-service/index.ts` with JWT authentication:
+  - Added `verifyJwtToken()` using `jose.jwtVerify` with same HS256/issuer config as `jwt-edge.ts`
+  - JWT_SECRET read from env with same production/development fallback as main project's `env.ts`
+  - WebSocket upgrade requires `?token=<jwt>` query parameter
+  - Missing token → HTTP 401 with JSON error `{ error: "Authentication required" }`
+  - Invalid/expired token → HTTP 401 with JSON error `{ error: "Authentication failed" }`
+  - Valid token → `server.upgrade(req, { data: authUser })` passing `{ userId, email, role, organizationId, userName }`
+  - Authenticated user data available as `ws.data` in all WebSocket handlers
+  - Updated `ClientInfo` to include `email`, `role`, `organizationId` from JWT
+  - Updated `PresenceUser` to include `email` and `role`
+  - Updated `clients` Map key to use `userId` (was ws→client, now userId→client) for direct lookup
+  - SECURITY: `message` handler now forces `senderId` and `senderName` from authenticated user — client-sent values are IGNORED to prevent impersonation
+  - `typing` handler uses `client.userName` from auth instead of client payload
+  - Health check endpoint (`/health`) remains publicly accessible (no auth required)
+  - Removed anonymous/temp ID logic — all connections must be authenticated
+  - Updated file header JSDoc to document auth requirement
+  - Updated protocol docs: removed `userId`/`userName` from join payload (derived from JWT)
+- Ran `bun run lint` on main project — passed with zero errors
+
+Stage Summary:
+- JWT authentication added to chat-service WebSocket connections via `?token=<jwt>` query parameter
+- Uses same `jose` HS256 verification as main project (`jwt-edge.ts`)
+- Unauthenticated connections rejected with HTTP 401
+- All message handlers use authenticated user identity (senderId/senderName forced from JWT)
+- `jose@^6.2.9` installed as chat-service dependency
+- Remaining items list item #8 ("WebSocket Auth") is now resolved
+- ESLint passes clean
+---
+Task ID: 7
+Agent: docker-config-agent
+Task: Update Docker configurations for production deployment
+
+Work Log:
+- Read existing `Dockerfile` (bun-based multi-stage), `docker-compose.yml` (web + chat-service), `next.config.ts` (standalone commented out), `.env.example`, `mini-services/chat-service/Dockerfile`, `package.json`
+- Updated `next.config.ts`: uncommented `output: 'standalone'` for Docker builds (Next.js dev server ignores this setting)
+- Rewrote `Dockerfile`:
+  - Changed base image from `oven/bun:1-alpine` to `node:22-alpine` across all 3 stages
+  - Stage 1 (deps): `npm install --omit=dev`, `npx prisma generate`
+  - Stage 2 (build): `npm install` (all deps), `npx prisma generate`, `npx next build`, copies static+public into standalone
+  - Stage 3 (runner): `node:22-alpine`, non-root user (nextjs:nodejs, uid 1001), copies standalone+static+public+prisma, `apk add curl`, DATABASE_URL=`file:/app/data/custom.db`, data dir at `/app/data`
+  - Healthcheck changed from `wget` to `curl -f http://localhost:3000/api/health` with `--interval=30s --timeout=3s`
+  - CMD changed from `bun server.js` to `node server.js`
+- Rewrote `docker-compose.yml`:
+  - web service: `env_file: .env` (reads all vars from .env), `DATABASE_URL=file:/app/data/custom.db` override, volume `data:/app/data`, curl-based healthcheck, `restart: unless-stopped`
+  - chat-service: `JWT_SECRET` and `ALLOWED_ORIGINS` env vars from .env with defaults, `NODE_ENV=production`, `restart: unless-stopped`
+  - Renamed volume from `db-data`/`alvision-db` to `data`/`alvision-data`
+  - Retained `alvision-network` bridge network
+- Updated `mini-services/chat-service/Dockerfile`:
+  - Added `COPY package.json bun.lock* ./` and `bun install --frozen-lockfile || bun install` before copying source
+  - Removed `--hot` flag from CMD (production should not use hot reload)
+- Created `nginx.conf`:
+  - Reverse proxy `/` → `web:3000` with keepalive 64
+  - Reverse proxy `/ws` → `chat-service:3010` with WebSocket upgrade and 86400s timeouts
+  - Static asset caching for `/_next/static` (365d immutable)
+  - Gzip compression for text/css/js/json/xml/svg
+  - Security headers: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy, X-XSS-Protection, HSTS
+  - Hidden file denial (location ~ /\.)
+- Ran `bun run lint` — passed with zero errors
+
+Stage Summary:
+- Docker configurations updated for production deployment across 5 files
+- Main Dockerfile migrated from Bun to Node.js 22-alpine with 3-stage build, curl healthcheck, proper standalone output handling
+- docker-compose.yml uses `env_file: .env`, `data` volume for SQLite persistence at `/app/data/custom.db`
+- chat-service Dockerfile now installs dependencies from lockfile before copying source
+- nginx.conf created for production reverse proxy with WebSocket support, gzip, security headers, and static caching
+- ESLint passes clean

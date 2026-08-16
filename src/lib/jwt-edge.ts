@@ -1,8 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { env } from './env';
 
 // ─── Edge-Compatible JWT (no Node.js crypto) ─────────────────────────────────
 
-const JWT_SECRET = process.env.JWT_SECRET || 'alvision-default-secret-change-in-production';
+const { JWT_SECRET } = env;
 
 export interface TokenPayload {
   userId: string;

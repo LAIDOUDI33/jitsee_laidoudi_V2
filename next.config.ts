@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
   // Strict mode disabled in dev for memory efficiency (enable in production)
   reactStrictMode: false,
 
-  // Docker-compatible standalone output (for production build only)
-  // output: 'standalone',
+  // Docker-compatible standalone output
+  output: 'standalone',
 
   // Exclude Node.js built-ins from bundling (crypto is used for scrypt password hashing)
   serverExternalPackages: ['crypto'],
@@ -40,6 +40,18 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(self), geolocation=()',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https: http:",
+              "font-src 'self' data:",
+              "connect-src 'self' wss: ws:",
+              'frame-src https://meet.jit.si',
+            ].join('; '),
           },
         ],
       },

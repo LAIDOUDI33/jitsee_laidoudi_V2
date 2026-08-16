@@ -64,28 +64,44 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   const response = await fetch(url, { ...options, headers });
 
   // If 401 and we have a refresh token, try to refresh
+  // Skip refresh if the server reports TOKEN_REVOKED — clear tokens immediately
   if (response.status === 401) {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch('/api/v1/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
+    // Try to read the error body to check for TOKEN_REVOKED
+    let isRevoked = false;
+    try {
+      const errorBody = await response.clone().json();
+      if (errorBody?.error?.code === 'TOKEN_REVOKED') {
+        isRevoked = true;
+      }
+    } catch {
+      // Response body not JSON — proceed with normal refresh flow
+    }
 
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          if (refreshData.data?.accessToken) {
-            localStorage.setItem('alvision_access_token', refreshData.data.accessToken);
-            // Retry original request with new token
-            headers.set('Authorization', `Bearer ${refreshData.data.accessToken}`);
-            return fetch(url, { ...options, headers });
+    if (isRevoked) {
+      clearAuthTokens();
+    } else {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch('/api/v1/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            if (refreshData.data?.accessToken) {
+              localStorage.setItem('alvision_access_token', refreshData.data.accessToken);
+              // Retry original request with new token
+              headers.set('Authorization', `Bearer ${refreshData.data.accessToken}`);
+              return fetch(url, { ...options, headers });
+            }
           }
+        } catch {
+          // Refresh failed — clear tokens and let the caller handle it
+          clearAuthTokens();
         }
-      } catch {
-        // Refresh failed — clear tokens and let the caller handle it
-        clearAuthTokens();
       }
     }
   }

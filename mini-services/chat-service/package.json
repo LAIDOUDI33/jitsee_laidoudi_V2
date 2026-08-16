@@ -4,5 +4,7 @@
   "scripts": {
     "dev": "bun --hot index.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "jose": "^6.2.9"
+  }
 }

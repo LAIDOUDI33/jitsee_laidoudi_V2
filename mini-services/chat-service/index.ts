@@ -1,13 +1,20 @@
 /**
  * ALVISION Chat Service — Real-time WebSocket chat mini-service
  * Port: 3010
- * Protocol: JSON over WebSocket
+ * Protocol: JSON over WebSocket (Bun native WebSocket)
+ *
+ * Authentication: JWT token required via query parameter `?token=xxx`
+ *   - Tokens are verified using jose (HS256, issuer: 'alvision')
+ *   - JWT_SECRET read from environment (same as main project)
+ *   - Authenticated user identity (userId, email, role, orgId) is stored on
+ *     the socket and used for all message handling — client-sent senderId
+ *     and senderName are IGNORED to prevent impersonation.
  *
  * Message types (client → server):
- *   { type: "join",      channel: string, payload: { userId, userName } }
- *   { type: "leave",     channel: string, payload: { userId } }
- *   { type: "message",   channel: string, payload: { id, senderId, senderName, content, avatar? } }
- *   { type: "typing",    channel: string, payload: { userId, userName, isTyping } }
+ *   { type: "join",      channel: string, payload: { userName? } }
+ *   { type: "leave",     channel: string }
+ *   { type: "message",   channel: string, payload: { id?, content, avatar? } }
+ *   { type: "typing",    channel: string, payload: { isTyping } }
  *   { type: "presence"  }   // request full presence list
  *
  * Message types (server → client):
@@ -21,12 +28,51 @@
  *   { type: "user_left_channel",  channel, payload: { userId, userName } }
  */
 
+import { jwtVerify } from 'jose';
+
+// ── JWT Configuration ───────────────────────────────────────────────────
+
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  // Development: use the same fallback as the main project's env.ts
+  return secret || 'alvision-default-secret-change-in-production';
+})();
+
+interface TokenPayload {
+  userId: string;
+  email: string;
+  role: string;
+  organizationId?: string | null;
+}
+
+interface AuthenticatedUser extends TokenPayload {
+  userName: string;
+}
+
+async function verifyJwtToken(token: string): Promise<TokenPayload | null> {
+  try {
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret, {
+      issuer: 'alvision',
+    });
+    return payload as unknown as TokenPayload;
+  } catch {
+    return null;
+  }
+}
+
 // ── Types ───────────────────────────────────────────────────────────────
 
 interface ClientInfo {
   ws: WebSocket
   userId: string
   userName: string
+  email: string
+  role: string
+  organizationId?: string | null
   channels: Set<string>
   lastSeen: number
 }
@@ -47,6 +93,8 @@ interface ChatMessage {
 interface PresenceUser {
   userId: string
   userName: string
+  email: string
+  role: string
   status: 'active' | 'idle'
   channels: string[]
 }
@@ -59,7 +107,7 @@ interface IncomingMessage {
 
 // ── In-memory stores ────────────────────────────────────────────────────
 
-const clients = new Map<string, ClientInfo>()        // ws → ClientInfo
+const clients = new Map<string, ClientInfo>()        // userId → ClientInfo
 const channelMembers = new Map<string, Set<string>>() // channelId → Set<userId>
 const messageHistory: ChatMessage[] = []
 const MAX_HISTORY = 500
@@ -68,13 +116,6 @@ const MAX_HISTORY = 500
 const typingUsers = new Map<string, Map<string, { userName: string; timer: ReturnType<typeof setTimeout> }>>()
 
 // ── Helpers ─────────────────────────────────────────────────────────────
-
-function getClientByWs(ws: WebSocket): ClientInfo | undefined {
-  for (const c of clients.values()) {
-    if (c.ws === ws) return c
-  }
-  return undefined
-}
 
 function send(ws: WebSocket, data: Record<string, unknown>) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -104,6 +145,8 @@ function getPresenceList(): PresenceUser[] {
   return Array.from(clients.values()).map(c => ({
     userId: c.userId,
     userName: c.userName,
+    email: c.email,
+    role: c.role,
     status: (now - c.lastSeen) < 120_000 ? 'active' as const : 'idle' as const,
     channels: Array.from(c.channels),
   }))
@@ -165,9 +208,9 @@ function handleMessage(ws: WebSocket, raw: string) {
     return
   }
 
-  const client = getClientByWs(ws)
+  const client = clients.get((ws as WebSocket & { data: AuthenticatedUser }).data.userId)
   if (!client) {
-    send(ws, { type: 'error', payload: { message: 'Not identified' } })
+    send(ws, { type: 'error', payload: { message: 'Not authenticated' } })
     return
   }
 
@@ -228,11 +271,13 @@ function handleMessage(ws: WebSocket, raw: string) {
         send(ws, { type: 'error', payload: { message: 'Not in channel' } })
         return
       }
+      // SECURITY: Force senderId and senderName from authenticated user,
+      // ignoring any client-sent values to prevent impersonation
       const chatMsg: ChatMessage = {
         id: (payload.id as string) || `srv-${Date.now()}`,
         channelId: channel,
-        senderId: (payload.senderId as string) || client.userId,
-        senderName: (payload.senderName as string) || client.userName,
+        senderId: client.userId,
+        senderName: client.userName,
         content: (payload.content as string) || '',
         timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
         avatar: (payload.avatar as string) || undefined,
@@ -269,7 +314,7 @@ function handleMessage(ws: WebSocket, raw: string) {
 
       if (isTyping) {
         channelTyping.set(client.userId, {
-          userName: (payload.userName as string) || client.userName,
+          userName: client.userName,
           timer: setTimeout(() => {
             channelTyping.delete(client.userId)
             broadcastToChannel(channel, {
@@ -286,7 +331,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       broadcastToChannel(channel, {
         type: 'typing',
         channel,
-        payload: { userId: client.userId, userName: (payload.userName as string) || client.userName, isTyping },
+        payload: { userId: client.userId, userName: client.userName, isTyping },
       })
       break
     }
@@ -309,13 +354,9 @@ const PORT = 3010
 const server = Bun.serve({
   port: PORT,
   fetch(req, server) {
-    // Only upgrade WebSocket connections at /
     const url = new URL(req.url)
-    if (url.pathname === '/' || url.pathname === '/ws') {
-      if (server.upgrade(req)) return
-      return new Response('WebSocket upgrade failed', { status: 500 })
-    }
-    // Health check
+
+    // Health check (no auth required)
     if (url.pathname === '/health') {
       return Response.json({
         status: 'ok',
@@ -326,20 +367,74 @@ const server = Bun.serve({
         uptime: process.uptime(),
       })
     }
+
+    // WebSocket upgrade — JWT authentication required
+    if (url.pathname === '/' || url.pathname === '/ws') {
+      const token = url.searchParams.get('token')
+
+      if (!token) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required', message: 'Missing JWT token. Provide ?token=<jwt> in the WebSocket URL.' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify JWT asynchronously
+      // We need to handle this in fetch since jwtVerify is async
+      return (async () => {
+        const payload = await verifyJwtToken(token)
+
+        if (!payload) {
+          return new Response(
+            JSON.stringify({ error: 'Authentication failed', message: 'Invalid or expired JWT token.' }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Build authenticated user info — userName derived from email
+        const authUser: AuthenticatedUser = {
+          userId: payload.userId,
+          email: payload.email,
+          role: payload.role,
+          organizationId: payload.organizationId,
+          // Derive display name from email if not available elsewhere
+          userName: payload.email.split('@')[0] || 'User',
+        }
+
+        // Upgrade with authenticated user data attached to the websocket
+        if (server.upgrade(req, { data: authUser })) {
+          return undefined // upgrade successful
+        }
+        return new Response('WebSocket upgrade failed', { status: 500 })
+      })()
+    }
+
     return new Response('Not Found', { status: 404 })
   },
   websocket: {
     open(ws) {
-      // Assign a temp ID; real identity comes via 'join' payload
-      const tempId = `anon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      clients.set(tempId, {
+      const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
+      const { userId, userName, email, role, organizationId } = authUser
+
+      // Register authenticated client
+      clients.set(userId, {
         ws,
-        userId: tempId,
-        userName: 'Anonymous',
+        userId,
+        userName,
+        email,
+        role,
+        organizationId,
         channels: new Set(),
         lastSeen: Date.now(),
       })
-      console.log(`[chat] Connected: ${tempId} (${clients.size} total)`)
+
+      console.log(`[chat] Connected: ${userName} (${userId}, role: ${role}) — ${clients.size} total`)
+
+      // Send welcome message
+      send(ws, {
+        type: 'presence',
+        payload: { users: getPresenceList() },
+      })
     },
     message(ws, message) {
       // Bun sends message as string for text frames
@@ -348,10 +443,10 @@ const server = Bun.serve({
       }
     },
     close(ws, code, reason) {
-      const client = getClientByWs(ws)
-      if (client) {
-        console.log(`[chat] Disconnected: ${client.userId} (code: ${code})`)
-        removeClient(client.userId)
+      const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
+      if (authUser) {
+        console.log(`[chat] Disconnected: ${authUser.userName} (${authUser.userId}, code: ${code})`)
+        removeClient(authUser.userId)
       }
     },
     drain(ws) {
@@ -361,4 +456,5 @@ const server = Bun.serve({
 })
 
 console.log(`\n🚀 ALVISION Chat Service running on ws://localhost:${PORT}`)
-console.log(`   Health: http://localhost:${PORT}/health\n`)
+console.log(`   Health: http://localhost:${PORT}/health`)
+console.log(`   Auth: JWT required via ?token=<jwt> query parameter\n`)
