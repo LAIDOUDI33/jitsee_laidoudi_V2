@@ -7,44 +7,275 @@ datasource db {
   url      = "file:../db/custom.db"
 }
 
-model MeetingRoom {
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String
+  avatar        String?
+  role          String    @default("participant") // superadmin, orgadmin, teamadmin, host, participant, guest
+  organizationId String?
+  isActive      Boolean   @default(true)
+  mfaEnabled    Boolean   @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organization Organization?  @relation(fields: [organizationId], references: [id])
+  teamMembers  TeamMember[]
+  hostedMeetings Meeting[]
+  meetings     MeetingParticipant[]
+  messages     Message[]
+  auditLogs    AuditLog[]
+  actionItems  ActionItem[]
+  files        File[]
+}
+
+model Organization {
   id          String   @id @default(uuid())
   name        String   @unique
-  displayName String
-  hostName    String?
-  hostEmail   String?
+  domain      String?
+  plan        String   @default("free") // free, pro, enterprise
+  maxUsers    Int      @default(50)
+  maxMeetingRooms Int   @default(20)
+  settings    String   @default("{}") // JSON
   createdAt   DateTime @default(now())
-  expiresAt   DateTime?
-  isActive    Boolean  @default(true)
-  maxParticipants Int  @default(50)
-  
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  teams       Team[]
+  meetings    Meeting[]
+  events      Event[]
+}
+
+model Team {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  channels       Channel[]
+  members        TeamMember[]
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  role      String   @default("member") // admin, member
+  joinedAt  DateTime @default(now())
+
+  team      Team     @relation(fields: [teamId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+model Channel {
+  id        String   @id @default(uuid())
+  name      String
+  teamId    String
+  type      String   @default("text") // text, video, announcement
+  createdAt DateTime @default(now())
+
+  team      Team     @relation(fields: [teamId], references: [id])
+  messages  Message[]
+  files    File[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  channelId String?
+  meetingId String?
+  userId    String
+  type      String   @default("text") // text, system, file, reaction
+  edited    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  channel   Channel? @relation(fields: [channelId], references: [id])
+  meeting   Meeting? @relation(fields: [meetingId], references: [id])
+}
+
+model Meeting {
+  id                String   @id @default(uuid())
+  title             String
+  meetingId         String   @unique // public meeting ID like "abc-def-ghi"
+  password          String?
+  hostId            String
+  organizationId    String?
+  type              String   @default("instant") // instant, scheduled, recurring, personal
+  status            String   @default("active") // scheduled, active, ended, expired
+  maxParticipants   Int      @default(100)
+  waitingRoom       Boolean  @default(false)
+  recordingEnabled  Boolean  @default(true)
+  transcriptionEnabled Boolean @default(true)
+  aiAssistantEnabled Boolean @default(true)
+  startTime         DateTime?
+  endTime           DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  host        User                @relation(fields: [hostId], references: [id])
+  organization Organization?       @relation(fields: [organizationId], references: [id])
   participants MeetingParticipant[]
+  messages    Message[]
+  recordings  Recording[]
+  transcripts Transcript[]
+  summaries   MeetingSummary[]
+  polls       Poll[]
+  actionItems ActionItem[]
 }
 
 model MeetingParticipant {
   id        String   @id @default(uuid())
-  roomId    String
-  room      MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  name      String
-  email     String?
+  meetingId String
+  userId    String
+  role      String   @default("participant") // host, cohost, participant
   joinedAt  DateTime @default(now())
   leftAt    DateTime?
-  isOnline  Boolean  @default(true)
+
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
 }
 
-model ContactSubmission {
+model Recording {
   id        String   @id @default(uuid())
+  meetingId String
+  url       String   // path to recording file
+  duration  Int      @default(0) // seconds
+  size      Int      @default(0) // bytes
+  format    String   @default("mp4")
+  createdAt DateTime @default(now())
+
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Transcript {
+  id          String   @id @default(uuid())
+  meetingId   String
+  speakerName String
+  speakerId   String?
+  text        String
+  language    String   @default("en")
+  confidence  Float    @default(0)
+  timestamp   Int      @default(0) // ms offset
+  createdAt   DateTime @default(now())
+
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model MeetingSummary {
+  id          String   @id @default(uuid())
+  meetingId   String
+  summary     String
+  keyTopics   String   @default("[]") // JSON array
+  decisions   String   @default("[]")
+  risks       String   @default("[]")
+  duration    Int      @default(0)
+  participantCount Int  @default(0)
+  createdAt   DateTime @default(now())
+
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model ActionItem {
+  id          String   @id @default(uuid())
+  content     String
+  ownerId     String
+  meetingId   String?
+  dueDate     DateTime?
+  priority    String   @default("medium") // low, medium, high, critical
+  status      String   @default("pending") // pending, in_progress, completed, overdue
+  createdAt   DateTime @default(now())
+
+  owner       User     @relation(fields: [ownerId], references: [id])
+  meeting     Meeting? @relation(fields: [meetingId], references: [id])
+}
+
+model Poll {
+  id        String   @id @default(uuid())
+  meetingId String
+  question  String
+  options   String   @default("[]") // JSON array
+  results   String   @default("{}") // JSON object
+  createdAt DateTime @default(now())
+
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id                String   @id @default(uuid())
+  title             String
+  description       String?
+   organizationId   String
+  type              String   @default("webinar") // webinar, townhall, conference, livestream
+  status            String   @default("upcoming") // upcoming, live, ended, cancelled
+  startTime         DateTime
+  endTime           DateTime?
+  maxAttendees      Int      @default(500)
+  registrationEnabled Boolean @default(true)
+  recordingEnabled  Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  registrations  EventRegistration[]
+}
+
+model EventRegistration {
+  id        String   @id @default(uuid())
+  eventId   String
   name      String
   email     String
-  subject   String
-  message   String
+  approved  Boolean  @default(false)
   createdAt DateTime @default(now())
-  isRead    Boolean  @default(false)
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, email])
 }
 
-model NewsletterSubscriber {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-  isActive  Boolean  @default(true)
+model File {
+  id          String   @id @default(uuid())
+  name        String
+  path        String
+  size        Int      @default(0)
+  mimeType    String?
+  uploadedBy  String
+  channelId   String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  uploader    User     @relation(fields: [uploadedBy], references: [id])
+  channel     Channel? @relation(fields: [channelId], references: [id])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  userId        String?
+  action        String
+  resource      String
+  resourceId    String?
+  details       String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  user          User?    @relation(fields: [userId], references: [id])
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  name        String
+  key         String   @unique
+  userId      String
+  permissions String   @default("[]")
+  lastUsed    DateTime?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
 }
