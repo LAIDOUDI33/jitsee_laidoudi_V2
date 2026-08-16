@@ -101,7 +101,7 @@ const roleCounts = { all: mockUsers.length, superadmin: mockUsers.filter(u => u.
 const statusCounts = { all: mockUsers.length, active: mockUsers.filter(u => u.status === 'active').length, inactive: mockUsers.filter(u => u.status === 'inactive').length, suspended: mockUsers.filter(u => u.status === 'suspended').length }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
 
 export default function AdminUsersPage() {
   const [search, setSearch] = useState('')

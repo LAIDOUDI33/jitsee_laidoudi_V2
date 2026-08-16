@@ -214,7 +214,6 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'admin-system': AdminSystemPage,
   settings: SettingsPage,
   profile: ProfilePage,
-  'help-center': HelpCenterPage,
   webhooks: WebhooksPage,
   templates: TemplatesPage,
   notifications: NotificationsPage,
@@ -251,49 +250,49 @@ function ForgotPasswordPage() {
         <motion.div
           className='absolute top-16 left-12 w-72 h-72 rounded-full bg-white/10 blur-3xl'
           animate={{ y: [0, -30, 0], x: [0, 15, 0], scale: [1, 1.15, 1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const }}
         />
         <motion.div
           className='absolute bottom-24 right-16 w-56 h-56 rounded-full bg-orange-300/20 blur-3xl'
           animate={{ y: [0, 20, 0], x: [0, -18, 0], scale: [1, 0.9, 1] }}
-          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' as const, delay: 1 }}
         />
         <motion.div
           className='absolute top-1/2 left-1/4 w-40 h-40 rounded-full bg-rose-300/15 blur-2xl'
           animate={{ y: [0, -15, 0], x: [0, 12, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' as const, delay: 2 }}
         />
         <motion.div
           className='absolute top-1/4 right-1/4 w-28 h-28 rounded-full bg-amber-200/20 blur-2xl'
           animate={{ y: [0, 25, 0], x: [0, -10, 0] }}
-          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' as const, delay: 3 }}
         />
         <motion.div
           className='absolute bottom-1/3 left-1/2 w-20 h-20 rounded-full bg-rose-400/15 blur-2xl'
           animate={{ y: [0, -20, 0], x: [0, 20, 0], scale: [1, 1.3, 1] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const, delay: 4 }}
         />
         <motion.div
           className='absolute top-2/3 right-1/2 w-32 h-32 rounded-full bg-orange-300/10 blur-3xl'
           animate={{ y: [0, 15, 0], x: [0, -15, 0], scale: [1, 1.1, 1] }}
-          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 5 }}
+          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' as const, delay: 5 }}
         />
 
         {/* Geometric floating shapes */}
         <motion.div
           className='absolute top-32 right-24 w-16 h-16 rounded-xl border-2 border-white/20 rotate-12'
           animate={{ y: [0, -20, 0], rotate: [12, 20, 12] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const }}
         />
         <motion.div
           className='absolute bottom-40 left-24 w-12 h-12 rounded-full border-2 border-white/15'
           animate={{ y: [0, 15, 0], x: [0, 8, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.5 }}
         />
         <motion.div
           className='absolute top-2/3 right-1/3 w-10 h-10 rounded-lg border-2 border-white/10 -rotate-12'
           animate={{ y: [0, -12, 0], rotate: [-12, 5, -12] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 2.5 }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' as const, delay: 2.5 }}
         />
 
         <div className='relative z-10 flex flex-col justify-center items-center p-12 w-full'>

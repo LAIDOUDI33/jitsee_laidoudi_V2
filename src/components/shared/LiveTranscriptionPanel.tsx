@@ -296,7 +296,7 @@ export default function LiveTranscriptionPanel() {
                 key={entry.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
+                transition={{ duration: 0.35, ease: 'easeOut' as const }}
                 className="flex gap-2.5 p-2 rounded-lg hover:bg-white/5 transition-colors group"
               >
                 {/* Speaker Avatar */}

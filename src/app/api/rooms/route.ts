@@ -12,20 +12,29 @@ function generateRoomName(): string {
 
 export async function GET() {
   try {
-    const rooms = await db.meetingRoom.findMany({
-      where: { isActive: true },
+    // Use Meeting model as rooms (meetings ARE rooms in this architecture)
+    const rooms = await db.meeting.findMany({
+      where: { status: 'active' },
       orderBy: { createdAt: 'desc' },
       take: 20,
       select: {
         id: true,
-        name: true,
-        displayName: true,
+        meetingId: true,
+        title: true,
         createdAt: true,
-        isActive: true,
+        status: true,
       },
     });
 
-    return NextResponse.json({ success: true, rooms });
+    const mapped = rooms.map(r => ({
+      id: r.id,
+      name: r.meetingId,
+      displayName: r.title,
+      createdAt: r.createdAt,
+      isActive: r.status === 'active',
+    }));
+
+    return NextResponse.json({ success: true, rooms: mapped });
   } catch (error) {
     console.error('Failed to fetch rooms:', error);
     return NextResponse.json(
@@ -38,39 +47,34 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, displayName, hostName, hostEmail } = body;
+    const { name, displayName, hostId } = body;
 
     const roomName = name || generateRoomName();
     const roomDisplayName = displayName || roomName;
 
-    // Check if room name already exists
-    const existing = await db.meetingRoom.findUnique({
-      where: { name: roomName },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { success: false, message: 'Room name already exists. Please try another name.' },
-        { status: 400 }
-      );
-    }
-
-    const room = await db.meetingRoom.create({
+    const room = await db.meeting.create({
       data: {
-        name: roomName,
-        displayName: roomDisplayName,
-        hostName: hostName || null,
-        hostEmail: hostEmail || null,
+        title: roomDisplayName,
+        meetingId: roomName,
+        status: 'active',
+        host: hostId ? { connect: { id: hostId } } : undefined,
       },
       select: {
         id: true,
-        name: true,
-        displayName: true,
+        meetingId: true,
+        title: true,
         createdAt: true,
       },
     });
 
-    return NextResponse.json({ success: true, room });
+    const mapped = {
+      id: room.id,
+      name: room.meetingId,
+      displayName: room.title,
+      createdAt: room.createdAt,
+    };
+
+    return NextResponse.json({ success: true, room: mapped });
   } catch (error) {
     console.error('Failed to create room:', error);
     return NextResponse.json(

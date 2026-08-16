@@ -270,7 +270,7 @@ export default function EventsPage() {
                         className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
                         initial={{ width: 0 }}
                         animate={{ width: `${(featuredEvent.registrants / featuredEvent.maxRegistrants) * 100}%` }}
-                        transition={{ duration: 1, ease: 'easeOut' }}
+                        transition={{ duration: 1, ease: 'easeOut' as const }}
                       />
                     </div>
                   </div>
@@ -357,7 +357,7 @@ export default function EventsPage() {
                         className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
                         initial={{ width: 0 }}
                         animate={{ width: `${regPct}%` }}
-                        transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+                        transition={{ duration: 0.8, ease: 'easeOut' as const, delay: 0.2 }}
                       />
                     </div>
                     <div className='flex justify-between text-[10px] text-muted-foreground'>

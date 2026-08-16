@@ -187,7 +187,7 @@ function TeamSparkline({ data, color }: { data: number[]; color: string }) {
           className={`w-[4px] rounded-sm ${color}`}
           initial={{ height: 0 }}
           animate={{ height: `${(val / maxVal) * 100}%` }}
-          transition={{ delay: i * 0.05, duration: 0.3, ease: 'easeOut' }}
+          transition={{ delay: i * 0.05, duration: 0.3, ease: 'easeOut' as const }}
           title={`Day ${i + 1}: ${val}%`}
         />
       ))}
@@ -207,7 +207,7 @@ function SprintProgressBar({ progress, color }: { progress: number; color: strin
           className={`h-full rounded-full ${color}`}
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
+          transition={{ duration: 0.8, ease: 'easeOut' as const, delay: 0.3 }}
         />
       </div>
     </div>

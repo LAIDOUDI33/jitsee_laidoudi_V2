@@ -211,7 +211,7 @@ function AudioLevelBars() {
           key={i}
           className="w-[3px] rounded-full bg-emerald-400"
           animate={{ height: [2, h * 4, 2] }}
-          transition={{ duration: 0.4, delay: i * 0.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          transition={{ duration: 0.4, delay: i * 0.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' as const }}
         />
       ))}
     </div>
@@ -226,7 +226,7 @@ function FloatingReactionEmoji({ emoji, x, onDone }: { emoji: string; x: number;
       style={{ left: x }}
       initial={{ y: 0, opacity: 1, scale: 0.5 }}
       animate={{ y: -200, opacity: 0, scale: 1.2 }}
-      transition={{ duration: 2, ease: 'easeOut' }}
+      transition={{ duration: 2, ease: 'easeOut' as const }}
       onAnimationComplete={onDone}
     >
       {emoji}
@@ -292,7 +292,7 @@ function NetworkQualityIndicator() {
                 key={bar}
                 className={`w-[3px] rounded-full ${bar <= barCount ? config.barColor : 'bg-white/20'}`}
                 animate={{ height: [4, bar <= barCount ? bar * 3.5 : 4, bar <= barCount ? bar * 3.5 : 4] }}
-                transition={{ duration: 0.5, delay: bar * 0.05, ease: 'easeOut' }}
+                transition={{ duration: 0.5, delay: bar * 0.05, ease: 'easeOut' as const }}
               />
             ))}
           </div>
@@ -761,7 +761,7 @@ export default function MeetingRoomPage() {
                     <motion.span
                       className="w-2 h-2 rounded-full bg-red-500"
                       animate={{ opacity: [1, 0.3, 1], scale: [1, 0.85, 1] }}
-                      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const }}
                     />
                     <span className="text-[10px] font-mono font-medium text-red-400">REC {formatTime(recordingTime)}</span>
                   </div>
@@ -824,7 +824,7 @@ export default function MeetingRoomPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.4, ease: 'easeInOut' }}
+                transition={{ duration: 0.4, ease: 'easeInOut' as const }}
                 className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-2xl pointer-events-none"
               >
                 <div className="flex flex-col gap-1 px-5 py-2.5 rounded-xl bg-black/60 backdrop-blur-xl border border-white/10">
@@ -1334,7 +1334,7 @@ export default function MeetingRoomPage() {
                                 <motion.span
                                   className="absolute -top-1 -right-1 text-sm"
                                   animate={{ y: [0, -3, 0] }}
-                                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' as const }}
                                 >
                                   {'✋'}
                                 </motion.span>
@@ -1614,7 +1614,7 @@ export default function MeetingRoomPage() {
                                       className={`h-full rounded-full ${hasVoted ? 'bg-violet-500' : 'bg-white/20'}`}
                                       initial={{ width: 0 }}
                                       animate={{ width: `${opt.percentage}%` }}
-                                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                                      transition={{ duration: 0.8, ease: 'easeOut' as const }}
                                     />
                                   </div>
                                 </motion.button>
@@ -1755,7 +1755,7 @@ function ParticipantTile({
           >
             <motion.div
               animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' as const }}
               className="flex items-center gap-1.5 bg-amber-500/20 backdrop-blur-sm border border-amber-500/30 rounded-full px-2.5 py-1"
             >
               <Hand size={12} className="text-amber-400" />

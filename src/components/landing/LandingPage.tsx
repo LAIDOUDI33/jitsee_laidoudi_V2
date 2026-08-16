@@ -436,7 +436,7 @@ const sectionVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: 'easeOut' },
+    transition: { duration: 0.6, ease: 'easeOut' as const },
   },
 };
 
@@ -450,7 +450,7 @@ const staggerContainer = {
 
 const staggerItem = {
   hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
 
 /* -------------------------------------------------------------------------- */
@@ -536,7 +536,7 @@ export default function LandingPage() {
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
+                transition={{ duration: 0.7, ease: 'easeOut' as const }}
               >
                 <Badge
                   variant="secondary"
@@ -557,7 +557,7 @@ export default function LandingPage() {
                 className="mt-6 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' as const }}
               >
                 ALVISION unifies HD video meetings, real-time AI transcription,
                 translation, intelligent summaries, team collaboration, and
@@ -569,7 +569,7 @@ export default function LandingPage() {
                 className="mt-10 mb-8"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' as const }}
               >
                 <p className="text-xs text-muted-foreground/60 font-medium tracking-wider uppercase mb-4">Trusted by leading enterprises</p>
                 <div className="flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto px-4 scrollbar-hide">
@@ -588,7 +588,7 @@ export default function LandingPage() {
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' as const }}
                 className="mt-2 w-full max-w-xl"
               >
                 <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300">
@@ -652,7 +652,7 @@ export default function LandingPage() {
                 className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' as const }}
               >
                 {TRUST_BADGES.map((badge) => (
                   <div
@@ -671,7 +671,7 @@ export default function LandingPage() {
                 <motion.div
                   initial={{ opacity: 0, x: 40 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' as const }}
                   className="relative rounded-2xl bg-white/5 dark:bg-white/[0.03] backdrop-blur-md border border-white/10 dark:border-white/5 p-4 shadow-2xl"
                 >
                   {/* 2x2 video grid */}
@@ -686,14 +686,14 @@ export default function LandingPage() {
                         key={participant.name}
                         initial={{ opacity: 0, scale: 0.85, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: participant.delay, ease: 'easeOut' }}
+                        transition={{ duration: 0.5, delay: participant.delay, ease: 'easeOut' as const }}
                         className={`relative rounded-xl bg-gradient-to-br ${participant.color} p-4 flex flex-col items-center justify-center gap-2 min-h-[120px] ${participant.active ? 'ring-2 ring-primary/50' : ''}`}
                       >
                         {participant.active && (
                           <motion.div
                             className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500"
                             animate={{ scale: [1, 1.3, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
                           />
                         )}
                         <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${participant.color} border-2 border-white/20 flex items-center justify-center`}>
@@ -713,7 +713,7 @@ export default function LandingPage() {
                   >
                     <motion.div
                       animate={{ rotate: [0, 15, -15, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.2 }}
                     >
                       <Sparkles className="w-4 h-4 text-white" />
                     </motion.div>
@@ -732,7 +732,7 @@ export default function LandingPage() {
             >
               <motion.div
                 animate={{ y: [0, 8, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
                 className="flex flex-col items-center gap-1.5 text-muted-foreground/50"
               >
                 <MousePointer2 className="w-5 h-5" />
@@ -752,7 +752,7 @@ export default function LandingPage() {
                     key={stat.label}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' }}
+                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' as const }}
                     className="flex items-center gap-3"
                   >
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

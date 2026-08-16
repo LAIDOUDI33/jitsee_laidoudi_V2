@@ -15,20 +15,14 @@ export async function POST(request: NextRequest) {
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Check for duplicate
-    const existing = await db.newsletterSubscriber.findUnique({
-      where: { email: trimmedEmail },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { success: false, message: 'This email is already subscribed' },
-        { status: 400 }
-      );
-    }
-
-    await db.newsletterSubscriber.create({
-      data: { email: trimmedEmail },
+    // Store newsletter subscription in AuditLog as a temporary solution
+    // TODO: Add NewsletterSubscriber model to Prisma schema
+    await db.auditLog.create({
+      data: {
+        action: 'NEWSLETTER_SUBSCRIBE',
+        resource: 'Newsletter',
+        details: JSON.stringify({ email: trimmedEmail }),
+      },
     });
 
     return NextResponse.json({

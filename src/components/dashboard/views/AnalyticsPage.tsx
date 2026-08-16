@@ -102,7 +102,7 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
 }
 
 // ── Helper: Count-Up Animation ─────────────────────────────────────────────
@@ -429,7 +429,7 @@ export default function AnalyticsPage() {
                         className={`h-full rounded-full bg-gradient-to-r ${feature.gradient}`}
                         initial={{ width: 0 }}
                         animate={{ width: `${feature.percentage}%` }}
-                        transition={{ duration: 1, delay: 0.3, ease: 'easeOut' }}
+                        transition={{ duration: 1, delay: 0.3, ease: 'easeOut' as const }}
                       />
                     </div>
                   </div>

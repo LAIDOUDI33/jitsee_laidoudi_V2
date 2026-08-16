@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
             include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
           },
           recordings: { select: { id: true, duration: true, url: true, createdAt: true } },
-          summaries: { select: { id: true, summary: true, topics: true, createdAt: true } },
+          summaries: { select: { id: true, summary: true, keyTopics: true, createdAt: true } },
         },
       }),
       db.meeting.count({ where }),

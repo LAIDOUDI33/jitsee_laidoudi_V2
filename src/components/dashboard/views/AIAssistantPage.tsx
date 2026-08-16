@@ -247,7 +247,7 @@ export default function AIAssistantPage() {
             )}
 
             {messages.map(msg => (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <motion.div key={msg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' as const }} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <Avatar className='h-8 w-8 shrink-0 mt-0.5'>
                   <AvatarFallback className={msg.role === 'assistant' ? 'bg-gradient-to-br from-primary to-primary/60 text-white text-xs' : 'bg-primary/10 text-primary text-xs'}>
                     {msg.role === 'assistant' ? <Bot className='h-4 w-4' /> : (user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U')}
@@ -258,7 +258,7 @@ export default function AIAssistantPage() {
                     {msg.loading ? (
                       <div className='flex items-center gap-1.5 py-0.5'>
                         {[0, 1, 2].map(i => (
-                          <motion.div key={i} className='w-2 h-2 rounded-full bg-muted-foreground/50' animate={{ y: [0, -6, 0], opacity: [0.4, 1, 0.4] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }} />
+                          <motion.div key={i} className='w-2 h-2 rounded-full bg-muted-foreground/50' animate={{ y: [0, -6, 0], opacity: [0.4, 1, 0.4] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' as const }} />
                         ))}
                       </div>
                     ) : msg.content}
@@ -296,7 +296,7 @@ export default function AIAssistantPage() {
                       key={i}
                       className='w-1.5 h-1.5 rounded-full bg-primary/60'
                       animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' as const }}
                     />
                   ))}
                 </div>

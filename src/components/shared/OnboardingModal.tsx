@@ -92,7 +92,7 @@ function ConfettiParticles() {
           transition={{
             delay: p.delay,
             duration: p.duration,
-            ease: 'easeOut',
+            ease: 'easeOut' as const,
           }}
         />
       ))}
@@ -168,7 +168,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         <motion.div
           className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20 z-10'
           animate={{ y: [0, -4, 0] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' as const }}
         >
           <Video className='h-8 w-8 text-primary-foreground' />
         </motion.div>

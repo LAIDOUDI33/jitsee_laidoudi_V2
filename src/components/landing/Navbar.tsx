@@ -120,7 +120,7 @@ export default function Navbar() {
               xmlns="http://www.w3.org/2000/svg"
               className="shrink-0"
               animate={{ scale: [1, 1.04, 1] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' as const }}
             >
               <defs>
                 <linearGradient id="logo-grad" x1="0" y1="0" x2="36" y2="36">

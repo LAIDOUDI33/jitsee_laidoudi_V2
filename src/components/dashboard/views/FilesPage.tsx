@@ -448,7 +448,7 @@ export default function FilesPage() {
                     className='h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/60'
                     initial={{ width: 0 }}
                     animate={{ width: `${uploadProgress}%` }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    transition={{ duration: 0.3, ease: 'easeOut' as const }}
                   />
                   <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2s_infinite]' style={{ backgroundSize: '200% 100%', backgroundPosition: `${uploadProgress}% 0` }} />
                 </div>

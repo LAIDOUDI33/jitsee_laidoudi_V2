@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   X, Video, Calendar, MessageSquare, Search, FileText, Brain, Users,
-  Settings, User, ChevronLeft, ChevronRight, ArrowLeft, Slash, Escape,
+  Settings, User, ChevronLeft, ChevronRight, ArrowLeft, Slash, CircleSlash,
   Mic, Monitor, Pen, BarChart3, BookOpen, Bell, Bot
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'

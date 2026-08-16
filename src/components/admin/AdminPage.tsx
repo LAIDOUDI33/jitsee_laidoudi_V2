@@ -118,7 +118,7 @@ function CircularGauge({ value, color, track }: { value: number; color: string; 
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+          transition={{ duration: 1, ease: 'easeOut' as const, delay: 0.3 }}
         />
       </svg>
       <div className='absolute inset-0 flex items-center justify-center'>
@@ -140,7 +140,7 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
           key={i}
           initial={{ height: 0 }}
           animate={{ height: `${(v / range) * 100}%` }}
-          transition={{ duration: 0.4, delay: i * 0.03, ease: 'easeOut' }}
+          transition={{ duration: 0.4, delay: i * 0.03, ease: 'easeOut' as const }}
           className={`w-[5px] rounded-sm ${color} opacity-70 hover:opacity-100 transition-opacity`}
         />
       ))}
@@ -149,7 +149,7 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
 }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
-const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } } }
 
 function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -297,7 +297,7 @@ export default function AdminPage() {
                             className={`h-full rounded-full ${s.status === 'healthy' ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : s.status === 'degraded' ? 'bg-gradient-to-r from-amber-500 to-orange-400' : 'bg-gradient-to-r from-red-500 to-rose-400'}`}
                             initial={{ width: 0 }}
                             animate={{ width: `${uptimeVal}%` }}
-                            transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                            transition={{ duration: 1, ease: 'easeOut' as const, delay: 0.3 }}
                           />
                         </div>
                         <span className='text-[10px] text-muted-foreground shrink-0'>{s.uptime}</span>

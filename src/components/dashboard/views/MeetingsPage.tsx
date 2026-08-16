@@ -275,7 +275,7 @@ export default function MeetingsPage() {
                         className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400'
                         initial={{ width: 0 }}
                         animate={{ width: `${elapsedPct}%` }}
-                        transition={{ duration: 1, ease: 'easeOut' }}
+                        transition={{ duration: 1, ease: 'easeOut' as const }}
                       />
                     </div>
                   </div>

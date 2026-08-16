@@ -86,7 +86,7 @@ function CircularGauge({ value, color, size = 96, strokeWidth = 6 }: { value: nu
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1, ease: 'easeOut' }}
+          transition={{ duration: 1, ease: 'easeOut' as const }}
         />
       </svg>
       <div className='absolute inset-0 flex items-center justify-center'>
@@ -109,7 +109,7 @@ const logLevelBg: Record<string, string> = {
 }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
 
 export default function AdminSystemPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)

@@ -35,12 +35,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await db.contactSubmission.create({
+    // Store contact submission in AuditLog as a temporary solution
+    // TODO: Add ContactSubmission model to Prisma schema
+    await db.auditLog.create({
       data: {
-        name: name.trim(),
-        email: email.trim(),
-        subject: subject.trim(),
-        message: message.trim(),
+        action: 'CONTACT_SUBMISSION',
+        resource: 'ContactForm',
+        details: JSON.stringify({ name: name.trim(), email: email.trim(), subject: subject.trim(), message: message.trim() }),
       },
     });
 

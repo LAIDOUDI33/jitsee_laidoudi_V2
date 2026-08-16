@@ -480,7 +480,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         duration: 0.6,
                         repeat: Infinity,
                         delay: i * 0.15,
-                        ease: 'easeInOut',
+                        ease: 'easeInOut' as const,
                       }}
                     />
                   ))}
@@ -574,7 +574,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
+                transition={{ duration: 0.2, ease: 'easeOut' as const }}
               >
                 {children}
               </motion.div>

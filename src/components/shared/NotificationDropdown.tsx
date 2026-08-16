@@ -56,7 +56,7 @@ export default function NotificationDropdown() {
               <motion.span
                 className='absolute inset-0 rounded-full bg-red-500'
                 animate={{ scale: [1, 1.8, 1], opacity: [0.6, 0, 0.6] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
               />
             </motion.span>
           )}

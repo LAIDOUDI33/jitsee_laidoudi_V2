@@ -48,7 +48,7 @@ const heatmapColors: Record<number, string> = {
 const skills = ['React', 'TypeScript', 'Node.js', 'Video Conferencing', 'AI/ML', 'System Design', 'WebRTC', 'Leadership']
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } }
-const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } } }
 
 export default function ProfilePage() {
   const { user } = useAppStore()
@@ -216,7 +216,7 @@ export default function ProfilePage() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${profileCompletion}%` }}
-                  transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+                  transition={{ duration: 1, ease: 'easeOut' as const, delay: 0.2 }}
                   className='h-full rounded-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500'
                 />
               </div>

@@ -55,7 +55,7 @@ function RippleButton({ children, className, onClick }: { children: React.ReactN
           key={r.id}
           initial={{ scale: 0, opacity: 0.35 }}
           animate={{ scale: 4, opacity: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          transition={{ duration: 0.6, ease: 'easeOut' as const }}
           className='absolute rounded-full bg-white/30 pointer-events-none'
           style={{ left: r.x - 10, top: r.y - 10, width: 20, height: 20 }}
         />

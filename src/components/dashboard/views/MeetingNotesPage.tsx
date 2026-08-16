@@ -514,7 +514,7 @@ export default function MeetingNotesPage() {
                     className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
                     initial={{ width: 0 }}
                     animate={{ width: `${completionRate}%` }}
-                    transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
+                    transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' as const }}
                   />
                 </div>
               </div>
@@ -845,7 +845,7 @@ export default function MeetingNotesPage() {
                       <div className='relative w-full h-full flex items-center justify-center'>
                         <NotebookPen className='h-10 w-10 text-violet-500/30' />
                       </div>
-                      <motion.div className='absolute -top-1 -right-1' animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+                      <motion.div className='absolute -top-1 -right-1' animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}>
                         <Sparkles className='h-4 w-4 text-violet-400/50' />
                       </motion.div>
                     </div>

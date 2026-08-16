@@ -132,15 +132,15 @@ export default function RegisterPage() {
       {/* Gradient panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-fuchsia-600 via-violet-600 to-purple-700">
         {/* Animated floating gradient orbs */}
-        <motion.div className="absolute top-20 right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" animate={{ y: [0, -25, 0], x: [0, 15, 0], scale: [1, 1.12, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
-        <motion.div className="absolute bottom-24 left-20 w-56 h-56 rounded-full bg-purple-300/20 blur-3xl" animate={{ y: [0, 18, 0], x: [0, -12, 0], scale: [1, 0.9, 1] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
-        <motion.div className="absolute top-1/3 right-1/3 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-2xl" animate={{ y: [0, -15, 0], x: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 2 }} />
-        <motion.div className="absolute bottom-1/3 left-1/3 w-24 h-24 rounded-full bg-violet-200/15 blur-2xl" animate={{ y: [0, 20, 0], x: [0, -15, 0], scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 3 }} />
-        <motion.div className="absolute top-2/3 right-1/4 w-16 h-16 rounded-full bg-pink-300/10 blur-2xl" animate={{ y: [0, -12, 0], x: [0, 12, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 4 }} />
+        <motion.div className="absolute top-20 right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" animate={{ y: [0, -25, 0], x: [0, 15, 0], scale: [1, 1.12, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const }} />
+        <motion.div className="absolute bottom-24 left-20 w-56 h-56 rounded-full bg-purple-300/20 blur-3xl" animate={{ y: [0, 18, 0], x: [0, -12, 0], scale: [1, 0.9, 1] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' as const, delay: 1 }} />
+        <motion.div className="absolute top-1/3 right-1/3 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-2xl" animate={{ y: [0, -15, 0], x: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' as const, delay: 2 }} />
+        <motion.div className="absolute bottom-1/3 left-1/3 w-24 h-24 rounded-full bg-violet-200/15 blur-2xl" animate={{ y: [0, 20, 0], x: [0, -15, 0], scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const, delay: 3 }} />
+        <motion.div className="absolute top-2/3 right-1/4 w-16 h-16 rounded-full bg-pink-300/10 blur-2xl" animate={{ y: [0, -12, 0], x: [0, 12, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' as const, delay: 4 }} />
 
         {/* Geometric shapes */}
-        <motion.div className="absolute top-40 left-16 w-14 h-14 rounded-xl border-2 border-white/15 rotate-45" animate={{ y: [0, -15, 0], rotate: [45, 60, 45] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} />
-        <motion.div className="absolute bottom-36 right-24 w-10 h-10 rounded-full border-2 border-white/10" animate={{ y: [0, 20, 0] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }} />
+        <motion.div className="absolute top-40 left-16 w-14 h-14 rounded-xl border-2 border-white/15 rotate-45" animate={{ y: [0, -15, 0], rotate: [45, 60, 45] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const }} />
+        <motion.div className="absolute bottom-36 right-24 w-10 h-10 rounded-full border-2 border-white/10" animate={{ y: [0, 20, 0] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.5 }} />
 
         <div className="relative z-10 flex flex-col justify-center items-center p-12 w-full">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center">
@@ -228,7 +228,7 @@ export default function RegisterPage() {
                         <motion.div
                           className={`flex-1 h-0.5 mx-3 rounded-full ${s.id < step ? 'bg-primary' : 'bg-border'}`}
                           layoutId={`step-progress-${s.id}`}
-                          transition={{ duration: 0.4, ease: 'easeInOut' }}
+                          transition={{ duration: 0.4, ease: 'easeInOut' as const }}
                         />
                       )}
                     </button>

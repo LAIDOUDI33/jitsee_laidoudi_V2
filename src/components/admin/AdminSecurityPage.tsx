@@ -99,7 +99,7 @@ const categoryInfo: Record<string, { icon: React.ReactNode; label: string; color
 }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
 
 export default function AdminSecurityPage() {
   const [policyStates, setPolicyStates] = useState<Record<string, boolean>>(Object.fromEntries(policies.map(p => [p.id, p.enabled])))
@@ -161,7 +161,7 @@ export default function AdminSecurityPage() {
                   strokeDasharray={gaugeCircumference}
                   initial={{ strokeDashoffset: gaugeCircumference }}
                   animate={{ strokeDashoffset: gaugeOffset }}
-                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                  transition={{ duration: 1.2, ease: 'easeOut' as const }}
                 />
               </svg>
               <div className='absolute inset-0 flex items-center justify-center flex-col'>
