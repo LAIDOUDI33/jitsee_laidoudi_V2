@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useAppStore } from '@/store/app-store'
+import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -134,7 +135,7 @@ export default function CalendarPage() {
         const isSelected = cell.dateStr === selectedDate
         const isOtherMonth = cell.month !== 'current'
         const cellClass = `bg-card p-1.5 min-h-[72px] lg:min-h-[90px] text-left transition-all hover:bg-muted/50 ${isOtherMonth ? 'opacity-40' : ''} ${isSelected ? 'bg-primary/5 ring-1 ring-primary/20 ring-inset' : ''}`
-        const dayClass = `text-sm font-medium inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors ${isToday ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`
+        const dayClass = `text-sm font-medium inline-flex h-7 w-7 items-center justify-center rounded-full transition-all ${isToday ? 'bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30 ring-offset-1 ring-offset-card' : isSelected ? 'bg-muted text-foreground' : 'hover:bg-muted'}`
 
         return (
           <button key={i} onClick={() => setSelectedDate(cell.dateStr)} className={cellClass}>
@@ -156,6 +157,39 @@ export default function CalendarPage() {
       })}
     </div>
   )
+
+  const renderWeekView = () => {
+    const todayDate = new Date()
+    const startOfWeek = new Date(todayDate)
+    startOfWeek.setDate(todayDate.getDate() - todayDate.getDay())
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek)
+      d.setDate(startOfWeek.getDate() + i)
+      return d
+    })
+    return (
+      <div className='space-y-2'>
+        <div className='grid grid-cols-7 gap-2'>
+          {weekDays.map((d, i) => {
+            const ds = dateStr(d.getFullYear(), d.getMonth(), d.getDate())
+            const events = getEventsForDate(ds)
+            const isToday = ds === todayStr
+            return (
+              <div key={i} className={`rounded-lg border border-border/50 p-2 min-h-[120px] transition-all ${isToday ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20' : 'hover:bg-muted/30'}`}>
+                <div className={`text-center text-xs font-semibold mb-2 ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>{DAYS[i]} {d.getDate()}</div>
+                <div className='space-y-1'>
+                  {events.slice(0, 3).map(e => (
+                    <div key={e.id} className={`text-[10px] leading-tight px-1.5 py-1 rounded-sm ${e.color} text-white truncate cursor-pointer hover:opacity-80 transition-opacity`}>{e.time} {e.title}</div>
+                  ))}
+                  {events.length === 0 && <div className='text-[10px] text-muted-foreground/40 text-center mt-4'>No events</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className='space-y-6'>
@@ -195,11 +229,7 @@ export default function CalendarPage() {
                   <div key={d} className='text-center text-xs font-semibold text-muted-foreground py-2'>{d}</div>
                 ))}
               </div>
-              {viewMode === 'month' ? renderCalendarGrid() : (
-                <div className='text-center py-8 text-muted-foreground'>
-                  <p className='text-sm'>Week view coming soon</p>
-                </div>
-              )}
+              {viewMode === 'month' ? renderCalendarGrid() : renderWeekView()}
             </CardContent>
           </Card>
         </div>

@@ -45,6 +45,7 @@ import { LayoutDashboard,
   HelpCircle,
   User as UserIcon,
   MonitorUp,
+  Pen,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
@@ -70,6 +71,7 @@ const mainNavItems: NavItem[] = [
   { label: 'Knowledge Base', icon: <BookOpen className='h-4 w-4' />, view: 'knowledge' },
   { label: 'Calendar', icon: <CalendarDays className='h-4 w-4' />, view: 'calendar' },
   { label: 'Events', icon: <CalendarHeart className='h-4 w-4' />, view: 'events' },
+  { label: 'Whiteboard', icon: <Pen className='h-4 w-4' />, view: 'whiteboard' },
 ]
 
 const adminNavItems: NavItem[] = [

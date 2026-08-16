@@ -17,6 +17,7 @@ export type AppView =
   | 'knowledge'
   | 'calendar'
   | 'events'
+  | 'whiteboard'
   | 'admin'
   | 'admin-users'
   | 'admin-orgs'

@@ -51,11 +51,11 @@ interface Event {
   tags: string[]
 }
 
-const typeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
-  webinar: { icon: <Presentation className='h-4 w-4' />, label: 'Webinar', color: 'text-sky-600', bg: 'bg-sky-500/10' },
-  townhall: { icon: <Users className='h-4 w-4' />, label: 'Town Hall', color: 'text-violet-600', bg: 'bg-violet-500/10' },
-  livestream: { icon: <Radio className='h-4 w-4' />, label: 'Live Stream', color: 'text-red-600', bg: 'bg-red-500/10' },
-  workshop: { icon: <Wrench className='h-4 w-4' />, label: 'Workshop', color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+const typeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string; gradient: string }> = {
+  webinar: { icon: <Presentation className='h-4 w-4' />, label: 'Webinar', color: 'text-sky-600', bg: 'bg-sky-500/10', gradient: 'bg-gradient-to-r from-sky-500/20 to-sky-500/5 border-sky-200/50' },
+  townhall: { icon: <Users className='h-4 w-4' />, label: 'Town Hall', color: 'text-emerald-600', bg: 'bg-emerald-500/10', gradient: 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 border-emerald-200/50' },
+  livestream: { icon: <Radio className='h-4 w-4' />, label: 'Live Stream', color: 'text-orange-600', bg: 'bg-orange-500/10', gradient: 'bg-gradient-to-r from-orange-500/20 to-orange-500/5 border-orange-200/50' },
+  workshop: { icon: <Wrench className='h-4 w-4' />, label: 'Workshop', color: 'text-emerald-600', bg: 'bg-emerald-500/10', gradient: 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 border-emerald-200/50' },
 }
 
 const statusConfig: Record<string, { color: string; label: string; pulse?: boolean }> = {
@@ -206,8 +206,10 @@ export default function EventsPage() {
       {/* Featured event banner */}
       {featuredEvent && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className='bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border-primary/10 overflow-hidden'>
-            <CardContent className='p-6 lg:p-8'>
+          <Card className='bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border-primary/10 overflow-hidden relative'>
+            <div className='absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.08),transparent_50%)]' />
+            <div className='absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(168,85,247,0.06),transparent_50%)]' />
+            <CardContent className='p-6 lg:p-8 relative'>
               <div className='flex flex-col lg:flex-row gap-6 items-start'>
                 <div className='flex-1'>
                   <div className='flex items-center gap-2 mb-3'>
@@ -216,7 +218,7 @@ export default function EventsPage() {
                       {statusConfig[featuredEvent.status]?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse' />}
                       {statusConfig[featuredEvent.status]?.label}
                     </Badge>
-                    <Badge variant='outline' className={`gap-1 ${typeConfig[featuredEvent.type]?.bg} ${typeConfig[featuredEvent.type]?.color}`}>
+                    <Badge variant='outline' className={`gap-1 ${typeConfig[featuredEvent.type]?.gradient} ${typeConfig[featuredEvent.type]?.color}`}>
                       {typeConfig[featuredEvent.type]?.icon} {typeConfig[featuredEvent.type]?.label}
                     </Badge>
                   </div>
@@ -294,7 +296,7 @@ export default function EventsPage() {
                         {sc?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse' />}
                         {sc?.label}
                       </Badge>
-                      <Badge variant='outline' className={`gap-1 ${tc?.bg} ${tc?.color}`}>
+                      <Badge variant='outline' className={`gap-1 ${tc?.gradient} ${tc?.color}`}>
                         {tc?.icon} {tc?.label}
                       </Badge>
                     </div>

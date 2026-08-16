@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence } from 'framer-motion'
+import MeetingScheduler from '@/components/shared/MeetingScheduler'
 
 interface Meeting {
   id: string
@@ -106,7 +107,7 @@ function getCountdown(date: string, time: string): string | null {
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
 }
 const item = {
   hidden: { opacity: 0, y: 12 },
@@ -218,7 +219,7 @@ export default function MeetingsPage() {
 
     return (
       <motion.div variants={item}>
-        <Card className={`group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border-l-4 ${typeBorderColors[m.type]}`}>
+        <Card className={`group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border-l-4 before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0 ${typeBorderColors[m.type]}`}>
           <CardContent className='p-4'>
             <div className='flex items-start justify-between gap-3'>
               <div className='flex-1 min-w-0'>
@@ -307,9 +308,27 @@ export default function MeetingsPage() {
             <Button className='gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={handleQuickStart}>
               <Zap className='h-4 w-4' /> Quick Start
             </Button>
+            <MeetingScheduler
+              onMeetingCreated={(m) => {
+                const created: Meeting = {
+                  id: m.id,
+                  title: m.title,
+                  status: 'upcoming',
+                  type: m.type as Meeting['type'],
+                  date: m.date,
+                  time: m.time,
+                  duration: m.duration,
+                  participants: 0, maxParticipants: 10,
+                  roomId: m.roomId,
+                  host: useAppStore.getState().user?.name || 'You',
+                  description: m.description,
+                }
+                setMeetings(prev => [created, ...prev])
+              }}
+            />
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button className='gap-2 bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'><Plus className='h-4 w-4' /> New Meeting</Button>
+                <Button variant='outline' className='gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform'><Plus className='h-4 w-4' /> Quick Create</Button>
               </DialogTrigger>
               <DialogContent className='sm:max-w-lg'>
                 <DialogHeader>
@@ -466,7 +485,7 @@ export default function MeetingsPage() {
                 <p className='font-medium mt-4'>No upcoming meetings</p>
                 <p className='text-sm text-muted-foreground mt-1'>Schedule a new meeting to get started</p>
                 <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => setCreateOpen(true)}>
-                  <Plus className='h-4 w-4' /> Schedule Meeting
+                  <Plus className='h-4 w-4' /> Create Meeting
                 </Button>
               </div>
             )}

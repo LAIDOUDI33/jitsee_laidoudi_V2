@@ -73,6 +73,15 @@ const roleColors: Record<string, string> = {
   guest: 'bg-zinc-500/10 text-zinc-400 border-zinc-200 dark:border-zinc-700/50',
 }
 
+const roleAvatarRing: Record<string, string> = {
+  superadmin: 'ring-2 ring-violet-500',
+  orgadmin: 'ring-2 ring-blue-500',
+  teamadmin: 'ring-2 ring-emerald-500',
+  host: 'ring-2 ring-amber-500',
+  participant: 'ring-2 ring-gray-400',
+  guest: 'ring-2 ring-gray-300',
+}
+
 const roleIcons: Record<string, React.ReactNode> = {
   superadmin: <Shield className='h-3 w-3' />,
   orgadmin: <Shield className='h-3 w-3' />,
@@ -135,6 +144,18 @@ export default function AdminUsersPage() {
 
   return (
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
+      {/* Gradient header section */}
+      <motion.div variants={item} className='relative rounded-xl overflow-hidden bg-gradient-to-r from-primary/5 via-violet-500/5 to-primary/5 p-5 border border-primary/10'>
+        <div className='absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary via-violet-500 to-primary' />
+        <div className='flex items-center gap-3'>
+          <div className='p-2.5 rounded-xl bg-gradient-to-br from-primary to-primary/60 text-primary-foreground'><Users className='h-5 w-5' /></div>
+          <div>
+            <h2 className='text-lg font-bold'>User Management</h2>
+            <p className='text-sm text-muted-foreground'>Manage user accounts, roles, and permissions across your organization.</p>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Stats with trend indicators */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         {[
@@ -172,10 +193,10 @@ export default function AdminUsersPage() {
               <CardContent className='p-3 flex items-center gap-3 flex-wrap'>
                 <span className='text-sm font-medium'>{selected.size} selected</span>
                 <div className='flex gap-2'>
-                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleBulkAction('Suspend')}><Ban className='h-3 w-3' /> Suspend</Button>
-                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleBulkAction('Reactivate')}><CheckCircle2 className='h-3 w-3' /> Reactivate</Button>
-                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleBulkAction('Export')}><Download className='h-3 w-3' /> Export</Button>
-                  <Button variant='outline' size='sm' className='gap-1.5 text-xs text-red-600 hover:text-red-700 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleBulkAction('Delete')}><Trash2 className='h-3 w-3' /> Delete</Button>
+                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-all hover:bg-gradient-to-r hover:from-amber-500/10 hover:to-amber-500/5 hover:border-amber-300 hover:text-amber-700' onClick={() => handleBulkAction('Suspend')}><Ban className='h-3 w-3' /> Suspend</Button>
+                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-all hover:bg-gradient-to-r hover:from-emerald-500/10 hover:to-emerald-500/5 hover:border-emerald-300 hover:text-emerald-700' onClick={() => handleBulkAction('Reactivate')}><CheckCircle2 className='h-3 w-3' /> Reactivate</Button>
+                  <Button variant='outline' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-all hover:bg-gradient-to-r hover:from-cyan-500/10 hover:to-cyan-500/5 hover:border-cyan-300 hover:text-cyan-700' onClick={() => handleBulkAction('Export')}><Download className='h-3 w-3' /> Export</Button>
+                  <Button variant='outline' size='sm' className='gap-1.5 text-xs text-red-600 hover:text-red-700 hover:scale-[1.02] active:scale-[0.98] transition-all hover:bg-gradient-to-r hover:from-red-500/10 hover:to-red-500/5 hover:border-red-300' onClick={() => handleBulkAction('Delete')}><Trash2 className='h-3 w-3' /> Delete</Button>
                 </div>
               </CardContent>
             </Card>
@@ -241,7 +262,7 @@ export default function AdminUsersPage() {
                     <TableCell><Checkbox checked={selected.has(u.id)} onCheckedChange={() => toggleSelect(u.id)} /></TableCell>
                     <TableCell>
                       <div className='flex items-center gap-3'>
-                        <Avatar className='h-9 w-9 border border-border/50'>
+                        <Avatar className={`h-9 w-9 ${roleAvatarRing[u.role] || ''}`}>
                           <AvatarFallback className='text-xs bg-gradient-to-br from-primary/10 to-primary/5 font-medium'>{u.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</AvatarFallback>
                         </Avatar>
                         <div className='min-w-0'>

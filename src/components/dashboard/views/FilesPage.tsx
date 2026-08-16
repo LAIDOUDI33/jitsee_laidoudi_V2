@@ -60,9 +60,9 @@ const fileIconConfig: Record<string, { icon: React.ReactNode; color: string; bg:
   document: { icon: <FileText className='h-5 w-5' />, color: 'text-sky-500', bg: 'bg-sky-500/10' },
   spreadsheet: { icon: <FileSpreadsheet className='h-5 w-5' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   presentation: { icon: <FileText className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  video: { icon: <FileVideo className='h-5 w-5' />, color: 'text-red-500', bg: 'bg-red-500/10' },
+  video: { icon: <FileVideo className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
   audio: { icon: <FileAudio className='h-5 w-5' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  image: { icon: <FileImage className='h-5 w-5' />, color: 'text-pink-500', bg: 'bg-pink-500/10' },
+  image: { icon: <FileImage className='h-5 w-5' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
   folder: { icon: <FolderUp className='h-5 w-5' />, color: 'text-amber-500', bg: 'bg-amber-500/10' },
 }
 
@@ -70,9 +70,9 @@ const gridIconConfig: Record<string, { icon: React.ReactNode; color: string; bg:
   document: { icon: <FileText className='h-10 w-10' />, color: 'text-sky-500', bg: 'bg-sky-500/10' },
   spreadsheet: { icon: <FileSpreadsheet className='h-10 w-10' />, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   presentation: { icon: <FileText className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-  video: { icon: <FileVideo className='h-10 w-10' />, color: 'text-red-500', bg: 'bg-red-500/10' },
+  video: { icon: <FileVideo className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
   audio: { icon: <FileAudio className='h-10 w-10' />, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  image: { icon: <FileImage className='h-10 w-10' />, color: 'text-pink-500', bg: 'bg-pink-500/10' },
+  image: { icon: <FileImage className='h-10 w-10' />, color: 'text-orange-500', bg: 'bg-orange-500/10' },
   folder: { icon: <FolderUp className='h-10 w-10' />, color: 'text-amber-500', bg: 'bg-amber-500/10' },
 }
 
@@ -116,6 +116,7 @@ export default function FilesPage() {
   const [activeFolder, setActiveFolder] = useState('All Files')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
 
   const filtered = mockFiles.filter(f => {
     const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase())
@@ -182,7 +183,9 @@ export default function FilesPage() {
               <span className='text-[10px] font-medium text-amber-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />↑ 8%</span>
             </div>
             <div className='space-y-1'>
-              <Progress value={storagePct} className='h-2' />
+              <div className='relative h-2 rounded-full bg-primary/10 overflow-hidden'>
+              <div className='h-full rounded-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-500' style={{ width: `${storagePct}%` }} />
+            </div>
               <p className='text-[10px] text-muted-foreground text-right'>{storagePct.toFixed(1)}% used</p>
             </div>
           </CardContent>
@@ -221,9 +224,9 @@ export default function FilesPage() {
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <div className='flex border rounded-lg overflow-hidden border-border/50'>
-            <Button variant={view === 'list' ? 'secondary' : 'ghost'} size='icon' className='h-9 w-9 rounded-none' onClick={() => setView('list')}><List className='h-4 w-4' /></Button>
-            <Button variant={view === 'grid' ? 'secondary' : 'ghost'} size='icon' className='h-9 w-9 rounded-none' onClick={() => setView('grid')}><Grid3X3 className='h-4 w-4' /></Button>
+          <div className='flex border rounded-lg overflow-hidden border-border/50 transition-all duration-300'>
+            <Button variant={view === 'list' ? 'secondary' : 'ghost'} size='icon' className={`h-9 w-9 rounded-none transition-all duration-300 ${view === 'list' ? 'bg-primary/10 text-primary' : ''}`} onClick={() => setView('list')}><List className='h-4 w-4' /></Button>
+            <Button variant={view === 'grid' ? 'secondary' : 'ghost'} size='icon' className={`h-9 w-9 rounded-none transition-all duration-300 ${view === 'grid' ? 'bg-primary/10 text-primary' : ''}`} onClick={() => setView('grid')}><Grid3X3 className='h-4 w-4' /></Button>
           </div>
         </div>
       </div>
@@ -367,9 +370,14 @@ export default function FilesPage() {
               </div>
             </div>
           </DialogHeader>
-          <div className='border-2 border-dashed rounded-xl p-12 text-center border-primary/20 hover:border-primary/40 transition-colors bg-primary/5'>
-            <CloudUpload className='h-12 w-12 mx-auto mb-4 text-primary/40' />
-            <p className='font-medium'>Drag and drop files here</p>
+          <div
+            className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ${dragOver ? 'border-primary/60 bg-primary/10 shadow-[0_0_20px_hsl(var(--primary)/0.15)]' : 'border-primary/20 hover:border-primary/40 bg-primary/5'}`}
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); toast.success('Files received!') }}
+          >
+            <CloudUpload className={`h-12 w-12 mx-auto mb-4 transition-colors duration-300 ${dragOver ? 'text-primary' : 'text-primary/40'}`} />
+            <p className='font-medium'>{dragOver ? 'Drop files here' : 'Drag and drop files here'}</p>
             <p className='text-sm text-muted-foreground mt-1'>or click to browse (up to 500MB per file)</p>
             <Button variant='outline' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform'><FolderUp className='h-4 w-4' /> Browse Files</Button>
           </div>

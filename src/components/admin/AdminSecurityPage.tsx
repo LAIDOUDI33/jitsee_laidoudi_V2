@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,9 @@ const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transiti
 
 export default function AdminSecurityPage() {
   const [policyStates, setPolicyStates] = useState<Record<string, boolean>>(Object.fromEntries(policies.map(p => [p.id, p.enabled])))
+  const [animatedScore, setAnimatedScore] = useState(0)
+  const scoreRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const togglePolicy = (id: string) => {
     setPolicyStates(prev => ({ ...prev, [id]: !prev[id] }))
@@ -111,6 +114,31 @@ export default function AdminSecurityPage() {
 
   const enabledCount = Object.values(policyStates).filter(Boolean).length
   const securityScore = Math.round((enabledCount / policies.length) * 100)
+
+  const startCountUp = useCallback((target: number) => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    scoreRef.current = 0
+    const duration = 1200
+    const steps = 60
+    const increment = target / steps
+    timerRef.current = setInterval(() => {
+      scoreRef.current += increment
+      if (scoreRef.current >= target) {
+        scoreRef.current = target
+        setAnimatedScore(target)
+        if (timerRef.current) clearInterval(timerRef.current)
+      } else {
+        setAnimatedScore(Math.round(scoreRef.current))
+      }
+    }, duration / steps)
+  }, [])
+
+  // Count-up animation for security score on mount
+  useEffect(() => {
+    startCountUp(securityScore)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [securityScore, startCountUp])
+
   const blockedCount = loginAttempts.filter(a => a.status === 'blocked').length
 
   const gaugeRadius = 52
@@ -137,14 +165,14 @@ export default function AdminSecurityPage() {
                 />
               </svg>
               <div className='absolute inset-0 flex items-center justify-center flex-col'>
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className='text-3xl font-bold' style={{ color: gaugeColor }}>{securityScore}</motion.span>
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className='text-3xl font-bold tabular-nums' style={{ color: gaugeColor }}>{animatedScore}</motion.span>
                 <span className='text-[10px] text-muted-foreground uppercase tracking-wider'>Score</span>
               </div>
             </div>
             <div className='flex-1 text-center sm:text-left'>
               <h2 className='text-xl font-bold mb-1 flex items-center justify-center sm:justify-start gap-2'>
                 <ShieldCheck className='h-5 w-5 text-emerald-500' />
-                Security Score: {securityScore}%
+                Security Score: <motion.span className='tabular-nums'>{animatedScore}%</motion.span>
               </h2>
               <p className='text-sm text-muted-foreground mb-3'>{enabledCount} of {policies.length} security policies are enabled</p>
               <div className='flex flex-wrap gap-2 justify-center sm:justify-start'>

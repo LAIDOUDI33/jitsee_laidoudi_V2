@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,24 +44,30 @@ export default function SettingsPage() {
   }
 
   const toggleItems = [
-    { label: 'Meeting Reminders', desc: 'Get notified before scheduled meetings', default: true, icon: <Bell className='h-4 w-4 text-amber-500' /> },
-    { label: 'New Messages', desc: 'Notifications for new chat messages', default: true, icon: <Bell className='h-4 w-4 text-cyan-500' /> },
-    { label: 'Meeting Summaries', desc: 'Receive AI-generated meeting summaries', default: true, icon: <CheckCircle2 className='h-4 w-4 text-emerald-500' /> },
-    { label: 'Team Updates', desc: 'Notifications about team changes', default: false, icon: <Users className='h-4 w-4 text-violet-500' /> },
-    { label: 'Marketing Emails', desc: 'Product updates and announcements', default: false, icon: <Globe className='h-4 w-4 text-zinc-400' /> },
-    { label: 'Security Alerts', desc: 'Important security notifications', default: true, icon: <Shield className='h-4 w-4 text-red-500' /> },
+    { label: 'Meeting Reminders', desc: 'Get notified before scheduled meetings', default: true, icon: <Bell className='h-4 w-4 text-amber-500' />, tab: 'notifications' },
+    { label: 'New Messages', desc: 'Notifications for new chat messages', default: true, icon: <Bell className='h-4 w-4 text-cyan-500' />, tab: 'notifications' },
+    { label: 'Meeting Summaries', desc: 'Receive AI-generated meeting summaries', default: true, icon: <CheckCircle2 className='h-4 w-4 text-emerald-500' />, tab: 'notifications' },
+    { label: 'Team Updates', desc: 'Notifications about team changes', default: false, icon: <Users className='h-4 w-4 text-violet-500' />, tab: 'notifications' },
+    { label: 'Marketing Emails', desc: 'Product updates and announcements', default: false, icon: <Globe className='h-4 w-4 text-zinc-400' />, tab: 'notifications' },
+    { label: 'Security Alerts', desc: 'Important security notifications', default: true, icon: <Shield className='h-4 w-4 text-red-500' />, tab: 'notifications' },
   ]
+
+  const tabConfig: Record<string, { icon: React.ReactNode; gradient: string }> = {
+    general: { icon: <Settings className='h-3.5 w-3.5' />, gradient: 'from-primary/20 to-primary/5' },
+    notifications: { icon: <Bell className='h-3.5 w-3.5' />, gradient: 'from-amber-500/20 to-amber-500/5' },
+    'audio-video': { icon: <Video className='h-3.5 w-3.5' />, gradient: 'from-cyan-500/20 to-cyan-500/5' },
+    appearance: { icon: <Palette className='h-3.5 w-3.5' />, gradient: 'from-violet-500/20 to-violet-500/5' },
+    privacy: { icon: <Shield className='h-3.5 w-3.5' />, gradient: 'from-rose-500/20 to-rose-500/5' },
+  }
 
   return (
     <motion.div className='max-w-3xl space-y-6' variants={container} initial='hidden' animate='show'>
       <motion.div variants={item}>
         <Tabs defaultValue='general'>
           <TabsList className='flex-wrap'>
-            <TabsTrigger value='general' className='gap-1.5'><Settings className='h-3.5 w-3.5' /> General</TabsTrigger>
-            <TabsTrigger value='notifications' className='gap-1.5'><Bell className='h-3.5 w-3.5' /> Notifications</TabsTrigger>
-            <TabsTrigger value='audio-video' className='gap-1.5'><Video className='h-3.5 w-3.5' /> Audio & Video</TabsTrigger>
-            <TabsTrigger value='appearance' className='gap-1.5'><Palette className='h-3.5 w-3.5' /> Appearance</TabsTrigger>
-            <TabsTrigger value='privacy' className='gap-1.5'><Shield className='h-3.5 w-3.5' /> Privacy</TabsTrigger>
+            {Object.entries(tabConfig).map(([key, cfg]) => (
+              <TabsTrigger key={key} value={key} className='gap-1.5 data-[state=active]:bg-gradient-to-r data-[state=active]:border-primary/30'>{cfg.icon} {key.charAt(0).toUpperCase() + key.slice(1).replace('-', ' ')}</TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value='general' className='mt-6 space-y-6'>
@@ -175,8 +181,21 @@ export default function SettingsPage() {
         </Tabs>
       </motion.div>
 
-      {/* Save button - FIXED spinner bug */}
-      <motion.div variants={item} className='flex justify-end'>
+      {/* Save button with confirmation toast area */}
+      <motion.div variants={item} className='flex items-center justify-between'>
+        <AnimatePresence>
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className='flex items-center gap-2 text-emerald-600 text-sm font-medium'
+            >
+              <div className='w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center'><CheckCircle2 className='h-3.5 w-3.5' /></div>
+              All changes saved successfully
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Button onClick={handleSave} className='gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform min-w-[140px]' disabled={saved}>
           {saved ? <Loader2 className='h-4 w-4 animate-spin' /> : <Save className='h-4 w-4' />}
           {saved ? 'Saving...' : 'Save Changes'}

@@ -29,17 +29,17 @@ import {
 } from 'lucide-react'
 
 const systemMetrics = [
-  { label: 'Active Users', value: '1,247', change: '+12%', trend: 'up' as const, icon: <Users className='h-5 w-5' />, color: 'emerald', sparkline: [40, 55, 45, 60, 52, 68, 72, 65, 78, 82] },
-  { label: 'Active Meetings', value: '34', change: '+8%', trend: 'up' as const, icon: <Video className='h-5 w-5' />, color: 'violet', sparkline: [20, 25, 18, 30, 28, 32, 35, 30, 34, 38] },
-  { label: 'Organizations', value: '23', change: '+3', trend: 'up' as const, icon: <Building2 className='h-5 w-5' />, color: 'amber', sparkline: [15, 16, 17, 18, 18, 19, 20, 21, 22, 23] },
-  { label: 'Storage Used', value: '48.2 GB', change: '-3%', trend: 'down' as const, icon: <HardDrive className='h-5 w-5' />, color: 'rose', sparkline: [52, 51, 50, 49, 50, 49, 48, 49, 48, 48] },
+  { label: 'Active Users', value: '1,247', change: '+12%', trend: 'up' as const, icon: <Users className='h-5 w-5' />, color: 'emerald', sparkline: [40, 55, 45, 60, 52, 68, 72, 65, 78, 82], gauge: 82 },
+  { label: 'Active Meetings', value: '34', change: '+8%', trend: 'up' as const, icon: <Video className='h-5 w-5' />, color: 'violet', sparkline: [20, 25, 18, 30, 28, 32, 35, 30, 34, 38], gauge: 68 },
+  { label: 'Organizations', value: '23', change: '+3', trend: 'up' as const, icon: <Building2 className='h-5 w-5' />, color: 'amber', sparkline: [15, 16, 17, 18, 18, 19, 20, 21, 22, 23], gauge: 92 },
+  { label: 'Storage Used', value: '48.2 GB', change: '-3%', trend: 'down' as const, icon: <HardDrive className='h-5 w-5' />, color: 'rose', sparkline: [52, 51, 50, 49, 50, 49, 48, 49, 48, 48], gauge: 48 },
 ]
 
-const colorMap: Record<string, { iconBg: string; iconText: string; trendUp: string; trendDown: string; sparkColor: string }> = {
-  emerald: { iconBg: 'bg-gradient-to-br from-emerald-500/10 to-emerald-500/5', iconText: 'text-emerald-600', trendUp: 'text-emerald-600', trendDown: 'text-red-500', sparkColor: 'bg-emerald-500' },
-  violet: { iconBg: 'bg-gradient-to-br from-violet-500/10 to-violet-500/5', iconText: 'text-violet-600', trendUp: 'text-violet-600', trendDown: 'text-red-500', sparkColor: 'bg-violet-500' },
-  amber: { iconBg: 'bg-gradient-to-br from-amber-500/10 to-amber-500/5', iconText: 'text-amber-600', trendUp: 'text-amber-600', trendDown: 'text-red-500', sparkColor: 'bg-amber-500' },
-  rose: { iconBg: 'bg-gradient-to-br from-rose-500/10 to-rose-500/5', iconText: 'text-rose-600', trendUp: 'text-emerald-600', trendDown: 'text-rose-600', sparkColor: 'bg-rose-500' },
+const colorMap: Record<string, { iconBg: string; iconText: string; trendUp: string; trendDown: string; sparkColor: string; gaugeColor: string; gaugeTrack: string }> = {
+  emerald: { iconBg: 'bg-gradient-to-br from-emerald-500/10 to-emerald-500/5', iconText: 'text-emerald-600', trendUp: 'text-emerald-600', trendDown: 'text-red-500', sparkColor: 'bg-emerald-500', gaugeColor: '#10b981', gaugeTrack: 'stroke-emerald-500/15' },
+  violet: { iconBg: 'bg-gradient-to-br from-violet-500/10 to-violet-500/5', iconText: 'text-violet-600', trendUp: 'text-violet-600', trendDown: 'text-red-500', sparkColor: 'bg-violet-500', gaugeColor: '#8b5cf6', gaugeTrack: 'stroke-violet-500/15' },
+  amber: { iconBg: 'bg-gradient-to-br from-amber-500/10 to-amber-500/5', iconText: 'text-amber-600', trendUp: 'text-amber-600', trendDown: 'text-red-500', sparkColor: 'bg-amber-500', gaugeColor: '#f59e0b', gaugeTrack: 'stroke-amber-500/15' },
+  rose: { iconBg: 'bg-gradient-to-br from-rose-500/10 to-rose-500/5', iconText: 'text-rose-600', trendUp: 'text-emerald-600', trendDown: 'text-rose-600', sparkColor: 'bg-rose-500', gaugeColor: '#f43f5e', gaugeTrack: 'stroke-rose-500/15' },
 }
 
 const systemHealth = [
@@ -82,6 +82,31 @@ const quickActions = [
   { label: 'View Reports', view: 'dashboard' as const, icon: <BarChart3 className='h-4 w-4' />, count: 'Analytics', color: 'from-fuchsia-500/10 to-fuchsia-500/5 text-fuchsia-600' },
 ]
 
+function CircularGauge({ value, color, track }: { value: number; color: string; track: string }) {
+  const radius = 28
+  const stroke = 4
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (value / 100) * circumference
+  return (
+    <div className='relative w-16 h-16'>
+      <svg width='64' height='64' viewBox='0 0 64 64' className='-rotate-90'>
+        <circle cx='32' cy='32' r={radius} fill='none' strokeWidth={stroke} className={track} />
+        <motion.circle cx='32' cy='32' r={radius} fill='none' stroke={color} strokeWidth={stroke} strokeLinecap='round'
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+        />
+      </svg>
+      <div className='absolute inset-0 flex items-center justify-center'>
+        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className='text-xs font-bold' style={{ color }}>
+          {value}%
+        </motion.span>
+      </div>
+    </div>
+  )
+}
+
 function MiniBarChart({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data)
   const range = max || 1
@@ -111,7 +136,8 @@ export default function AdminPage() {
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
       {/* Dynamic system health banner - green/yellow/red */}
       <motion.div variants={item}>
-        <Card className={`bg-gradient-to-r ${banner.gradient} ${banner.border} hover:shadow-lg hover:shadow-primary/5 transition-all duration-300`}>
+        <Card className={`bg-gradient-to-r ${banner.gradient} ${banner.border} hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden`}>
+          <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${overallStatus === 'green' ? 'from-emerald-500 via-cyan-500 to-teal-500' : overallStatus === 'yellow' ? 'from-amber-500 via-orange-500 to-yellow-500' : 'from-red-500 via-rose-500 to-pink-500'}`} />
           <CardContent className='p-5 flex items-center gap-4'>
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${overallStatus === 'green' ? 'from-emerald-500 to-cyan-600' : overallStatus === 'yellow' ? 'from-amber-500 to-orange-600' : 'from-red-500 to-rose-600'} flex items-center justify-center shrink-0 shadow-lg ${overallStatus === 'green' ? 'shadow-emerald-500/20' : overallStatus === 'yellow' ? 'shadow-amber-500/20' : 'shadow-red-500/20'}`}>
               {overallStatus === 'green' ? <Shield className='h-6 w-6 text-white' /> : overallStatus === 'yellow' ? <AlertTriangle className='h-6 w-6 text-white' /> : <XCircle className='h-6 w-6 text-white' />}
@@ -129,13 +155,13 @@ export default function AdminPage() {
         </Card>
       </motion.div>
 
-      {/* Metrics with bar sparklines and trend arrows */}
+      {/* Metrics with circular gauges and bar sparklines */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        {systemMetrics.map((m) => {
+        {systemMetrics.map((m, idx) => {
           const cm = colorMap[m.color]
           return (
-            <motion.div key={m.label} variants={item}>
-              <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80'>
+            <motion.div key={m.label} variants={item} custom={idx}>
+              <Card className='hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80'>
                 <CardContent className='p-4'>
                   <div className='flex items-center justify-between mb-3'>
                     <div className={`p-2 rounded-lg bg-gradient-to-br ${cm.iconBg} ${cm.iconText}`}>{m.icon}</div>
@@ -144,9 +170,14 @@ export default function AdminPage() {
                       {m.change}
                     </span>
                   </div>
-                  <p className='text-2xl font-bold tracking-tight'>{m.value}</p>
-                  <div className='flex items-center justify-between mt-2'>
-                    <p className='text-xs text-muted-foreground'>{m.label}</p>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div>
+                      <p className='text-2xl font-bold tracking-tight'>{m.value}</p>
+                      <p className='text-xs text-muted-foreground mt-0.5'>{m.label}</p>
+                    </div>
+                    <CircularGauge value={m.gauge} color={cm.gaugeColor} track={cm.gaugeTrack} />
+                  </div>
+                  <div className='mt-3'>
                     <MiniBarChart data={m.sparkline} color={cm.sparkColor} />
                   </div>
                 </CardContent>

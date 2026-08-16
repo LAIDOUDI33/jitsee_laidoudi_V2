@@ -18,6 +18,7 @@ import {
   Lightbulb,
   RefreshCw,
   Copy,
+  Check,
   ThumbsUp,
   ThumbsDown,
   Mic,
@@ -79,6 +80,7 @@ export default function AIAssistantPage() {
   const [loading, setLoading] = useState(false)
   const [model, setModel] = useState('alvision-pro')
   const [showHistory, setShowHistory] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -139,9 +141,11 @@ export default function AIAssistantPage() {
     toast.success(type === 'up' ? 'Thanks for the feedback!' : 'We\'ll improve this response.')
   }
 
-  const handleCopy = (content: string) => {
+  const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
+    setCopiedId(id)
     toast.success('Copied to clipboard!')
+    setTimeout(() => setCopiedId(null), 2000)
   }
 
   return (
@@ -229,7 +233,7 @@ export default function AIAssistantPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 + i * 0.05 }}
                       onClick={() => sendMessage(s.prompt)}
-                      className='flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 hover:border-primary/30 bg-background hover:bg-muted/50 transition-all hover:shadow-sm hover:-translate-y-0.5 text-sm hover:scale-[1.02] active:scale-[0.98]'
+                      className='flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 hover:border-primary/30 bg-background hover:bg-muted/50 transition-all hover:shadow-sm hover:shadow-primary/5 hover:-translate-y-0.5 text-sm hover:scale-[1.02] active:scale-[0.98] relative before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-r before:from-primary/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity'
                       disabled={loading}
                     >
                       <span className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</span>
@@ -248,7 +252,7 @@ export default function AIAssistantPage() {
                   </AvatarFallback>
                 </Avatar>
                 <div className={`max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted rounded-bl-md'}`}>
+                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md shadow-primary/20' : 'bg-muted rounded-bl-md shadow-black/5'}`}>
                     {msg.loading ? (
                       <div className='flex items-center gap-1.5 py-0.5'>
                         {[0, 1, 2].map(i => (
@@ -260,7 +264,7 @@ export default function AIAssistantPage() {
                   {!msg.loading && msg.role === 'assistant' && (
                     <div className='flex items-center gap-1 mt-1.5'>
                       <span className='text-[10px] text-muted-foreground mr-2'>{msg.timestamp}</span>
-                      <Tooltip><TooltipTrigger asChild><button onClick={() => handleCopy(msg.content)} className='p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground/50 hover:text-foreground'><Copy className='h-3.5 w-3.5' /></button></TooltipTrigger><TooltipContent>Copy</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild><button onClick={() => handleCopy(msg.id, msg.content)} className='p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground/50 hover:text-foreground'>{copiedId === msg.id ? <Check className='h-3.5 w-3.5 text-emerald-500' /> : <Copy className='h-3.5 w-3.5' />}</button></TooltipTrigger><TooltipContent>{copiedId === msg.id ? 'Copied!' : 'Copy'}</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild><button onClick={() => handleRegenerate(msg.id, msg.content)} className='p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground/50 hover:text-foreground'><RefreshCw className='h-3.5 w-3.5' /></button></TooltipTrigger><TooltipContent>Regenerate</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild><button onClick={() => handleFeedback(msg.id, 'up')} className={`p-1 rounded-md hover:bg-muted transition-colors ${msg.feedback === 'up' ? 'text-emerald-600' : 'text-muted-foreground/50 hover:text-foreground'}`}><ThumbsUp className='h-3.5 w-3.5' /></button></TooltipTrigger><TooltipContent>Good response</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild><button onClick={() => handleFeedback(msg.id, 'down')} className={`p-1 rounded-md hover:bg-muted transition-colors ${msg.feedback === 'down' ? 'text-red-500' : 'text-muted-foreground/50 hover:text-foreground'}`}><ThumbsDown className='h-3.5 w-3.5' /></button></TooltipTrigger><TooltipContent>Bad response</TooltipContent></Tooltip>
@@ -272,7 +276,7 @@ export default function AIAssistantPage() {
           </div>
 
           <div className='border-t p-3 bg-card/50 backdrop-blur-sm'>
-            <div className='flex items-center gap-2 bg-muted/50 rounded-xl px-4 py-2.5 border border-border/50 focus-within:border-primary/30 transition-colors'>
+            <div className='flex items-center gap-2 bg-muted/50 rounded-xl px-4 py-2.5 border border-border/50 focus-within:border-primary/30 focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-300'>
               <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0 hover:scale-110 transition-transform'><Paperclip className='h-4 w-4' /></Button>
               <input
                 className='flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground'

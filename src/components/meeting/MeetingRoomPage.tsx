@@ -5,7 +5,8 @@ import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
   Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
   ArrowLeft, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
-  Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard
+  Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard,
+  Wifi, Signal, Subtitles, SmilePlus
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -116,8 +117,25 @@ const aiResponses: { [key: string]: string } = {
   'Identify risks': '**Identified Risks:**\n\n1. **High** - Key engineer (David) on PTO next week during critical feature development\n2. **Medium** - Third-party API dependency may cause delays for authentication module\n3. **Medium** - Scope creep risk with 3 new feature requests from stakeholders\n4. **Low** - Testing environment capacity may need scaling for E2E tests',
 };
 
-const reactionEmojis = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F680}'];
-const reactionEmojiLabels = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F680}'];
+const reactionEmojis = ['👍', '❤️', '😂', '🎉', '🤔', '👏'];
+const reactionEmojiLabels = ['👍', '❤️', '😂', '🎉', '🤔', '👏'];
+
+const mockCaptions = [
+  { speaker: 'Alex Johnson', text: 'Let me share the updated roadmap for Q4...' },
+  { speaker: 'Sarah Chen', text: 'I think we should prioritize the mobile app features.' },
+  { speaker: 'Maya Patel', text: 'The API redesign is almost complete, just need to finalize the endpoints.' },
+  { speaker: 'James Wilson', text: 'Can we schedule a follow-up for the technical review?' },
+  { speaker: 'Emily Zhang', text: "I'll take the action item for the documentation update." },
+];
+
+type NetworkQuality = 'excellent' | 'good' | 'fair' | 'poor';
+
+const networkQualityConfig: Record<NetworkQuality, { color: string; barColor: string; latency: [number, number]; label: string }> = {
+  excellent: { color: 'text-emerald-400', barColor: 'bg-emerald-400', latency: [10, 40], label: 'Excellent' },
+  good: { color: 'text-yellow-400', barColor: 'bg-yellow-400', latency: [40, 90], label: 'Good' },
+  fair: { color: 'text-orange-400', barColor: 'bg-orange-400', latency: [90, 180], label: 'Fair' },
+  poor: { color: 'text-red-400', barColor: 'bg-red-400', latency: [180, 400], label: 'Poor' },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────
 const colorToGradient: Record<string, string> = {
@@ -215,6 +233,53 @@ function AITypingIndicator() {
   );
 }
 
+// ─── Network Quality Indicator ────────────────────────────────
+function NetworkQualityIndicator() {
+  const [quality, setQuality] = useState<NetworkQuality>('excellent');
+  const [latency, setLatency] = useState(22);
+
+  useEffect(() => {
+    const qualities: NetworkQuality[] = ['excellent', 'good', 'fair', 'poor'];
+    const changeQuality = () => {
+      const q = qualities[Math.floor(Math.random() * qualities.length)];
+      setQuality(q);
+      const [minLat, maxLat] = networkQualityConfig[q].latency;
+      setLatency(Math.floor(Math.random() * (maxLat - minLat + 1)) + minLat);
+    };
+    const interval = setInterval(changeQuality, 10000 + Math.random() * 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const config = networkQualityConfig[quality];
+  const barCount = quality === 'excellent' ? 4 : quality === 'good' ? 3 : quality === 'fair' ? 2 : 1;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="absolute top-4 right-4 z-30 flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 cursor-default">
+          <div className="flex items-end gap-[2px] h-3.5">
+            {[1, 2, 3, 4].map((bar) => (
+              <motion.div
+                key={bar}
+                className={`w-[3px] rounded-full ${bar <= barCount ? config.barColor : 'bg-white/20'}`}
+                animate={{ height: [4, bar <= barCount ? bar * 3.5 : 4, bar <= barCount ? bar * 3.5 : 4] }}
+                transition={{ duration: 0.5, delay: bar * 0.05, ease: 'easeOut' }}
+              />
+            ))}
+          </div>
+          {quality === 'poor' ? <Signal size={12} className={config.color} /> : <Wifi size={12} className={config.color} />}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="bg-slate-800/95 backdrop-blur-xl text-white border-white/10 text-xs rounded-lg">
+        <div className="flex flex-col gap-0.5">
+          <span>Network: <span className={config.color}>{config.label}</span></span>
+          <span className="text-white/50">Latency: {latency}ms</span>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function MeetingRoomPage() {
   const {
@@ -240,7 +305,6 @@ export default function MeetingRoomPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [gridLayout, setGridLayout] = useState<'grid' | 'speaker' | 'gallery'>('grid');
   const [pinnedParticipant, setPinnedParticipant] = useState<string | null>(null);
-  const [showReactions, setShowReactions] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(meetingTitle || 'Sprint Planning - Q4');
@@ -248,6 +312,12 @@ export default function MeetingRoomPage() {
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [votedPolls, setVotedPolls] = useState<Record<string, string>>({});
+  const [captionsVisible, setCaptionsVisible] = useState(true);
+  const [currentCaptionIndex, setCurrentCaptionIndex] = useState(0);
+  const [captionKey, setCaptionKey] = useState(0);
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
+  const [enhancedReactionsOpen, setEnhancedReactionsOpen] = useState(false);
+  const enhancedReactionsRef = useRef<HTMLDivElement>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
@@ -282,6 +352,25 @@ export default function MeetingRoomPage() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // --- Close enhanced reactions on outside click ---
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (enhancedReactionsRef.current && !enhancedReactionsRef.current.contains(e.target as Node)) setEnhancedReactionsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // --- Cycle mock captions every 3-4 seconds ---
+  useEffect(() => {
+    if (!captionsVisible) return;
+    const interval = setInterval(() => {
+      setCurrentCaptionIndex(prev => (prev + 1) % mockCaptions.length);
+      setCaptionKey(prev => prev + 1);
+    }, 3000 + Math.random() * 1000);
+    return () => clearInterval(interval);
+  }, [captionsVisible]);
 
   // --- Focus title input when editing ---
   useEffect(() => { if (isEditingTitle) titleInputRef.current?.focus(); }, [isEditingTitle]);
@@ -328,7 +417,8 @@ export default function MeetingRoomPage() {
     const id = `reaction-${Date.now()}-${Math.random()}`;
     const x = 100 + Math.random() * (window.innerWidth - 200);
     setFloatingReactions(prev => [...prev, { id, emoji, x }]);
-    setShowReactions(false);
+    setEnhancedReactionsOpen(false);
+    setReactionCounts(prev => ({ ...prev, [emoji]: (prev[emoji] || 0) + 1 }));
     // Also simulate someone else reacting
     setTimeout(() => {
       const id2 = `reaction-${Date.now()}-${Math.random()}`;
@@ -577,6 +667,31 @@ export default function MeetingRoomPage() {
 
         {/* ── Video Grid ── */}
         <div className="flex-1 relative z-10">
+
+          {/* ── Network Quality Indicator ── */}
+          <NetworkQualityIndicator />
+
+          {/* ── Live Captions Panel ── */}
+          <AnimatePresence mode="wait">
+            {captionsVisible && (
+              <motion.div
+                key={captionKey}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.4, ease: 'easeInOut' }}
+                className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-2xl pointer-events-none"
+              >
+                <div className="flex flex-col gap-1 px-5 py-2.5 rounded-xl bg-black/60 backdrop-blur-xl border border-white/10">
+                  <p className="text-sm text-white/90 leading-relaxed text-center line-clamp-2">
+                    <span className="font-bold text-white">{mockCaptions[currentCaptionIndex].speaker}:</span>{' '}
+                    {mockCaptions[currentCaptionIndex].text}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className={`h-full flex items-center justify-center p-2 sm:p-4 pt-16 pb-28 sm:pb-24 ${
             gridLayout === 'speaker' && displayParticipants.length > 1
               ? 'flex-col sm:flex-row gap-2 sm:gap-3'
@@ -636,28 +751,32 @@ export default function MeetingRoomPage() {
           </div>
         </div>
 
-        {/* ── Reaction Bar (floating above toolbar) ── */}
-        <AnimatePresence>
-          {showReactions && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className="absolute bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-3 py-2 rounded-full bg-black/60 backdrop-blur-xl border border-white/10"
-            >
-              {reactionEmojis.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => handleSendReaction(emoji)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-all hover:scale-125 text-xl"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── Enhanced Reactions Bar (floating above toolbar) ── */}
+        <div ref={enhancedReactionsRef} className="absolute bottom-24 left-[calc(50%-80px)] z-40">
+          <AnimatePresence>
+            {enhancedReactionsOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 mb-2"
+              >
+                {reactionEmojis.map((emoji) => (
+                  <motion.button
+                    key={emoji}
+                    whileHover={{ scale: 1.3 }}
+                    whileTap={{ scale: 0.8 }}
+                    onClick={() => handleSendReaction(emoji)}
+                    className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 transition-all text-lg"
+                  >
+                    {emoji}
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* ── Bottom Toolbar ── */}
         <div className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pb-4 px-4">
@@ -732,13 +851,35 @@ export default function MeetingRoomPage() {
               label="AI Assistant"
               onClick={() => toggleSidebar('ai')}
             />
-            {/* Reactions */}
+            {/* Captions */}
             <ToolbarButton
-              active={showReactions}
-              icon={<span className="text-lg">{'👍'}</span>}
-              label="Reactions"
-              onClick={() => setShowReactions(!showReactions)}
+              active={captionsVisible}
+              icon={<Subtitles size={20} />}
+              label={captionsVisible ? 'Hide Captions' : 'Show Captions'}
+              onClick={() => setCaptionsVisible(!captionsVisible)}
             />
+            {/* Reactions */}
+            <div className="relative">
+              <ToolbarButton
+                active={enhancedReactionsOpen}
+                icon={(
+                  <span className="relative">
+                    <SmilePlus size={20} />
+                    {Object.keys(reactionCounts).length > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-violet-500 text-[8px] font-bold text-white px-0.5"
+                      >
+                        {Object.values(reactionCounts).reduce((a, b) => a + b, 0)}
+                      </motion.span>
+                    )}
+                  </span>
+                )}
+                label="Reactions"
+                onClick={() => setEnhancedReactionsOpen(!enhancedReactionsOpen)}
+              />
+            </div>
 
             {/* Layout toggle */}
             <div className="relative" ref={moreMenuRef}>

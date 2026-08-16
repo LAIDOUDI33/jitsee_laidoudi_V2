@@ -81,6 +81,7 @@ export default function ProfilePage() {
 
   const userInitials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   const totalContributions = heatmapData.flat().reduce((a, b) => a + b, 0)
+  const profileCompletion = 78 // Mock profile completion percentage
 
   return (
     <motion.div className='max-w-3xl space-y-6' variants={container} initial='hidden' animate='show'>
@@ -201,24 +202,70 @@ export default function ProfilePage() {
         </Card>
       </motion.div>
 
-      {/* Skills / Expertise Tags */}
+      {/* Profile completion progress */}
+      <motion.div variants={item}>
+        <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <CardHeader><CardTitle className='flex items-center gap-2'><Trophy className='h-4 w-4 text-emerald-500' /> Profile Completion</CardTitle></CardHeader>
+          <CardContent>
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between'>
+                <span className='text-sm text-muted-foreground'>Complete your profile to unlock all features</span>
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className='text-lg font-bold text-emerald-600'>{profileCompletion}%</motion.span>
+              </div>
+              <div className='relative h-2.5 rounded-full bg-muted overflow-hidden'>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${profileCompletion}%` }}
+                  transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+                  className='h-full rounded-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500'
+                />
+              </div>
+              <div className='flex gap-4 text-xs text-muted-foreground'>
+                {profileCompletion < 100 ? (
+                  <p>Complete <span className='text-primary font-medium'>{100 - profileCompletion}%</span> more to finish your profile</p>
+                ) : (
+                  <p className='text-emerald-600 font-medium'>Profile complete!</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Skills / Expertise Tags with gradient pill styling */}
       <motion.div variants={item}>
         <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
           <CardHeader><CardTitle className='flex items-center gap-2'><Star className='h-4 w-4 text-amber-500' /> Skills & Expertise</CardTitle></CardHeader>
           <CardContent>
             <div className='flex flex-wrap gap-2 mb-3'>
-              {userSkills.map(skill => (
-                <motion.div
-                  key={skill}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Badge variant='outline' className='px-3 py-1.5 text-xs gap-1.5 hover:bg-muted/50 transition-colors cursor-default'>
-                    {skill}
-                    {editing && <button type='button' onClick={() => removeSkill(skill)} className='ml-0.5 hover:text-red-500 transition-colors'><X className='h-3 w-3' /></button>}
-                  </Badge>
-                </motion.div>
-              ))}
+              {userSkills.map((skill, si) => {
+                const gradients = [
+                  'bg-gradient-to-r from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-200/50',
+                  'bg-gradient-to-r from-cyan-500/10 to-cyan-500/5 text-cyan-600 border-cyan-200/50',
+                  'bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 text-emerald-600 border-emerald-200/50',
+                  'bg-gradient-to-r from-amber-500/10 to-amber-500/5 text-amber-600 border-amber-200/50',
+                  'bg-gradient-to-r from-rose-500/10 to-rose-500/5 text-rose-600 border-rose-200/50',
+                  'bg-gradient-to-r from-fuchsia-500/10 to-fuchsia-500/5 text-fuchsia-600 border-fuchsia-200/50',
+                  'bg-gradient-to-r from-sky-500/10 to-sky-500/5 text-sky-600 border-sky-200/50',
+                  'bg-gradient-to-r from-teal-500/10 to-teal-500/5 text-teal-600 border-teal-200/50',
+                ]
+                const grad = gradients[si % gradients.length]
+                return (
+                  <motion.div
+                    key={skill}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: si * 0.04 }}
+                  >
+                    <Badge variant='outline' className={`px-3 py-1.5 text-xs gap-1.5 hover:opacity-80 transition-all cursor-default ${grad}`}>
+                      {skill}
+                      {editing && <button type='button' onClick={() => removeSkill(skill)} className='ml-0.5 hover:text-red-500 transition-colors'><X className='h-3 w-3' /></button>}
+                    </Badge>
+                  </motion.div>
+                )
+              })}
             </div>
             {editing && (
               <div className='flex gap-2'>

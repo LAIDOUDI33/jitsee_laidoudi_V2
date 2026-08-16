@@ -214,7 +214,7 @@ export default function RecordingsPage() {
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(rec => (
           <motion.div key={rec.id} variants={item}>
-            <Card className='group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden'>
+            <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
               {/* Video preview area */}
               <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center'>
                 <Film className='h-12 w-12 text-zinc-600' />
@@ -230,7 +230,7 @@ export default function RecordingsPage() {
                   <Clock className='h-3 w-3 mr-1' />{rec.duration}
                 </Badge>
                 {/* Quality badge */}
-                <Badge variant='secondary' className={`absolute bottom-2 left-2 text-[10px] border-0 ${rec.quality === 'HD' ? 'bg-emerald-500/80 text-white' : 'bg-zinc-600/80 text-white'}`}>
+                <Badge variant='secondary' className={`absolute bottom-2 left-2 text-[10px] font-semibold border-0 ${rec.quality === 'HD' ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-white shadow-sm shadow-emerald-500/30' : 'bg-gradient-to-r from-zinc-500 to-zinc-400 text-white'}`}>
                   {rec.quality}
                 </Badge>
                 {/* Playback progress */}
@@ -268,7 +268,7 @@ export default function RecordingsPage() {
                   {rec.hasTranscript && <Badge variant='outline' className='text-[10px] gap-1 border-sky-200 dark:border-sky-800 text-sky-600 bg-sky-500/5'><Captions className='h-3 w-3' /> Transcript</Badge>}
                   {rec.hasAiSummary && (
                     <Badge variant='outline' className='text-[10px] gap-1 border-emerald-200 dark:border-emerald-800 text-emerald-600 bg-emerald-500/5'>
-                      <Brain className='h-3 w-3' /> AI Summary Available
+                      <Sparkles className='h-3 w-3' /> AI Summary
                     </Badge>
                   )}
                   {rec.shared && <Badge variant='outline' className='text-[10px] border-primary/20 text-primary bg-primary/5'>Shared</Badge>}

@@ -53,14 +53,14 @@ const mockArticles: KnowledgeArticle[] = [
   { id: 'k8', title: 'FAQ: Common Questions', description: 'Answers to the most frequently asked questions about ALVISION.', category: 'Getting Started', tags: ['faq', 'help'], type: 'faq', author: 'Support Team', date: 'Dec 15, 2024', readTime: '12 min', views: 523, bookmarked: true },
 ]
 
-const categoryConfig: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  'Getting Started': { icon: <GraduationCap className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-  'AI Features': { icon: <Sparkles className='h-4 w-4' />, color: 'text-violet-600', bg: 'bg-violet-500/10' },
-  'Best Practices': { icon: <TrendingUp className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
-  'Security': { icon: <Shield className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-red-500/10' },
-  'Administration': { icon: <Settings2 className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-amber-500/10' },
-  'Features': { icon: <Wrench className='h-4 w-4' />, color: 'text-teal-600', bg: 'bg-teal-500/10' },
-  'Integrations': { icon: <Puzzle className='h-4 w-4' />, color: 'text-rose-600', bg: 'bg-rose-500/10' },
+const categoryConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; gradientBorder: string }> = {
+  'Getting Started': { icon: <GraduationCap className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10', gradientBorder: 'from-emerald-500 to-emerald-400' },
+  'AI Features': { icon: <Sparkles className='h-4 w-4' />, color: 'text-violet-600', bg: 'bg-violet-500/10', gradientBorder: 'from-violet-500 to-violet-400' },
+  'Best Practices': { icon: <TrendingUp className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-sky-500/10', gradientBorder: 'from-sky-500 to-sky-400' },
+  'Security': { icon: <Shield className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-red-500/10', gradientBorder: 'from-red-500 to-red-400' },
+  'Administration': { icon: <Settings2 className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-amber-500/10', gradientBorder: 'from-amber-500 to-amber-400' },
+  'Features': { icon: <Wrench className='h-4 w-4' />, color: 'text-teal-600', bg: 'bg-teal-500/10', gradientBorder: 'from-teal-500 to-teal-400' },
+  'Integrations': { icon: <Puzzle className='h-4 w-4' />, color: 'text-rose-600', bg: 'bg-rose-500/10', gradientBorder: 'from-rose-500 to-rose-400' },
 }
 
 const categories = ['All', ...Object.keys(categoryConfig)]
@@ -147,7 +147,7 @@ export default function KnowledgePage() {
         </CardContent>
       </Card>
 
-      {/* Category cards */}
+      {/* Category cards with gradient top borders */}
       <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3'>
         {Object.entries(categoryConfig).map(([name, config]) => (
           <motion.button
@@ -155,8 +155,9 @@ export default function KnowledgePage() {
             whileHover={{ scale: 1.03, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setActiveCategory(activeCategory === name ? 'All' : name)}
-            className={`p-3 rounded-xl border text-center transition-all border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 ${activeCategory === name ? 'border-primary ring-1 ring-primary/20 bg-primary/5' : 'hover:shadow-md'}`}
+            className={`p-3 rounded-xl border text-center transition-all border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 relative overflow-hidden ${activeCategory === name ? 'border-primary ring-1 ring-primary/20 bg-primary/5' : 'hover:shadow-md'}`}
           >
+            <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${config.gradientBorder} ${activeCategory === name ? 'opacity-100' : 'opacity-0'} transition-opacity`} />
             <div className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center mx-auto mb-2 ${config.color}`}>
               {config.icon}
             </div>
@@ -205,12 +206,18 @@ export default function KnowledgePage() {
                               <h3 className='font-semibold group-hover:text-primary transition-colors'>{highlightText(article.title, search)}</h3>
                               <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>{highlightText(article.description, search)}</p>
                             </div>
-                            <button
+                            <motion.button
+                              whileTap={{ scale: 0.8 }}
                               onClick={(e) => { e.stopPropagation(); toggleBookmark(article.id) }}
                               className='shrink-0 p-1 rounded-md hover:bg-muted transition-colors'
                             >
-                              <Bookmark className={`h-4 w-4 transition-colors ${article.bookmarked ? 'fill-primary text-primary' : 'text-muted-foreground hover:text-primary'}`} />
-                            </button>
+                              <motion.div
+                                animate={article.bookmarked ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                <Bookmark className={`h-4 w-4 transition-colors duration-200 ${article.bookmarked ? 'fill-primary text-primary' : 'text-muted-foreground hover:text-primary'}`} />
+                              </motion.div>
+                            </motion.button>
                           </div>
                           <div className='flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-muted-foreground'>
                             <span className='flex items-center gap-1'><Clock className='h-3 w-3' />{article.readTime}</span>
@@ -254,16 +261,22 @@ export default function KnowledgePage() {
         {/* Sidebar */}
         <div className='w-full lg:w-72 space-y-4 hidden lg:block'>
           {/* Recently Viewed */}
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
             <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><History className='h-4 w-4' /> Recently Viewed</CardTitle></CardHeader>
             <CardContent className='space-y-3 divide-y divide-border/50'>
-              {recentlyViewed.map(a => (
-                <div key={a.id} className='pt-3 first:pt-0'>
+              {recentlyViewed.map((a, ri) => (
+                <motion.div
+                  key={a.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: ri * 0.06 }}
+                  className='pt-3 first:pt-0'
+                >
                   <button className='w-full text-left group'>
                     <p className='text-sm font-medium group-hover:text-primary transition-colors line-clamp-2'>{a.title}</p>
-                    <p className='text-xs text-muted-foreground mt-0.5'>{a.readTime} · {a.date}</p>
+                    <p className='text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5'><Clock className='h-3 w-3' />{a.readTime} · {a.date}</p>
                   </button>
-                </div>
+                </motion.div>
               ))}
             </CardContent>
           </Card>

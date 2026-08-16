@@ -116,7 +116,7 @@ const mockTeams: Team[] = [
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
 }
 const item = {
   hidden: { opacity: 0, y: 16 },
@@ -236,11 +236,11 @@ export default function TeamsPage() {
           return (
             <motion.div key={team.id} variants={item}>
               <Card
-                className={`cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${selectedTeam?.id === team.id ? 'ring-2 ring-primary' : ''}`}
+                className={`cursor-pointer border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 overflow-hidden ${selectedTeam?.id === team.id ? 'ring-2 ring-primary' : ''}`}
                 onClick={() => setSelectedTeam(team)}
               >
                 {/* Gradient header banner */}
-                <div className={`h-2 bg-gradient-to-r ${gradientMap[team.color] || 'from-primary/20 to-primary/5'}`} />
+                <div className={`h-12 bg-gradient-to-r ${team.color.replace('bg-', 'from-').replace('-500', '-500/15')} to-transparent`} />
                 <CardHeader className='pb-3'>
                   <div className='flex items-start justify-between'>
                     <div className='flex items-center gap-3'>
