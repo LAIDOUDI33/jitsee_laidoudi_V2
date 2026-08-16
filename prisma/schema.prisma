@@ -21,7 +21,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  organization Organization?  @relation(fields: [organizationId], references: [id])
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   teamMembers  TeamMember[]
   hostedMeetings Meeting[]
   meetings     MeetingParticipant[]
@@ -29,6 +29,12 @@ model User {
   auditLogs    AuditLog[]
   actionItems  ActionItem[]
   files        File[]
+  apiKeys      ApiKey[]
+
+  @@index([organizationId])
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
 }
 
 model Organization {
@@ -54,10 +60,13 @@ model Team {
   description    String?
   organizationId String
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   channels       Channel[]
   members        TeamMember[]
+
+  @@index([organizationId])
 }
 
 model TeamMember {
@@ -67,10 +76,12 @@ model TeamMember {
   role      String   @default("member") // admin, member
   joinedAt  DateTime @default(now())
 
-  team      Team     @relation(fields: [teamId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
+  @@index([userId])
+  @@index([teamId])
 }
 
 model Channel {
@@ -80,9 +91,11 @@ model Channel {
   type      String   @default("text") // text, video, announcement
   createdAt DateTime @default(now())
 
-  team      Team     @relation(fields: [teamId], references: [id])
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   messages  Message[]
   files    File[]
+
+  @@index([teamId])
 }
 
 model Message {
@@ -95,16 +108,22 @@ model Message {
   edited    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
-  channel   Channel? @relation(fields: [channelId], references: [id])
-  meeting   Meeting? @relation(fields: [meetingId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([meetingId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model Meeting {
   id                String   @id @default(uuid())
   title             String
   meetingId         String   @unique // public meeting ID like "abc-def-ghi"
-  password          String?
+  password          String?  // Actual meeting password (for join protection)
+  settings          String?  @default("{\"duration\":60}") // JSON for scheduling settings
   hostId            String?
   organizationId    String?
   type              String   @default("instant") // instant, scheduled, recurring, personal
@@ -119,8 +138,8 @@ model Meeting {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  host        User?               @relation(fields: [hostId], references: [id])
-  organization Organization?       @relation(fields: [organizationId], references: [id])
+  host        User?               @relation(fields: [hostId], references: [id], onDelete: SetNull)
+  organization Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   participants MeetingParticipant[]
   messages    Message[]
   recordings  Recording[]
@@ -128,6 +147,13 @@ model Meeting {
   summaries   MeetingSummary[]
   polls       Poll[]
   actionItems ActionItem[]
+
+  @@index([hostId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([type])
+  @@index([startTime])
+  @@index([createdAt])
 }
 
 model MeetingParticipant {
@@ -139,9 +165,11 @@ model MeetingParticipant {
   leftAt    DateTime?
 
   meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([meetingId, userId])
+  @@index([userId])
+  @@index([meetingId])
 }
 
 model Recording {
@@ -154,6 +182,8 @@ model Recording {
   createdAt DateTime @default(now())
 
   meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
 
 model Transcript {
@@ -168,6 +198,8 @@ model Transcript {
   createdAt   DateTime @default(now())
 
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
 
 model MeetingSummary {
@@ -182,6 +214,8 @@ model MeetingSummary {
   createdAt   DateTime @default(now())
 
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
 
 model ActionItem {
@@ -193,9 +227,14 @@ model ActionItem {
   priority    String   @default("medium") // low, medium, high, critical
   status      String   @default("pending") // pending, in_progress, completed, overdue
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  owner       User     @relation(fields: [ownerId], references: [id])
-  meeting     Meeting? @relation(fields: [meetingId], references: [id])
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  meeting     Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([meetingId])
+  @@index([status])
 }
 
 model Poll {
@@ -207,13 +246,15 @@ model Poll {
   createdAt DateTime @default(now())
 
   meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
 
 model Event {
   id                String   @id @default(uuid())
   title             String
   description       String?
-   organizationId   String
+  organizationId   String
   type              String   @default("webinar") // webinar, townhall, conference, livestream
   status            String   @default("upcoming") // upcoming, live, ended, cancelled
   startTime         DateTime
@@ -222,9 +263,14 @@ model Event {
   registrationEnabled Boolean @default(true)
   recordingEnabled  Boolean  @default(true)
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   registrations  EventRegistration[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([startTime])
 }
 
 model EventRegistration {
@@ -238,6 +284,7 @@ model EventRegistration {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, email])
+  @@index([eventId])
 }
 
 model File {
@@ -251,8 +298,12 @@ model File {
   isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  uploader    User     @relation(fields: [uploadedBy], references: [id])
-  channel     Channel? @relation(fields: [channelId], references: [id])
+  uploader    User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  channel     Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@index([uploadedBy])
+  @@index([channelId])
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -266,7 +317,12 @@ model AuditLog {
   userAgent     String?
   createdAt     DateTime @default(now())
 
-  user          User?    @relation(fields: [userId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
 }
 
 model ApiKey {
@@ -278,4 +334,9 @@ model ApiKey {
   lastUsed    DateTime?
   createdAt   DateTime @default(now())
   expiresAt   DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

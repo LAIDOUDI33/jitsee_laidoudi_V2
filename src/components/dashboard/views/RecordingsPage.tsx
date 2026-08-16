@@ -112,6 +112,12 @@ export default function RecordingsPage() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesTitle, setNotesTitle] = useState('')
 
+  const totalSize = mockRecordings.reduce((acc, r) => {
+    const match = r.size.match(/([\d.]+)\s*(MB|GB)/)
+    if (!match) return acc
+    return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
+  }, 0)
+
   const animatedRecordings = useCountUp(mockRecordings.length)
   const animatedAiSummarized = useCountUp(mockRecordings.filter(r => r.hasAiSummary).length)
   const animatedStorage = useCountUp(Math.round(totalSize))
@@ -139,12 +145,6 @@ export default function RecordingsPage() {
       if (sortBy === 'views') return b.views - a.views
       return 0
     })
-
-  const totalSize = mockRecordings.reduce((acc, r) => {
-    const match = r.size.match(/([\d.]+)\s*(MB|GB)/)
-    if (!match) return acc
-    return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
-  }, 0)
 
   const handleShare = (title: string) => toast.success(`Share link copied for "${title}"`)
   const handleDownload = (title: string) => toast.success(`Downloading "${title}"...`)

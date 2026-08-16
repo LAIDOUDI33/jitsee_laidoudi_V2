@@ -1,0 +1,72 @@
+# Dependencies
+node_modules
+.bun
+
+# Build outputs
+.next
+out
+dist
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.example
+
+# Version control
+.git
+.gitignore
+
+# IDE / Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose*.yml
+.dockerignore
+
+# Testing
+tests
+test
+coverage
+
+# Misc
+download
+skills
+examples
+tool-results
+agent-ctx
+*.md
+!prisma/*.md
+
+# Logs
+*.log
+dev.log
+server.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma migrations (use db:push in Docker)
+prisma/migrations
+
+# SQLite database (bind-mounted at runtime)
+db/*.db
+db/*.db-journal
+
+# Caddyfile (not needed in container)
+Caddyfile
+
+# Keep-alive script
+keepalive.sh
+
+# Lock files from other package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

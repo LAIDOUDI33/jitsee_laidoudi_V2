@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, AuthError } from '@/lib/api-auth';
+import { inputSanitizeOptional, validateInt } from '@/lib/security';
+import { randomUUID } from 'crypto';
 
 function generateMeetingId(): string {
   const group = (): string => {
@@ -15,6 +18,8 @@ function generateMeetingId(): string {
 
 export async function GET() {
   try {
+    const user = await requireAuth();
+
     const meetings = await db.meeting.findMany({
       include: {
         host: { select: { id: true, name: true, email: true } },
@@ -30,9 +35,15 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      meetings,
+      data: { meetings },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
     console.error('List meetings error:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch meetings' } },
@@ -43,39 +54,43 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
+
     const body = await request.json();
-    const { title, password, maxParticipants, meetingId: providedMeetingId, hostId } = body;
+    const { title, maxParticipants } = body;
 
-    // Generate meetingId if not provided
-    const meetingId = providedMeetingId || generateMeetingId();
+    // Generate meetingId using crypto.randomUUID for secure ID generation
+    const meetingId = randomUUID();
 
-    // Default title
-    const meetingTitle = title && typeof title === 'string' && title.trim().length > 0
-      ? title.trim()
-      : `Meeting ${meetingId}`;
+    // Input validation — sanitize title
+    const meetingTitle = inputSanitizeOptional(title, 200)
+      ?? `Meeting ${generateMeetingId()}`;
+
+    // Validate maxParticipants
+    const maxParts = validateInt(maxParticipants, 2, 500, 100);
+
+    // Force hostId from authenticated user — prevent hostId spoofing
+    const hostId = user.id;
 
     // Create Meeting record
     const meeting = await db.meeting.create({
       data: {
         title: meetingTitle,
         meetingId,
-        password: password || undefined,
-        maxParticipants: maxParticipants || 100,
+        maxParticipants: maxParts,
         status: 'active',
-        host: hostId ? { connect: { id: hostId } } : undefined,
+        host: { connect: { id: hostId } },
       },
     });
 
     // Create MeetingParticipant for the host
-    if (hostId) {
-      await db.meetingParticipant.create({
-        data: {
-          meetingId: meeting.id,
-          userId: hostId,
-          role: 'host',
-        },
-      });
-    }
+    await db.meetingParticipant.create({
+      data: {
+        meetingId: meeting.id,
+        userId: hostId,
+        role: 'host',
+      },
+    });
 
     // Create AuditLog entry
     await db.auditLog.create({
@@ -83,21 +98,30 @@ export async function POST(request: NextRequest) {
         action: 'MEETING_CREATED',
         resource: 'Meeting',
         resourceId: meeting.id,
+        userId: hostId,
         details: JSON.stringify({ meetingId: meeting.meetingId, title: meeting.title }),
       },
     });
 
     return NextResponse.json({
       success: true,
-      meeting: {
-        id: meeting.id,
-        title: meeting.title,
-        meetingId: meeting.meetingId,
-        status: meeting.status,
-        createdAt: meeting.createdAt,
+      data: {
+        meeting: {
+          id: meeting.id,
+          title: meeting.title,
+          meetingId: meeting.meetingId,
+          status: meeting.status,
+          createdAt: meeting.createdAt,
+        },
       },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
     console.error('Create meeting error:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create meeting' } },

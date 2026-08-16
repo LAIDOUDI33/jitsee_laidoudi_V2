@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth, AuthError } from '@/lib/api-auth';
+import { sanitizePrompt, validateUuidOptional } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth();
+
     const body = await request.json();
     const { meetingId, transcript } = body;
 
@@ -13,14 +17,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate meetingId if provided
+    const safeMeetingId = validateUuidOptional(meetingId);
+
     // If meetingId provided, try to fetch any existing transcript
-    let transcriptText = transcript;
-    if (!transcriptText && meetingId) {
+    let transcriptText: string | undefined;
+    if (!transcript && safeMeetingId) {
       const transcriptRecord = await db.transcript.findFirst({
-        where: { meetingId },
+        where: { meetingId: safeMeetingId },
         orderBy: { createdAt: 'desc' },
       });
       transcriptText = transcriptRecord?.text || undefined;
+    } else if (transcript) {
+      // Sanitize transcript — truncate to 10000 chars
+      transcriptText = sanitizePrompt(transcript, 10000);
     }
 
     const userPrompt = transcriptText
@@ -71,10 +81,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Save MeetingSummary if meetingId exists
-    if (meetingId) {
+    if (safeMeetingId) {
       await db.meetingSummary.create({
         data: {
-          meetingId,
+          meetingId: safeMeetingId,
           summary: JSON.stringify(summary),
           keyTopics: JSON.stringify(summary.keyTopics || []),
           decisions: JSON.stringify(summary.decisions || []),
@@ -87,9 +97,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      summary,
+      data: { summary },
     });
-  } catch (error: unknown) {
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
     const msg = error instanceof Error ? error.message : 'Failed to generate summary';
     console.error('AI summarize error:', msg);
     return NextResponse.json(

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 import {
   Dialog,
   DialogContent,
@@ -236,15 +237,15 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
     }
 
     try {
-      const res = await fetch('/api/v1/meetings/schedule', {
+      const res = await authFetch('/api/v1/meetings/schedule', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
       const data = await res.json()
 
-      const meetingId = data.meeting?.meetingId || roomId
-      const internalId = data.meeting?.id || `m-${Date.now()}`
+      const meetingResult = data.data?.meeting || data
+      const meetingId = meetingResult?.meetingId || roomId
+      const internalId = meetingResult?.id || `m-${Date.now()}`
 
       const result = {
         id: internalId,

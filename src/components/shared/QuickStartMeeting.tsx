@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/store/app-store'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { authFetch } from '@/lib/api'
 
 export default function QuickStartMeeting() {
   const { setCurrentView, setCurrentMeetingId, setMeetingTitle } = useAppStore()
@@ -14,16 +15,16 @@ export default function QuickStartMeeting() {
   const handleStartMeeting = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/v1/meetings', {
+      const res = await authFetch('/api/v1/meetings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: 'Quick Meeting',
           type: 'instant',
         }),
       })
       if (!res.ok) throw new Error('Failed to create meeting')
-      const meeting = await res.json()
+      const result = await res.json()
+      const meeting = result.data?.meeting || result
       setMeetingTitle(meeting.title || 'Quick Meeting')
       setCurrentMeetingId(meeting.id)
       setCurrentView('meeting-room')

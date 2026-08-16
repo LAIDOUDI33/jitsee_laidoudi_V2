@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 import {
   Hash,
   Search,
@@ -271,10 +272,9 @@ export default function ChatPage() {
       }))
       // Also POST to HTTP API (fire-and-forget)
       try {
-        await fetch('/api/v1/chat', {
+        await authFetch('/api/v1/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channelId: activeChannel, ...msgData }),
+          body: JSON.stringify({ channelId: activeChannel, content: msgData.content }),
         })
       } catch {
         // silent fallback — message already shown locally

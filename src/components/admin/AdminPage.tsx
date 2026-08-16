@@ -43,7 +43,7 @@ const colorMap: Record<string, { iconBg: string; iconText: string; trendUp: stri
   rose: { iconBg: 'bg-gradient-to-br from-rose-500/10 to-rose-500/5', iconText: 'text-rose-600', trendUp: 'text-emerald-600', trendDown: 'text-rose-600', sparkColor: 'bg-rose-500', gaugeColor: '#f43f5e', gaugeTrack: 'stroke-rose-500/15' },
 }
 
-const systemHealth = [
+const systemHealth: { service: string; status: 'healthy' | 'degraded' | 'down'; uptime: string; latency: string }[] = [
   { service: 'API Server', status: 'healthy' as const, uptime: '99.98%', latency: '12ms' },
   { service: 'AI Service', status: 'healthy' as const, uptime: '99.95%', latency: '245ms' },
   { service: 'Database', status: 'healthy' as const, uptime: '99.99%', latency: '3ms' },

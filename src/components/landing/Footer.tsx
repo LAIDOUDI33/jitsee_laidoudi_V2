@@ -43,7 +43,7 @@ const socialLinks = [
   { icon: Globe, href: '#', label: 'Website', hoverColor: 'hover:bg-violet-500 hover:text-white' },
 ];
 
-const footerColumns = [
+const footerColumns: { title: string; links: { label: string; href: string; badge?: string }[] }[] = [
   { title: 'Platform', links: platformLinks },
   { title: 'Resources', links: resourceLinks },
   { title: 'Company', links: companyLinks },

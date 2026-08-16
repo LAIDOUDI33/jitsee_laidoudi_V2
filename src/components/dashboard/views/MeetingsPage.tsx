@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence } from 'framer-motion'
 import MeetingScheduler from '@/components/shared/MeetingScheduler'
+import { authFetch } from '@/lib/api'
 
 interface Meeting {
   id: string
@@ -161,14 +162,14 @@ export default function MeetingsPage() {
   const handleCreate = async () => {
     const roomId = `alv-${newMeeting.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30)}`
     try {
-      const res = await fetch('/api/v1/meetings', {
+      const res = await authFetch('/api/v1/meetings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newMeeting.title, type: newMeeting.type, scheduledAt: newMeeting.date ? `${newMeeting.date}T${newMeeting.time || '09:00'}:00Z` : null }),
       })
-      const data = await res.json()
+      const result = await res.json()
+      const meetingData = result.data?.meeting || result
       const created: Meeting = {
-        id: data.meeting?.id || `m-${Date.now()}`,
+        id: meetingData?.id || `m-${Date.now()}`,
         title: newMeeting.title,
         status: 'upcoming',
         type: newMeeting.type as Meeting['type'],
@@ -176,7 +177,7 @@ export default function MeetingsPage() {
         time: newMeeting.time || '9:00 AM',
         duration: newMeeting.duration,
         participants: 0, maxParticipants: 10,
-        roomId: data.meeting?.roomId || roomId,
+        roomId: meetingData?.meetingId || meetingData?.roomId || roomId,
         host: useAppStore.getState().user?.name || 'You',
         description: newMeeting.description || undefined,
       }

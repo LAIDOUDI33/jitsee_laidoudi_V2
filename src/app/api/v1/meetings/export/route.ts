@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireRole, AuthError } from '@/lib/api-auth';
+import { validateDate } from '@/lib/security';
 import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
+    // Require orgadmin or higher for export
+    const user = await requireRole('orgadmin');
+
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'json';
     const meetingId = searchParams.get('meetingId');
@@ -18,8 +23,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build where clause
-    const where: Prisma.MeetingWhereInput = {};
+    // Build where clause — scope to user's organization
+    const where: Prisma.MeetingWhereInput = {
+      host: { organizationId: user.organizationId },
+    };
 
     if (meetingId) {
       where.id = meetingId;
@@ -27,12 +34,10 @@ export async function GET(request: NextRequest) {
 
     if (dateFrom || dateTo) {
       where.startTime = {};
-      if (dateFrom) {
-        where.startTime.gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        where.startTime.lte = new Date(dateTo);
-      }
+      const fromDate = validateDate(dateFrom);
+      const toDate = validateDate(dateTo);
+      if (fromDate) where.startTime.gte = fromDate;
+      if (toDate) where.startTime.lte = toDate;
     }
 
     // Fetch meetings with participants and summaries
@@ -89,7 +94,7 @@ export async function GET(request: NextRequest) {
 
     // ── JSON Export ──
     if (format === 'json') {
-      return new NextResponse(JSON.stringify({ success: true, meetings, exportedAt: new Date().toISOString() }, null, 2), {
+      return new NextResponse(JSON.stringify({ success: true, data: { meetings, exportedAt: new Date().toISOString() } }, null, 2), {
         status: 200,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
@@ -151,6 +156,12 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
     console.error('Export meetings error:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to export meetings' } },

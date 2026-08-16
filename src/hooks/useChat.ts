@@ -50,12 +50,12 @@ export interface UseChatReturn {
 // ── Hook ────────────────────────────────────────────────────────────────
 
 export function useChat({
-  url = 'ws://localhost:3010',
+  url = process.env.NEXT_PUBLIC_WS_URL || '',
   userId,
   userName,
   baseBackoff = 1000,
   maxBackoff = 30000,
-  maxRetries = Infinity,
+  maxRetries = 5,
 }: UseChatOptions): UseChatReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({})

@@ -73,7 +73,7 @@ const COLORS = [
 
 const STROKE_WIDTHS = [2, 4, 6, 8]
 
-const TOOL_ITEMS: { tool: ToolType; icon: React.ReactNode; label: string }[] = [
+const TOOL_ITEMS: { tool: ToolType; icon: React.ReactElement; label: string }[] = [
   { tool: 'select', icon: <MousePointer2 className='h-4 w-4' />, label: 'Select' },
   { tool: 'pen', icon: <Pen className='h-4 w-4' />, label: 'Pen' },
   { tool: 'eraser', icon: <Eraser className='h-4 w-4' />, label: 'Eraser' },
@@ -813,7 +813,7 @@ export default function WhiteboardPage() {
             className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2 shadow-lg shadow-primary/5 relative before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/40 before:to-emerald-500/0'
           >
             {React.cloneElement(
-              TOOL_ITEMS.find((t) => t.tool === activeTool)!.icon,
+              TOOL_ITEMS.find((t) => t.tool === activeTool)!.icon as React.ReactElement<{ className?: string }>,
               { className: 'h-3.5 w-3.5 text-muted-foreground' }
             )}
             <span className='text-xs text-muted-foreground font-medium'>

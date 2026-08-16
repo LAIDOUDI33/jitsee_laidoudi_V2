@@ -1,0 +1,65 @@
+# ============================================================================
+# ALVISION — Docker Compose for Local Development
+# ============================================================================
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose logs -f        # Follow logs
+#   docker compose down           # Stop all services
+# ============================================================================
+
+services:
+  # ---- Next.js Application ----
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alvision-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/db/alvision.db
+      - JWT_SECRET=${JWT_SECRET:-alvision-docker-dev-secret-change-me}
+      - NEXT_PUBLIC_WS_URL=
+    volumes:
+      # Persist SQLite database across container restarts
+      - db-data:/app/db
+    depends_on:
+      chat-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - alvision-net
+
+  # ---- WebSocket Chat Service ----
+  chat-service:
+    build:
+      context: ./mini-services/chat-service
+      dockerfile: Dockerfile
+    container_name: alvision-chat
+    ports:
+      - "3010:3010"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3010/health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - alvision-net
+
+volumes:
+  db-data:
+    name: alvision-db
+
+networks:
+  alvision-net:
+    name: alvision-network
+    driver: bridge

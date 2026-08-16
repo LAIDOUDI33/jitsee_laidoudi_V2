@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/store/app-store';
+import { authFetch } from '@/lib/api';
 import {
   Video, Users, Clock, TrendingUp, Calendar, MessageSquare, FileText, Brain,
   ArrowRight, Plus, MoreHorizontal, Mic, Monitor, Globe, Shield, ChevronRight,
@@ -128,17 +129,21 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const { data: meetingsData } = useQuery<{ success: boolean; meetings: Meeting[] }>({
+  const { data: meetingsData } = useQuery<{ success: boolean; data: { meetings: Meeting[] } }>({
     queryKey: ['meetings'],
     queryFn: async () => {
       try {
-        const res = await fetch('/api/v1/meetings');
-        if (res.ok) return res.json();
+        const res = await authFetch('/api/v1/meetings');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data?.meetings) return { success: true, data: json.data };
+          return json;
+        }
       } catch { /* fallback */ }
-      return { success: true, meetings: mockMeetings };
+      return { success: true, data: { meetings: mockMeetings } };
     },
   });
-  const meetings = meetingsData?.meetings || mockMeetings;
+  const meetings = meetingsData?.data?.meetings || mockMeetings;
 
   useEffect(() => {
     if (!user) {

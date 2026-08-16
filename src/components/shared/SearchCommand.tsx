@@ -83,6 +83,14 @@ export default function SearchCommand() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // Ensure search is closed when this component unmounts (e.g., navigation)
+  // This prevents the dialog from re-appearing when a new instance mounts
+  useEffect(() => {
+    return () => {
+      setSearchOpen(false)
+    }
+  }, [setSearchOpen])
+
   const handleSelect = (view: AppView) => {
     setCurrentView(view)
     setSearchOpen(false)

@@ -1,0 +1,1317 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { motion, AnimatePresence, useInView } from 'framer-motion';
+     5→import {
+     6→  Shield,
+     7→  Globe,
+     8→  Lock,
+     9→  Server,
+    10→  Video,
+    11→  Brain,
+    12→  Users,
+    13→  Radio,
+    14→  Mic,
+    15→  Languages,
+    16→  Sparkles,
+    17→  FileText,
+    18→  CheckSquare,
+    19→  Search,
+    20→  ShieldCheck,
+    21→  Building2,
+    22→  Wifi,
+    23→  Plug,
+    24→  Cloud,
+    25→  Activity,
+    26→  ArrowRight,
+    27→  ArrowUp,
+    28→  Check,
+    29→  Zap,
+    30→  ChevronRight,
+    31→  ChevronDown,
+    32→  Calendar,
+    33→  Clock,
+    34→  User,
+    35→  MousePointer2,
+    36→  Star,
+    37→  Quote,
+    38→} from 'lucide-react';
+    39→import { Button } from '@/components/ui/button';
+    40→import { Card, CardContent } from '@/components/ui/card';
+    41→import { Badge } from '@/components/ui/badge';
+    42→import {
+    43→  Accordion,
+    44→  AccordionContent,
+    45→  AccordionItem,
+    46→  AccordionTrigger,
+    47→} from '@/components/ui/accordion';
+    48→import { toast } from 'sonner';
+    49→import { authFetch } from '@/lib/api';
+    50→import { useAppStore } from '@/store/app-store';
+    51→import Navbar from '@/components/landing/Navbar';
+    52→import Footer from '@/components/landing/Footer';
+    53→
+    54→/* -------------------------------------------------------------------------- */
+    55→/*                                   TYPES                                    */
+    56→/* -------------------------------------------------------------------------- */
+    57→
+    58→interface PricingTier {
+    59→  name: string;
+    60→  price: string;
+    61→  period?: string;
+    62→  description: string;
+    63→  features: string[];
+    64→  highlighted?: boolean;
+    65→  cta: string;
+    66→  ctaVariant: 'default' | 'outline' | 'ghost';
+    67→}
+    68→
+    69→interface Integration {
+    70→  name: string;
+    71→  description: string;
+    72→}
+    73→
+    74→interface StatItem {
+    75→  target: number;
+    76→  value: number;
+    77→  suffix: string;
+    78→  label: string;
+    79→}
+    80→
+    81→interface FaqItem {
+    82→  question: string;
+    83→  answer: string;
+    84→}
+    85→
+    86→/* -------------------------------------------------------------------------- */
+    87→/*                                 DATA / CONSTS                              */
+    88→/* -------------------------------------------------------------------------- */
+    89→
+    90→const TRUST_BADGES = [
+    91→  { icon: Shield, label: 'E2E Encrypted' },
+    92→  { icon: Globe, label: 'Multi-language AI' },
+    93→  { icon: Lock, label: 'Zero-Trust Security' },
+    94→  { icon: Server, label: 'On-Premise Ready' },
+    95→] as const;
+    96→
+    97→const PLATFORM_FEATURES = [
+    98→  {
+    99→    icon: Video,
+   100→    title: 'Video & Audio Conferencing',
+   101→    description:
+   102→      'HD 1080p video, adaptive bitrate, noise suppression, background blur. SFU architecture for scalable multi-party calls.',
+   103→  },
+   104→  {
+   105→    icon: Brain,
+   106→    title: 'AI Intelligence Suite',
+   107→    description:
+   108→      'Real-time transcription in 73+ languages, instant translation, AI meeting assistant, automatic summaries, action item extraction.',
+   109→  },
+   110→  {
+   111→    icon: Users,
+   112→    title: 'Team Collaboration',
+   113→    description:
+   114→      'Channels, threaded chat, file sharing, task management, calendar integration. Everything your team needs in one place.',
+   115→  },
+   116→  {
+   117→    icon: Radio,
+   118→    title: 'Enterprise Events',
+   119→    description:
+   120→      'Webinars, town halls, live streaming, registration, Q&A, polls, engagement analytics. Reach thousands simultaneously.',
+   121→  },
+   122→] as const;
+   123→
+   124→const AI_FEATURES = [
+   125→  {
+   126→    icon: Mic,
+   127→    title: 'Live Transcription',
+   128→    description:
+   129→      'Real-time speech-to-text with speaker identification and confidence scores.',
+   130→  },
+   131→  {
+   132→    icon: Languages,
+   133→    title: 'Instant Translation',
+   134→    description:
+   135→      'Cross-language communication. Speak in any language, read in yours.',
+   136→  },
+   137→  {
+   138→    icon: Sparkles,
+   139→    title: 'AI Meeting Assistant',
+   140→    description:
+   141→      'Ask questions during meetings. Get answers from the conversation context.',
+   142→  },
+   143→  {
+   144→    icon: FileText,
+   145→    title: 'Smart Summaries',
+   146→    description:
+   147→      'Automatic meeting summaries with key topics, decisions, risks, and action items.',
+   148→  },
+   149→  {
+   150→    icon: CheckSquare,
+   151→    title: 'Action Extraction',
+   152→    description:
+   153→      'AI identifies commitments, assigns owners, sets deadlines. Integrates with Jira, Trello.',
+   154→  },
+   155→  {
+   156→    icon: Search,
+   157→    title: 'Knowledge Search',
+   158→    description:
+   159→      'Enterprise RAG. Search across all meetings, documents, and chats with permission-aware AI.',
+   160→  },
+   161→] as const;
+   162→
+   163→const ARCHITECTURE_PILLARS = [
+   164→  {
+   165→    icon: ShieldCheck,
+   166→    title: 'Security',
+   167→    description:
+   168→      'OAuth 2.0, SAML SSO, MFA, RBAC, zero-trust, audit logging.',
+   169→  },
+   170→  {
+   171→    icon: Building2,
+   172→    title: 'Multi-Tenancy',
+   173→    description: 'Complete tenant isolation at every layer.',
+   174→  },
+   175→  {
+   176→    icon: Wifi,
+   177→    title: 'WebRTC Core',
+   178→    description: 'STUN/TURN, DTLS-SRTP, simulcast, adaptive bitrate.',
+   179→  },
+   180→  {
+   181→    icon: Plug,
+   182→    title: 'Interoperability',
+   183→    description: 'SIP/H.323 gateway for legacy conference systems.',
+   184→  },
+   185→  {
+   186→    icon: Cloud,
+   187→    title: 'Deployment',
+   188→    description: 'SaaS, private cloud, on-premise, hybrid, sovereign.',
+   189→  },
+   190→  {
+   191→    icon: Activity,
+   192→    title: 'Observability',
+   193→    description: 'OpenTelemetry, metrics, logs, distributed tracing.',
+   194→  },
+   195→] as const;
+   196→
+   197→const INTEGRATIONS: Integration[] = [
+   198→  { name: 'Microsoft 365', description: 'Teams, Outlook, OneDrive, SharePoint sync' },
+   199→  { name: 'Google Workspace', description: 'Calendar, Drive, Meet interoperability' },
+   200→  { name: 'Jira', description: 'Action items auto-synced to issues' },
+   201→  { name: 'Trello', description: 'Meeting tasks pushed to boards' },
+   202→  { name: 'Slack', description: 'Cross-platform notifications and commands' },
+   203→  { name: 'LDAP / AD', description: 'Enterprise directory authentication' },
+   204→  { name: 'SAML IdP', description: 'Single sign-on with Okta, Azure AD, OneLogin' },
+   205→  { name: 'CalDAV', description: 'Calendar integration for scheduling' },
+   206→];
+   207→
+   208→const STATS: StatItem[] = [
+   209→  { value: 99.9, suffix: '%', label: 'Uptime SLA' },
+   210→  { value: 256, suffix: '-bit', label: 'Encryption' },
+   211→  { value: 73, suffix: '+', label: 'Languages' },
+   212→  { value: 10000, suffix: '+', label: 'Concurrent Users' },
+   213→];
+   214→
+   215→const PRICING_TIERS: PricingTier[] = [
+   216→  {
+   217→    name: 'Free',
+   218→    price: '$0',
+   219→    description: 'For individuals and small teams getting started.',
+   220→    features: [
+   221→      'Up to 20 participants',
+   222→      '45-minute meeting limit',
+   223→      'Basic chat & channels',
+   224→      '1 team',
+   225→      'Screen sharing',
+   226→      'Standard video quality',
+   227→    ],
+   228→    cta: 'Get Started Free',
+   229→    ctaVariant: 'outline',
+   230→  },
+   231→  {
+   232→    name: 'Professional',
+   233→    price: '$15',
+   234→    period: '/user/mo',
+   235→    description: 'For growing teams that need AI-powered collaboration.',
+   236→    features: [
+   237→      'Up to 100 participants',
+   238→      'Unlimited meeting duration',
+   239→      'Cloud recordings & transcripts',
+   240→      'Full AI features suite',
+   241→      '10 teams',
+   242→      'Priority support',
+   243→      'Custom backgrounds & branding',
+   244→      'Calendar integrations',
+   245→    ],
+   246→    highlighted: true,
+   247→    cta: 'Start 14-Day Trial',
+   248→    ctaVariant: 'default',
+   249→  },
+   250→  {
+   251→    name: 'Enterprise',
+   252→    price: 'Custom',
+   253→    description: 'For organizations that need full control and compliance.',
+   254→    features: [
+   255→      'Unlimited participants',
+   256→      'Unlimited everything',
+   257→      'SSO / SAML / LDAP',
+   258→      'On-premise deployment',
+   259→      '99.99% SLA',
+   260→      'Dedicated support engineer',
+   261→      'Full API access',
+   262→      'Custom AI model training',
+   263→      'Compliance & audit reports',
+   264→    ],
+   265→    cta: 'Contact Sales',
+   266→    ctaVariant: 'outline',
+   267→  },
+   268→];
+   269→
+   270→const FAQ_ITEMS: FaqItem[] = [
+   271→  {
+   272→    question: 'How does ALVISION handle data encryption?',
+   273→    answer:
+   274→      'All data is encrypted in transit using TLS 1.3 and at rest using AES-256. We support end-to-end encryption for meeting content, and encryption keys can be managed by your own KMS for maximum control. Zero-knowledge architecture ensures even ALVISION cannot access your meeting content.',
+   275→  },
+   276→  {
+   277→    question: 'Can ALVISION be deployed on-premise?',
+   278→    answer:
+   279→      'Yes. ALVISION supports SaaS, private cloud, on-premise, hybrid, and sovereign cloud deployments. Our Enterprise tier includes full deployment flexibility with Kubernetes Helm charts, Docker Compose configurations, and dedicated installation support.',
+   280→  },
+   281→  {
+   282→    question: 'What compliance certifications does ALVISION hold?',
+   283→    answer:
+   284→      'ALVISION is SOC 2 Type II certified, HIPAA compliant, GDPR compliant, and FedRAMP authorized. We undergo annual third-party security audits and penetration testing. Enterprise customers receive detailed compliance documentation and audit logs.',
+   285→  },
+   286→  {
+   287→    question: 'How does the AI transcription and translation work?',
+   288→    answer:
+   289→      'Our AI engine processes audio in real-time using proprietary speech models optimized for business conversations. Transcription includes speaker identification (diarization), punctuation, and domain-specific terminology. Translation supports 73+ languages with context-aware accuracy. All AI processing can be confined to your own infrastructure.',
+   290→  },
+   291→  {
+   292→    question: 'What is the maximum number of meeting participants?',
+   293→    answer:
+   294→      'The Free tier supports up to 20 participants, Professional supports up to 100, and Enterprise has no hard limit. Our SFU architecture has been tested with 10,000+ concurrent users in a single meeting. Performance scales linearly with additional media server nodes.',
+   295→  },
+   296→  {
+   297→    question: 'Does ALVISION integrate with existing conference room systems?',
+   298→    answer:
+   299→      'Yes. ALVISION includes a SIP/H.323 gateway that enables interoperability with legacy conference room systems from Cisco, Poly, Lifesize, and others. This allows traditional room systems to join ALVISION meetings without hardware replacement.',
+   300→  },
+   301→  {
+   302→    question: 'How is multi-tenancy implemented?',
+   303→    answer:
+   304→      'ALVISION provides complete tenant isolation at every layer: database, application, and network. Each tenant has isolated data stores, dedicated encryption keys, separate caching, and isolated API contexts. Cross-tenant data access is architecturally impossible.',
+   305→  },
+   306→  {
+   307→    question: 'What happens to AI-processed data?',
+   308→    answer:
+   309→      'AI processing data (transcripts, summaries, action items) belongs entirely to you. We do not use your data to train our models. Data retention policies are fully configurable, and you can request immediate deletion. On-premise deployments ensure data never leaves your infrastructure.',
+   310→  },
+   311→];
+   312→
+   313→const HERO_STATS = [
+   314→  { icon: Building2, value: '10K+', label: 'Organizations' },
+   315→  { icon: Clock, value: '500M+', label: 'Meeting Minutes' },
+   316→  { icon: Activity, value: '99.99%', label: 'Uptime' },
+   317→  { icon: Globe, value: '150+', label: 'Countries' },
+   318→] as const;
+   319→
+   320→const TESTIMONIALS = [
+   321→  {
+   322→    name: 'Sarah Mitchell',
+   323→    role: 'VP of Engineering',
+   324→    company: 'TechCorp Global',
+   325→    initials: 'SM',
+   326→    color: 'bg-gradient-to-br from-rose-500 to-pink-600',
+   327→    rating: 5,
+   328→    text: 'ALVISION transformed our remote meetings. The AI summaries alone save our team 5+ hours per week. The transcription accuracy in our technical discussions is remarkable.',
+   329→  },
+   330→  {
+   331→    name: 'James Chen',
+   332→    role: 'CTO',
+   333→    company: 'FinanceFlow',
+   334→    initials: 'JC',
+   335→    color: 'bg-gradient-to-br from-sky-500 to-blue-600',
+   336→    rating: 5,
+   337→    text: 'Security was our top priority. ALVISION\'s zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.',
+   338→  },
+   339→  {
+   340→    name: 'Priya Sharma',
+   341→    role: 'Head of Operations',
+   342→    company: 'MediCare Solutions',
+   343→    initials: 'PS',
+   344→    color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+   345→    rating: 5,
+   346→    text: 'HIPAA compliance was non-negotiable. ALVISION delivered on every requirement and their support team went above and beyond during our compliance audit.',
+   347→  },
+   348→  {
+   349→    name: 'Marcus Johnson',
+   350→    role: 'CEO',
+   351→    company: 'StartupLaunch',
+   352→    initials: 'MJ',
+   353→    color: 'bg-gradient-to-br from-amber-500 to-orange-600',
+   354→    rating: 5,
+   355→    text: 'We switched from three different tools to just ALVISION. Video calls, chat, whiteboards, and AI notes — all in one platform. Our team productivity increased by 40%.',
+   356→  },
+   357→  {
+   358→    name: 'Elena Rodriguez',
+   359→    role: 'Director of HR',
+   360→    company: 'GlobalEdge Inc',
+   361→    initials: 'ER',
+   362→    color: 'bg-gradient-to-br from-violet-500 to-purple-600',
+   363→    rating: 5,
+   364→    text: 'The live translation feature is a game-changer for our international offices. Teams in Tokyo, Berlin, and São Paulo now collaborate seamlessly in their native languages.',
+   365→  },
+   366→  {
+   367→    name: 'David Park',
+   368→    role: 'Product Manager',
+   369→    company: 'DataSync',
+   370→    initials: 'DP',
+   371→    color: 'bg-gradient-to-br from-cyan-500 to-sky-600',
+   372→    rating: 5,
+   373→    text: 'The AI action extraction automatically creates Jira tickets from our sprint reviews. What used to take 30 minutes of manual work now happens instantly. Incredible.',
+   374→  },
+   375→];
+   376→
+   377→/* -------------------------------------------------------------------------- */
+   378→/*                              HELPER FUNCTIONS                             */
+   379→/* -------------------------------------------------------------------------- */
+   380→
+   381→function generateRoomId(): string {
+   382→  const group = () =>
+   383→    Array.from({ length: 3 }, () =>
+   384→      String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+   385→    ).join('');
+   386→  return `${group()}-${group()}-${group()}`;
+   387→}
+   388→
+   389→/* -------------------------------------------------------------------------- */
+   390→/*                          ANIMATED COUNTER COMPONENT                       */
+   391→/* -------------------------------------------------------------------------- */
+   392→
+   393→function AnimatedCounter({ target, suffix, label }: StatItem) {
+   394→  const ref = useRef<HTMLSpanElement>(null);
+   395→  const isInView = useInView(ref, { once: true, margin: '-50px' });
+   396→  const [count, setCount] = useState(0);
+   397→
+   398→  useEffect(() => {
+   399→    if (!isInView) return;
+   400→
+   401→    const duration = 2000;
+   402→    const steps = 60;
+   403→    const increment = target / steps;
+   404→    let current = 0;
+   405→    const timer = setInterval(() => {
+   406→      current += increment;
+   407→      if (current >= target) {
+   408→        setCount(target);
+   409→        clearInterval(timer);
+   410→      } else {
+   411→        setCount(current);
+   412→      }
+   413→    }, duration / steps);
+   414→
+   415→    return () => clearInterval(timer);
+   416→  }, [isInView, target]);
+   417→
+   418→  const displayValue =
+   419→    target % 1 !== 0 ? count.toFixed(1) : Math.round(count).toLocaleString();
+   420→
+   421→  return (
+   422→    <div className="text-center">
+   423→      <div className="text-4xl md:text-5xl font-bold tracking-tight">
+   424→        <span ref={ref}>{displayValue}</span>
+   425→        <span className="gradient-text">{suffix}</span>
+   426→      </div>
+   427→      <p className="mt-2 text-muted-foreground text-sm font-medium">{label}</p>
+   428→    </div>
+   429→  );
+   430→}
+   431→
+   432→/* -------------------------------------------------------------------------- */
+   433→/*                              SECTION ANIMATION                            */
+   434→/* -------------------------------------------------------------------------- */
+   435→
+   436→const sectionVariants = {
+   437→  hidden: { opacity: 0, y: 40 },
+   438→  visible: {
+   439→    opacity: 1,
+   440→    y: 0,
+   441→    transition: { duration: 0.6, ease: 'easeOut' as const },
+   442→  },
+   443→};
+   444→
+   445→const staggerContainer = {
+   446→  hidden: { opacity: 0 },
+   447→  visible: {
+   448→    opacity: 1,
+   449→    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+   450→  },
+   451→};
+   452→
+   453→const staggerItem = {
+   454→  hidden: { opacity: 0, y: 24 },
+   455→  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
+   456→};
+   457→
+   458→/* -------------------------------------------------------------------------- */
+   459→/*                           LANDING PAGE COMPONENT                          */
+   460→/* -------------------------------------------------------------------------- */
+   461→
+   462→export default function LandingPage() {
+   463→  const navigate = useAppStore((s) => s.setCurrentView);
+   464→  const [roomName, setRoomName] = useState('');
+   465→  const [starting, setStarting] = useState(false);
+   466→  const [showScrollTop, setShowScrollTop] = useState(false);
+   467→
+   468→  useEffect(() => {
+   469→    const handleScroll = () => setShowScrollTop(window.scrollY > window.innerHeight * 0.8);
+   470→    window.addEventListener('scroll', handleScroll, { passive: true });
+   471→    return () => window.removeEventListener('scroll', handleScroll);
+   472→  }, []);
+   473→
+   474→  const handleStartMeeting = useCallback(async () => {
+   475→    const roomId = generateRoomId();
+   476→    setStarting(true);
+   477→    try {
+   478→      const res = await authFetch('/api/v1/meetings', {
+   479→        method: 'POST',
+   480→        body: JSON.stringify({
+   481→          roomId,
+   482→          title: roomName || `Meeting ${roomId}`,
+   483→        }),
+   484→      });
+   485→      if (!res.ok) throw new Error('Failed to create meeting');
+   486→      const result = await res.json();
+   487→      const meeting = result.data?.meeting || result;
+   488→      toast.success('Meeting created successfully');
+   489→      navigate('meeting-room', { meetingId: meeting.meetingId || meeting.id, roomId });
+   490→    } catch {
+   491→      toast.error('Failed to create meeting. Please try again.');
+   492→    } finally {
+   493→      setStarting(false);
+   494→    }
+   495→  }, [roomName, navigate]);
+   496→
+   497→  return (
+   498→    <div className="min-h-screen flex flex-col bg-background">
+   499→      {/* ------------------------------------------------------------------ */}
+   500→      {/*  NAVBAR                                                           */}
+   501→      {/* ------------------------------------------------------------------ */}
+   502→      <Navbar />
+   503→
+   504→      <main className="flex-1">
+   505→        {/* ============================================================== */}
+   506→        {/* 1. HERO SECTION                                             */}
+   507→        {/* ============================================================== */}
+   508→        <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden" id="hero">
+   509→          {/* Animated gradient mesh background with floating orbs */}
+   510→          <div className="absolute inset-0 -z-10">
+   511→            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30" />
+   512→            {/* Subtle grid/mesh pattern */}
+   513→            <div
+   514→              className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
+   515→              style={{
+   516→                backgroundImage:
+   517→                  'repeating-linear-gradient(0deg, currentColor 0px, transparent 1px, transparent 60px), repeating-linear-gradient(90deg, currentColor 0px, transparent 1px, transparent 60px)',
+   518→              }}
+   519→            />
+   520→            {/* Floating orbs */}
+   521→            <div className="absolute top-[10%] left-[15%] h-72 w-72 rounded-full bg-blue-400/20 dark:bg-blue-500/10 blur-3xl animate-pulse" />
+   522→            <div
+   523→              className="absolute top-[50%] right-[10%] h-96 w-96 rounded-full bg-cyan-400/15 dark:bg-cyan-500/10 blur-3xl animate-pulse"
+   524→              style={{ animationDelay: '1s' }}
+   525→            />\n            <div
+   526→              className="absolute bottom-[10%] left-[40%] h-64 w-64 rounded-full bg-violet-400/15 dark:bg-violet-500/10 blur-3xl animate-pulse"
+   527→              style={{ animationDelay: '2s' }}
+   528→            />\n            <div
+   529→              className="absolute top-[30%] left-[60%] h-48 w-48 rounded-full bg-sky-300/20 dark:bg-sky-400/10 blur-3xl animate-pulse"
+   530→              style={{ animationDelay: '0.5s' }}
+   531→            />\n          </div>
+   532→
+   533→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-16">
+   534→            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+   535→              {/* Left column: Headline + CTA */}
+   536→              <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+   537→              {/* Headline */}
+   538→              <motion.div
+   539→                initial={{ opacity: 0, y: 30 }}
+   540→                animate={{ opacity: 1, y: 0 }}
+   541→                transition={{ duration: 0.7, ease: 'easeOut' as const }}
+   542→              >
+   543→                <Badge
+   544→                  variant="secondary"
+   545→                  className="mb-6 px-4 py-1.5 text-sm font-medium"
+   546→                >
+   547→                  <Zap className="w-3.5 h-3.5 mr-1.5" />
+   548→                  Enterprise-Grade AI Conferencing
+   549→                </Badge>
+   550→                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+   551→                  Enterprise Video Conferencing.
+   552→                  <br />
+   553→                  <span className="gradient-text">Powered by AI.</span>
+   554→                </h1>
+   555→              </motion.div>
+   556→
+   557→              {/* Subtext */}
+   558→              <motion.p
+   559→                className="mt-6 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed"
+   560→                initial={{ opacity: 0, y: 20 }}
+   561→                animate={{ opacity: 1, y: 0 }}
+   562→                transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' as const }}
+   563→              >
+   564→                ALVISION unifies HD video meetings, real-time AI transcription,
+   565→                translation, intelligent summaries, team collaboration, and
+   566→                enterprise-grade security — all in one platform.
+   567→              </motion.p>
+   568→
+   569→              {/* Trusted By Section */}
+   570→              <motion.div
+   571→                className="mt-10 mb-8"
+   572→                initial={{ opacity: 0 }}
+   573→                animate={{ opacity: 1 }}
+   574→                transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' as const }}
+   575→              >
+   576→                <p className="text-xs text-muted-foreground/60 font-medium tracking-wider uppercase mb-4">Trusted by leading enterprises</p>
+   577→                <div className="flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto px-4 scrollbar-hide">
+   578→                  {['Accenture', 'Deloitte', 'Siemens', 'Bosch', 'Airbus'].map((company, i) => (
+   579→                    <span key={company} className="flex items-center gap-3 sm:gap-6">
+   580→                      <span className="text-muted-foreground font-medium tracking-wider uppercase text-xs whitespace-nowrap">
+   581→                        {company}
+   582→                      </span>
+   583→                      {i < 4 && <span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />}
+   584→                    </span>
+   585→                  ))}
+   586→                </div>
+   587→              </motion.div>
+   588→
+   589→              {/* Center Card with Meeting Controls */}
+   590→              <motion.div
+   591→                initial={{ opacity: 0, y: 30 }}
+   592→                animate={{ opacity: 1, y: 0 }}
+   593→                transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' as const }}
+   594→                className="mt-2 w-full max-w-xl"
+   595→              >
+   596→                <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300">
+   597→                  <CardContent className="p-6">
+   598→                    <div className="flex flex-col sm:flex-row gap-3">
+   599→                      <input
+   600→                        type="text"
+   601→                        placeholder="Enter meeting room name..."
+   602→                        value={roomName}
+   603→                        onChange={(e) => setRoomName(e.target.value)}
+   604→                        onKeyDown={(e) =>
+   605→                          e.key === 'Enter' && handleStartMeeting()
+   606→                        }
+   607→                        className="flex-1 h-11 rounded-lg border border-input bg-background px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
+   608→                      />
+   609→                      <div className="relative">
+   610→                        {/* Glow effect behind Start Meeting button */}
+   611→                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 rounded-lg blur-md opacity-40 -z-10" />
+   612→                        <Button
+   613→                          onClick={handleStartMeeting}
+   614→                          disabled={starting}
+   615→                          className="relative h-11 px-6 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 hover:from-primary/90 hover:to-violet-500 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+   616→                        >
+   617→                          {starting ? (
+   618→                            <span className="flex items-center gap-2">
+   619→                              <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+   620→                              Creating...
+   621→                            </span>
+   622→                          ) : (
+   623→                            <span className="flex items-center gap-2">
+   624→                              <Video className="w-4 h-4" />
+   625→                              Start Meeting
+   626→                              </span>
+   627→                          )}
+   628→                        </Button>
+   629→                      </div>
+   630→                    </div>
+   631→                    <div className="flex gap-3 mt-3">
+   632→                      <Button
+   633→                        variant="outline"
+   634→                        className="flex-1 h-10 text-sm relative overflow-hidden group"
+   635→                      >
+   636→                        <span className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-300" />
+   637→                        <ChevronRight className="w-4 h-4 mr-1.5 relative z-10" />
+   638→                        <span className="relative z-10">Join Meeting</span>
+   639→                      </Button>
+   640→                      <Button
+   641→                        variant="ghost"
+   642→                        className="flex-1 h-10 text-sm"
+   643→                      >
+   644→                        <Calendar className="w-4 h-4 mr-1.5" />
+   645→                        Schedule
+   646→                      </Button>
+   647→                    </div>
+   648→                  </CardContent>
+   649→                </Card>
+   650→              </motion.div>
+   651→
+   652→              {/* Trust Badges */}
+   653→              <motion.div
+   654→                className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3"
+   655→                initial={{ opacity: 0 }}
+   656→                animate={{ opacity: 1 }}
+   657→                transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' as const }}
+   658→              >
+   659→                {TRUST_BADGES.map((badge) => (
+   660→                  <div
+   661→                    key={badge.label}
+   662→                    className="flex items-center gap-2 text-muted-foreground text-sm"
+   663→                  >
+   664→                    <badge.icon className="w-4 h-4 text-primary/70" />
+   665→                    <span className="font-medium">{badge.label}</span>
+   666→                  </div>
+   667→                ))}
+   668→              </motion.div>
+   669→              </div>
+   670→
+   671→              {/* Right column: Animated Video Call Illustration (desktop only) */}
+   672→              <div className="hidden lg:block relative">
+   673→                <motion.div
+   674→                  initial={{ opacity: 0, x: 40 }}
+   675→                  animate={{ opacity: 1, x: 0 }}
+   676→                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' as const }}
+   677→                  className="relative rounded-2xl bg-white/5 dark:bg-white/[0.03] backdrop-blur-md border border-white/10 dark:border-white/5 p-4 shadow-2xl"
+   678→                >
+   679→                  {/* 2x2 video grid */}
+   680→                  <div className="grid grid-cols-2 gap-3">
+   681→                    {[
+   682→                      { name: 'Sarah Chen', color: 'from-blue-500/30 to-cyan-500/20', active: true, delay: 0.4 },
+   683→                      { name: 'James Miller', color: 'from-violet-500/30 to-purple-500/20', active: false, delay: 0.5 },
+   684→                      { name: 'Aiko Tanaka', color: 'from-emerald-500/30 to-teal-500/20', active: false, delay: 0.6 },
+   685→                      { name: 'Carlos Ruiz', color: 'from-orange-500/30 to-amber-500/20', active: false, delay: 0.7 },
+   686→                    ].map((participant) => (
+   687→                      <motion.div
+   688→                        key={participant.name}
+   689→                        initial={{ opacity: 0, scale: 0.85, y: 20 }}
+   690→                        animate={{ opacity: 1, scale: 1, y: 0 }}
+   691→                        transition={{ duration: 0.5, delay: participant.delay, ease: 'easeOut' as const }}
+   692→                        className={`relative rounded-xl bg-gradient-to-br ${participant.color} p-4 flex flex-col items-center justify-center gap-2 min-h-[120px] ${participant.active ? 'ring-2 ring-primary/50' : ''}`}
+   693→                      >
+   694→                        {participant.active && (
+   695→                          <motion.div
+   696→                            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500"
+   697→                            animate={{ scale: [1, 1.3, 1] }}
+   698→                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
+   699→                          />
+   700→                        )}
+   701→                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${participant.color} border-2 border-white/20 flex items-center justify-center`}>
+   702→                          <User className="w-6 h-6 text-white/80" />
+   703→                        </div>
+   704→                        <span className="text-xs font-medium text-foreground/80">{participant.name}</span>
+   705→                      </motion.div>
+   706→                    ))}
+   707→                  </div>
+   708→
+   709→                  {/* Floating AI Assistant Bubble */}
+   710→                  <motion.div
+   711→                    initial={{ opacity: 0, y: 20, scale: 0.8 }}
+   712→                    animate={{ opacity: 1, y: 0, scale: 1 }}
+   713→                    transition={{ duration: 0.6, delay: 0.9, type: 'spring', bounce: 0.4 }}
+   714→                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-violet-600 px-4 py-2 shadow-lg shadow-primary/30"
+   715→                  >
+   716→                    <motion.div
+   717→                      animate={{ rotate: [0, 15, -15, 0] }}
+   718→                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.2 }}
+   719→                    >
+   720→                      <Sparkles className="w-4 h-4 text-white" />
+   721→                    </motion.div>
+   722→                    <span className="text-xs font-semibold text-white">AI Assistant Active</span>
+   723→                  </motion.div>
+   724→                </motion.div>
+   725→              </div>
+   726→            </div>
+   727→
+   728→            {/* Scroll indicator */}
+   729→            <motion.div
+   730→              className="flex flex-col items-center mt-8"
+   731→              initial={{ opacity: 0 }}
+   732→              animate={{ opacity: 1 }}
+   733→              transition={{ duration: 0.7, delay: 1.2 }}
+   734→            >
+   735→              <motion.div
+   736→                animate={{ y: [0, 8, 0] }}
+   737→                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
+   738→                className="flex flex-col items-center gap-1.5 text-muted-foreground/50"
+   739→              >
+   740→                <MousePointer2 className="w-5 h-5" />
+   741→                <ChevronDown className="w-4 h-4" />
+   742→              </motion.div>
+   743→              <span className="text-xs text-muted-foreground/40 mt-1 font-medium">Scroll to explore</span>
+   744→            </motion.div>
+   745→          </div>
+   746→
+   747→          {/* Hero Stats Row */}
+   748→          <div className="absolute bottom-0 left-0 right-0">
+   749→            <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+   750→            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+   751→              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+   752→                {HERO_STATS.map((stat, i) => (
+   753→                  <motion.div
+   754→                    key={stat.label}
+   755→                    initial={{ opacity: 0, y: 20 }}
+   756→                    animate={{ opacity: 1, y: 0 }}
+   757→                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' as const }}
+   758→                    className="flex items-center gap-3"
+   759→                  >
+   760→                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+   761→                      <stat.icon className="w-5 h-5 text-primary/70" />
+   762→                    </div>
+   763→                    <div>
+   764→                      <div className="text-xl lg:text-2xl font-bold tracking-tight">{stat.value}</div>
+   765→                      <div className="text-xs text-muted-foreground font-medium">{stat.label}</div>
+   766→                    </div>
+   767→                  </motion.div>
+   768→                ))}
+   769→              </div>
+   770→            </div>
+   771→          </div>
+   772→        </section>
+   773→
+   774→        {/* ============================================================== */}
+   775→        {/* 2. PLATFORM OVERVIEW                                         */}
+   776→        {/* ============================================================== */}
+   777→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+   778→        <section id="platform" className="py-24 bg-muted/30">
+   779→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   780→            <motion.div
+   781→              variants={sectionVariants}
+   782→              initial="hidden"
+   783→              whileInView="visible"
+   784→              viewport={{ once: true, margin: '-80px' }}
+   785→              className="text-center mb-16"
+   786→            >
+   787→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+   788→                One Platform.{' '}
+   789→                <span className="gradient-text">Every Collaboration Need.</span>
+   790→              </h2>
+   791→              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+   792→                Four powerful modules working together to eliminate tool sprawl
+   793→                and unify your team&rsquo;s communication.
+   794→              </p>
+   795→            </motion.div>
+   796→
+   797→            <motion.div
+   798→              variants={staggerContainer}
+   799→              initial="hidden"
+   800→              whileInView="visible"
+   801→              viewport={{ once: true, margin: '-60px' }}
+   802→              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+   803→            >
+   804→              {PLATFORM_FEATURES.map((feature) => (
+   805→                <motion.div key={feature.title} variants={staggerItem}>
+   806→                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
+   807→                    <CardContent className="p-8">
+   808→                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
+   809→                        <feature.icon className="w-7 h-7 text-white" />
+   810→                      </div>
+   811→                      <h3 className="text-xl font-semibold mb-3">
+   812→                        {feature.title}
+   813→                      </h3>
+   814→                      <p className="text-muted-foreground leading-relaxed">
+   815→                        {feature.description}
+   816→                      </p>
+   817→                    </CardContent>
+   818→                  </Card>
+   819→                </motion.div>
+   820→              ))}
+   821→            </motion.div>
+   822→          </div>
+   823→        </section>
+   824→
+   825→        {/* ============================================================== */}
+   826→        {/* 3. AI PLATFORM SECTION                                       */}
+   827→        {/* ============================================================== */}
+   828→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+   829→        <section id="ai" className="py-24 bg-foreground/5">
+   830→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   831→            <motion.div
+   832→              variants={sectionVariants}
+   833→              initial="hidden"
+   834→              whileInView="visible"
+   835→              viewport={{ once: true, margin: '-80px' }}
+   836→              className="text-center mb-16"
+   837→            >
+   838→              <Badge
+   839→                variant="secondary"
+   840→                className="mb-4 px-4 py-1.5 text-sm font-medium"
+   841→              >
+   842→                <Brain className="w-3.5 h-3.5 mr-1.5" />
+   843→                AI-Native
+   844→              </Badge>
+   845→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+   846→                <span className="gradient-text">AI-Native Architecture</span>
+   847→              </h2>
+   848→              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+   849→                Not an afterthought. AI is built into every layer of ALVISION.
+   850→              </p>
+   851→            </motion.div>
+   852→
+   853→            <motion.div
+   854→              variants={staggerContainer}
+   855→              initial="hidden"
+   856→              whileInView="visible"
+   857→              viewport={{ once: true, margin: '-60px' }}
+   858→              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+   859→            >
+   860→              {AI_FEATURES.map((feature) => (
+   861→                <motion.div key={feature.title} variants={staggerItem}>
+   862→                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
+   863→                    <CardContent className="p-6">
+   864→                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-5 shadow-lg shadow-violet-500/20">
+   865→                        <feature.icon className="w-6 h-6 text-white" />
+   866→                      </div>
+   867→                      <h3 className="text-lg font-semibold mb-2">
+   868→                        {feature.title}
+   869→                      </h3>
+   870→                      <p className="text-sm text-muted-foreground leading-relaxed">
+   871→                        {feature.description}
+   872→                      </p>
+   873→                    </CardContent>
+   874→                  </Card>
+   875→                </motion.div>
+   876→              ))}
+   877→            </motion.div>
+   878→          </div>
+   879→        </section>
+   880→
+   881→        {/* ============================================================== */}
+   882→        {/* 4. ARCHITECTURE SECTION                                      */}
+   883→        {/* ============================================================== */}
+   884→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+   885→        <section id="architecture" className="py-24">
+   886→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   887→            <motion.div
+   888→              variants={sectionVariants}
+   889→              initial="hidden"
+   890→              whileInView="visible"
+   891→              viewport={{ once: true, margin: '-80px' }}
+   892→              className="text-center mb-16"
+   893→            >
+   894→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+   895→                <span className="gradient-text">Enterprise-Grade Architecture</span>
+   896→              </h2>
+   897→              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+   898→                Built from the ground up to meet the demands of Fortune 500
+   899→                organizations.
+   900→              </p>
+   901→            </motion.div>
+   902→
+   903→            <motion.div
+   904→              variants={staggerContainer}
+   905→              initial="hidden"
+   906→              whileInView="visible"
+   907→              viewport={{ once: true, margin: '-60px' }}
+   908→              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+   909→            >
+   910→              {ARCHITECTURE_PILLARS.map((pillar) => (
+   911→                <motion.div key={pillar.title} variants={staggerItem}>
+   912→                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
+   913→                    <CardContent className="p-6">
+   914→                      <div className="flex items-start gap-4">
+   915→                        <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center shrink-0">
+   916→                          <pillar.icon className="w-5 h-5 text-white" />
+   917→                        </div>
+   918→                        <div>
+   919→                          <h3 className="text-lg font-semibold mb-1">
+   920→                            {pillar.title}
+   921→                          </h3>
+   922→                          <p className="text-sm text-muted-foreground leading-relaxed">
+   923→                            {pillar.description}
+   924→                          </p>
+   925→                        </div>
+   926→                      </div>
+   927→                    </CardContent>
+   928→                  </Card>
+   929→                </motion.div>
+   930→              ))}
+   931→            </motion.div>
+   932→          </div>
+   933→        </section>
+   934→
+   935→        {/* ============================================================== */}
+   936→        {/* 5. INTEGRATIONS SECTION                                      */}
+   937→        {/* ============================================================== */}
+   938→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+   939→        <section className="py-24 bg-muted/30">
+   940→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   941→            <motion.div
+   942→              variants={sectionVariants}
+   943→              initial="hidden"
+   944→              whileInView="visible"
+   945→              viewport={{ once: true, margin: '-80px' }}
+   946→              className="text-center mb-16"
+   947→            >
+   948→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+   949→                Connects to Your{' '}
+   950→                <span className="gradient-text">Existing Stack</span>
+   951→              </h2>
+   952→              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+   953→                Seamless integrations with the tools your teams already use.
+   954→              </p>
+   955→            </motion.div>
+   956→
+   957→            <motion.div
+   958→              variants={staggerContainer}
+   959→              initial="hidden"
+   960→              whileInView="visible"
+   961→              viewport={{ once: true, margin: '-60px' }}
+   962→              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+   963→            >
+   964→              {INTEGRATIONS.map((integration) => (
+   965→                <motion.div key={integration.name} variants={staggerItem}>
+   966→                  <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50">
+   967→                    <CardContent className="p-5 text-center">
+   968→                      <div className="w-10 h-10 mx-auto rounded-lg bg-muted flex items-center justify-center mb-3">
+   969→                        <Plug className="w-5 h-5 text-muted-foreground" />
+   970→                      </div>
+   971→                      <h3 className="font-semibold text-sm">{integration.name}</h3>
+   972→                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+   973→                        {integration.description}
+   974→                      </p>
+   975→                    </CardContent>
+   976→                  </Card>
+   977→                </motion.div>
+   978→              ))}
+   979→            </motion.div>
+   980→          </div>
+   981→        </section>
+   982→
+   983→        {/* ============================================================== */}
+   984→        {/* 6. STATS SECTION                                             */}
+   985→        {/* ============================================================== */}
+   986→        <section className="py-20">
+   987→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   988→            <motion.div
+   989→              variants={sectionVariants}
+   990→              initial="hidden"
+   991→              whileInView="visible"
+   992→              viewport={{ once: true, margin: '-80px' }}
+   993→            >
+   994→              <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 py-12">
+   995→                {STATS.map((stat) => (
+   996→                  <AnimatedCounter
+   997→                    key={stat.label}
+   998→                    value={stat.value}
+   999→                    suffix={stat.suffix}
+  1000→                    label={stat.label}
+  1001→                  />
+  1002→                ))}
+  1003→              </div>
+  1004→            </motion.div>
+  1005→          </div>
+  1006→        </section>
+  1007→
+  1008→        {/* ============================================================== */}
+  1009→        {/* 7. PRICING SECTION                                           */}
+  1010→        {/* ============================================================== */}
+  1011→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+  1012→        <section id="pricing" className="py-24 bg-muted/30">
+  1013→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  1014→            <motion.div
+  1015→              variants={sectionVariants}
+  1016→              initial="hidden"
+  1017→              whileInView="visible"
+  1018→              viewport={{ once: true, margin: '-80px' }}
+  1019→              className="text-center mb-16"
+  1020→            >
+  1021→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+  1022→                Simple, Transparent{' '}
+  1023→                <span className="gradient-text">Pricing</span>
+  1024→              </h2>
+  1025→              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+  1026→                Start free. Scale as your team grows. No hidden fees.
+  1027→              </p>
+  1028→            </motion.div>
+  1029→
+  1030→            <motion.div
+  1031→              variants={staggerContainer}
+  1032→              initial="hidden"
+  1033→              whileInView="visible"
+  1034→              viewport={{ once: true, margin: '-60px' }}
+  1035→              className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start"
+  1036→            >
+  1037→              {PRICING_TIERS.map((tier) => (
+  1038→                <motion.div key={tier.name} variants={staggerItem}>
+  1039→                  {tier.highlighted ? (
+  1040→                    <div className="relative rounded-xl p-[2px] bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite]"
+  1041→                      style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }}
+  1042→                    >
+  1043→                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
+  1044→                      <Card className="relative h-full rounded-xl shadow-xl shadow-blue-500/10 dark:border-border/30 dark:bg-card/50">
+  1045→                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+  1046→                          <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-4 py-1">
+  1047→                            Most Popular
+  1048→                          </Badge>
+  1049→                        </div>
+  1050→                        <CardContent className="p-8">
+  1051→                          <h3 className="text-xl font-bold">{tier.name}</h3>
+  1052→                          <div className="mt-4 flex items-baseline gap-1">
+  1053→                            <span className="text-4xl font-extrabold tracking-tight">
+  1054→                              {tier.price}
+  1055→                            </span>
+  1056→                            {tier.period && (
+  1057→                              <span className="text-muted-foreground text-sm">
+  1058→                                {tier.period}
+  1059→                              </span>
+  1060→                            )}
+  1061→                          </div>
+  1062→                          <p className="mt-3 text-sm text-muted-foreground">
+  1063→                            {tier.description}
+  1064→                          </p>
+  1065→                          <div className="mt-6 mb-8 space-y-3">
+  1066→                            {tier.features.map((feature) => (
+  1067→                              <div
+  1068→                                key={feature}
+  1069→                                className="flex items-start gap-3 text-sm"
+  1070→                              >
+  1071→                                <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+  1072→                                <span>{feature}</span>
+  1073→                              </div>
+  1074→                            ))}
+  1075→                          </div>
+  1076→                          <Button
+  1077→                            variant={tier.ctaVariant}
+  1078→                            className="w-full h-11 font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25"
+  1079→                          >
+  1080→                            {tier.cta}
+  1081→                            <ArrowRight className="w-4 h-4 ml-2" />
+  1082→                          </Button>
+  1083→                        </CardContent>
+  1084→                      </Card>
+  1085→                    </div>
+  1086→                  ) : (
+  1087→                    <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50 dark:border-border/30 dark:bg-card/50">
+  1088→                      <CardContent className="p-8">
+  1089→                        <h3 className="text-xl font-bold">{tier.name}</h3>
+  1090→                        <div className="mt-4 flex items-baseline gap-1">
+  1091→                          <span className="text-4xl font-extrabold tracking-tight">
+  1092→                            {tier.price}
+  1093→                          </span>
+  1094→                          {tier.period && (
+  1095→                            <span className="text-muted-foreground text-sm">
+  1096→                              {tier.period}
+  1097→                            </span>
+  1098→                          )}
+  1099→                        </div>
+  1100→                        <p className="mt-3 text-sm text-muted-foreground">
+  1101→                          {tier.description}
+  1102→                        </p>
+  1103→                        <div className="mt-6 mb-8 space-y-3">
+  1104→                          {tier.features.map((feature) => (
+  1105→                            <div
+  1106→                              key={feature}
+  1107→                              className="flex items-start gap-3 text-sm"
+  1108→                            >
+  1109→                              <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+  1110→                              <span>{feature}</span>
+  1111→                            </div>
+  1112→                          ))}
+  1113→                        </div>
+  1114→                        <Button
+  1115→                          variant={tier.ctaVariant}
+  1116→                          className="w-full h-11 font-semibold"
+  1117→                        >
+  1118→                          {tier.cta}
+  1119→                          <ArrowRight className="w-4 h-4 ml-2" />
+  1120→                        </Button>
+  1121→                      </CardContent>
+  1122→                    </Card>
+  1123→                  )}
+  1124→                </motion.div>
+  1125→              ))}
+  1126→            </motion.div>
+  1127→          </div>
+  1128→        </section>
+  1129→
+  1130→        {/* ============================================================== */}
+  1131→        {/* 8. FAQ SECTION                                               */}
+  1132→        {/* ============================================================== */}
+  1133→        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+  1134→        <section id="faq" className="py-24">
+  1135→          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+  1136→            <motion.div
+  1137→              variants={sectionVariants}
+  1138→              initial="hidden"
+  1139→              whileInView="visible"
+  1140→              viewport={{ once: true, margin: '-80px' }}
+  1141→              className="text-center mb-16"
+  1142→            >
+  1143→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+  1144→                Frequently Asked{' '}
+  1145→                <span className="gradient-text">Questions</span>
+  1146→              </h2>
+  1147→              <p className="mt-4 text-lg text-muted-foreground">
+  1148→                Everything you need to know about ALVISION.
+  1149→              </p>
+  1150→            </motion.div>
+  1151→
+  1152→            <motion.div
+  1153→              variants={sectionVariants}
+  1154→              initial="hidden"
+  1155→              whileInView="visible"
+  1156→              viewport={{ once: true, margin: '-60px' }}
+  1157→            >
+  1158→              <Accordion type="single" collapsible className="w-full">
+  1159→                {FAQ_ITEMS.map((item, index) => (
+  1160→                  <AccordionItem
+  1161→                    key={index}
+  1162→                    value={`faq-${index}`}
+  1163→                  >
+  1164→                    <AccordionTrigger className="text-left text-base font-medium hover:no-underline">
+  1165→                      {item.question}
+  1166→                    </AccordionTrigger>
+  1167→                    <AccordionContent className="text-muted-foreground leading-relaxed">
+  1168→                      {item.answer}
+  1169→                    </AccordionContent>
+  1170→                  </AccordionItem>
+  1171→                ))}
+  1172→              </Accordion>
+  1173→            </motion.div>
+  1174→          </div>
+  1175→        </section>
+  1176→
+  1177→        {/* ============================================================== */}
+  1178→        {/* 9. TESTIMONIALS SECTION                                       */}
+  1179→        {/* ============================================================== */}
+  1180→        <section className="py-24 bg-muted/30">
+  1181→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  1182→            <motion.div
+  1183→              variants={sectionVariants}
+  1184→              initial="hidden"
+  1185→              whileInView="visible"
+  1186→              viewport={{ once: true, margin: '-80px' }}
+  1187→              className="text-center mb-14"
+  1188→            >
+  1189→              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+  1190→                <Star className="w-3 h-3 mr-1 fill-amber-400 text-amber-400" /> Trusted by 10,000+ organizations
+  1191→              </Badge>
+  1192→              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+  1193→                Loved by Teams Worldwide
+  1194→              </h2>
+  1195→              <p className="mt-3 text-lg text-muted-foreground max-w-2xl mx-auto">
+  1196→                See why enterprises from Fortune 500 to fast-growing startups choose ALVISION for their collaboration needs.
+  1197→              </p>
+  1198→            </motion.div>
+  1199→
+  1200→            <motion.div
+  1201→              variants={staggerContainer}
+  1202→              initial="hidden"
+  1203→              whileInView="visible"
+  1204→              viewport={{ once: true, margin: '-60px' }}
+  1205→              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+  1206→            >
+  1207→              {TESTIMONIALS.map((t, idx) => (
+  1208→                <motion.div key={t.name} variants={staggerItem}>
+  1209→                  <Card className="h-full border-border/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+  1210→                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${idx % 3 === 0 ? 'from-rose-500 to-pink-500' : idx % 3 === 1 ? 'from-sky-500 to-blue-500' : 'from-emerald-500 to-teal-500'}`} />
+  1211→                    <CardContent className="p-6 pt-7">
+  1212→                      <Quote className="h-8 w-8 text-muted-foreground/20 mb-3" />
+  1213→                      <p className="text-sm leading-relaxed text-foreground/80 mb-5">{t.text}</p>
+  1214→                      <div className="flex items-center gap-1 mb-4">
+  1215→                        {Array.from({ length: t.rating }).map((_, i) => (
+  1216→                          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+  1217→                        ))}
+  1218→                      </div>
+  1219→                      <div className="flex items-center gap-3">
+  1220→                        <div className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold shadow-lg`}>
+  1221→                          {t.initials}
+  1222→                        </div>
+  1223→                        <div>
+  1224→                          <p className="text-sm font-semibold">{t.name}</p>
+  1225→                          <p className="text-xs text-muted-foreground">{t.role}, {t.company}</p>
+  1226→                        </div>
+  1227→                      </div>
+  1228→                    </CardContent>
+  1229→                  </Card>
+  1230→                </motion.div>
+  1231→              ))}
+  1232→            </motion.div>
+  1233→          </div>
+  1234→        </section>
+  1235→
+  1236→        {/* ============================================================== */}
+  1237→        {/* 10. CTA SECTION                                               */}
+  1238→        {/* ============================================================== */}
+  1239→        <section className="py-24">
+  1240→          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  1241→            <motion.div
+  1242→              variants={sectionVariants}
+  1243→              initial="hidden"
+  1244→              whileInView="visible"
+  1245→              viewport={{ once: true, margin: '-80px' }}
+  1246→              className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-12 md:p-16 text-center"
+  1247→            >
+  1248→              {/* Decorative elements */}
+  1249→              <div className="absolute top-0 left-0 h-full w-full -z-0">
+  1250→                <div className="absolute top-[-20%] right-[-10%] h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+  1251→                <div className="absolute bottom-[-20%] left-[-10%] h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
+  1252→              </div>
+  1253→
+  1254→              <div className="relative z-10">
+  1255→                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
+  1256→                  Ready to Transform Your
+  1257→                  <br className="hidden sm:block" /> Collaboration?
+  1258→                </h2>
+  1259→                <p className="mt-4 text-emerald-100 text-lg max-w-xl mx-auto">
+  1260→                  Join thousands of enterprises already using ALVISION to
+  1261→                  collaborate smarter and more securely.
+  1262→                </p>
+  1263→                <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+  1264→                  <Button
+  1265→                    size="lg"
+  1266→                    className="bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg shadow-black/10 px-8 h-12 text-base"
+  1267→                    onClick={handleStartMeeting}
+  1268→                  >
+  1269→                    Start Free
+  1270→                    <ArrowRight className="w-4 h-4 ml-2" />
+  1271→                  </Button>
+  1272→                  <Button
+  1273→                    size="lg"
+  1274→                    variant="outline"
+  1275→                    className="border-white/30 text-white hover:bg-white/10 hover:text-white font-semibold px-8 h-12 text-base"
+  1276→                  >
+  1277→                    Contact Sales
+  1278→                  </Button>
+  1279→                </div>
+  1280→              </div>
+  1281→            </motion.div>
+  1282→          </div>
+  1283→        </section>
+  1284→      </main>
+  1285→
+  1286→      {/* Scroll to top button */}
+  1287→      <AnimatePresence>
+  1288→        {showScrollTop && (
+  1289→          <motion.button
+  1290→            initial={{ opacity: 0, scale: 0.8 }}
+  1291→            animate={{ opacity: 1, scale: 1 }}
+  1292→            exit={{ opacity: 0, scale: 0.8 }}
+  1293→            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+  1294→            className="fixed bottom-8 right-8 z-40 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:bg-primary/90 hover:shadow-xl transition-all"
+  1295→          >
+  1296→            <ArrowUp className="w-5 h-5" />
+  1297→          </motion.button>
+  1298→        )}
+  1299→      </AnimatePresence>
+  1300→
+  1301→      {/* Animated pricing border keyframes */}
+  1302→      <style jsx global>{`
+  1303→        @keyframes pricing-border-rotate {
+  1304→          0% { background-position: 0% 50%; }
+  1305→          50% { background-position: 100% 50%; }
+  1306→          100% { background-position: 0% 50%; }
+  1307→        }
+  1308→      `}</style>
+  1309→
+  1310→      {/* ------------------------------------------------------------------ */}
+  1311→      {/*  FOOTER                                                           */}
+  1312→      {/* ------------------------------------------------------------------ */}
+  1313→      <Footer />
+  1314→    </div>
+  1315→  );
+  1316→}
+  1317→

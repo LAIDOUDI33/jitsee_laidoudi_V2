@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 import {
   Bot,
   Send,
@@ -112,13 +113,12 @@ export default function AIAssistantPage() {
     setMessages(prev => [...prev, loadingMsg])
 
     try {
-      const res = await fetch('/api/v1/ai/chat', {
+      const res = await authFetch('/api/v1/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: content, context: 'dashboard' }),
       })
       const data = await res.json()
-      const reply = data.reply || data.message || 'I apologize, I couldn\'t process your request. Please try again.'
+      const reply = data.data?.response || data.reply || data.message || 'I apologize, I couldn\'t process your request. Please try again.'
       setMessages(prev => prev.map(m => m.id === loadingMsg.id ? { ...m, content: reply, loading: false } : m))
     } catch {
       setMessages(prev => prev.map(m => m.id === loadingMsg.id ? {
@@ -181,7 +181,18 @@ export default function AIAssistantPage() {
                 <CardHeader className='pb-2 px-3 pt-3'>
                   <div className='flex items-center justify-between'>
                     <CardTitle className='text-xs font-semibold flex items-center gap-1.5'><History className='h-3 w-3' /> History</CardTitle>
-                    <Button variant='ghost' size='icon' className='h-6 w-6'><Trash2 className='h-3 w-3' /></Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-6 w-6'
+                      aria-label='Clear history'
+                      onClick={() => {
+                        setMessages(initialMessages)
+                        toast.success('Conversation history cleared')
+                      }}
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className='px-2 space-y-1'>

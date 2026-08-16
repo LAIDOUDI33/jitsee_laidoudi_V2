@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash, randomBytes, scryptSync } from 'crypto';
 import { db } from '@/lib/db';
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex');
-  const hash = createHash('sha256').update(salt + password).digest('hex');
-  return `${salt}:${hash}`;
-}
+import { hashPassword, validatePasswordStrength, createAccessToken, createRefreshToken, sanitizeString, getClientIp } from '@/lib/server/auth';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, email, password, organizationName } = body;
 
-    // Validate inputs
+    // ─── Input Validation ────────────────────────────────────────────
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name must be at least 2 characters' } },
@@ -28,43 +22,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
+    if (!password || typeof password !== 'string' || password.length < 10) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 10 characters with uppercase, lowercase, number, and special character' } },
+        { status: 400 }
+      );
+    }
+
+    // ─── Password Strength Check ─────────────────────────────────────
+    const strengthCheck = validatePasswordStrength(password);
+    if (!strengthCheck.valid) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: strengthCheck.errors.join('. ') } },
         { status: 400 }
       );
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const sanitizedName = sanitizeString(name, 100);
 
-    // Check if user already exists
+    // ─── Check if user already exists ────────────────────────────────
     const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return NextResponse.json(
         { success: false, error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
-    // Create organization if name provided
+    // ─── Create organization if name provided ────────────────────────
     let organizationId: string | null = null;
     let role: 'orgadmin' | 'participant' = 'participant';
 
     if (organizationName && typeof organizationName === 'string' && organizationName.trim().length > 0) {
-      const org = await db.organization.create({
-        data: { name: organizationName.trim() },
-      });
-      organizationId = org.id;
-      role = 'orgadmin';
+      const sanitizedOrgName = sanitizeString(organizationName, 200);
+      // Check if org already exists
+      const existingOrg = await db.organization.findUnique({ where: { name: sanitizedOrgName } });
+      if (existingOrg) {
+        // Join existing org instead of creating duplicate
+        organizationId = existingOrg.id;
+        role = 'participant';
+      } else {
+        const org = await db.organization.create({
+          data: { name: sanitizedOrgName },
+        });
+        organizationId = org.id;
+        role = 'orgadmin';
+      }
     }
 
-    // Hash password
+    // ─── Hash Password (scrypt) ──────────────────────────────────────
     const passwordHash = hashPassword(password);
 
-    // Create user
+    // ─── Create User ─────────────────────────────────────────────────
     const user = await db.user.create({
       data: {
-        name: name.trim(),
+        name: sanitizedName,
         email: normalizedEmail,
         passwordHash,
         role,
@@ -72,24 +85,36 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create AuditLog entry
+    // ─── AuditLog ────────────────────────────────────────────────────
+    const clientIp = getClientIp(request);
     await db.auditLog.create({
       data: {
         action: 'USER_REGISTERED',
         resource: 'User',
         resourceId: user.id,
+        userId: user.id,
+        ipAddress: clientIp,
+        userAgent: request.headers.get('user-agent') || undefined,
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    // ─── Generate JWT Tokens ─────────────────────────────────────────
+    const tokenPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      createAccessToken(tokenPayload),
+      createRefreshToken(tokenPayload),
+    ]);
+
+    return NextResponse.json(
+      { success: true, data: { user: { id: user.id, name: user.name, email: user.email, role: user.role, organizationId: user.organizationId }, accessToken, refreshToken } },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(

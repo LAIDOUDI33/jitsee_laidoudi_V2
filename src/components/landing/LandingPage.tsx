@@ -46,6 +46,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 import { useAppStore } from '@/store/app-store';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -71,6 +72,7 @@ interface Integration {
 }
 
 interface StatItem {
+  target?: number;
   value: number;
   suffix: string;
   label: string;
@@ -388,7 +390,8 @@ function generateRoomId(): string {
 /*                          ANIMATED COUNTER COMPONENT                       */
 /* -------------------------------------------------------------------------- */
 
-function AnimatedCounter({ target, suffix, label }: StatItem) {
+function AnimatedCounter({ target, value, suffix, label }: StatItem) {
+  const countTarget = target ?? value;
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-50px' });
   const [count, setCount] = useState(0);
@@ -398,12 +401,12 @@ function AnimatedCounter({ target, suffix, label }: StatItem) {
 
     const duration = 2000;
     const steps = 60;
-    const increment = target / steps;
+    const increment = countTarget / steps;
     let current = 0;
     const timer = setInterval(() => {
       current += increment;
-      if (current >= target) {
-        setCount(target);
+      if (current >= countTarget) {
+        setCount(countTarget);
         clearInterval(timer);
       } else {
         setCount(current);
@@ -411,10 +414,10 @@ function AnimatedCounter({ target, suffix, label }: StatItem) {
     }, duration / steps);
 
     return () => clearInterval(timer);
-  }, [isInView, target]);
+  }, [isInView, countTarget]);
 
   const displayValue =
-    target % 1 !== 0 ? count.toFixed(1) : Math.round(count).toLocaleString();
+    countTarget % 1 !== 0 ? count.toFixed(1) : Math.round(count).toLocaleString();
 
   return (
     <div className="text-center">
@@ -458,7 +461,8 @@ const staggerItem = {
 /* -------------------------------------------------------------------------- */
 
 export default function LandingPage() {
-  const navigate = useAppStore((s) => s.setView);
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
+  const setCurrentMeetingId = useAppStore((s) => s.setCurrentMeetingId);
   const [roomName, setRoomName] = useState('');
   const [starting, setStarting] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -473,24 +477,25 @@ export default function LandingPage() {
     const roomId = generateRoomId();
     setStarting(true);
     try {
-      const res = await fetch('/api/v1/meetings', {
+      const res = await authFetch('/api/v1/meetings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomId,
           title: roomName || `Meeting ${roomId}`,
         }),
       });
       if (!res.ok) throw new Error('Failed to create meeting');
-      const data = await res.json();
+      const result = await res.json();
+      const meeting = result.data?.meeting || result;
       toast.success('Meeting created successfully');
-      navigate('meeting-room', { meetingId: data.meetingId || data.id, roomId });
+      setCurrentMeetingId(meeting.meetingId || meeting.id);
+      setCurrentView('meeting-room');
     } catch {
       toast.error('Failed to create meeting. Please try again.');
     } finally {
       setStarting(false);
     }
-  }, [roomName, navigate]);
+  }, [roomName, setCurrentView, setCurrentMeetingId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

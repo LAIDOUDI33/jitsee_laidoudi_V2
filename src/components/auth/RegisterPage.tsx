@@ -61,7 +61,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [orgMode, setOrgMode] = useState<'create' | 'join'>('create');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const { setCurrentView, navigateBack } = useAppStore();
+  const { setCurrentView, navigateBack, setUser, setTokens } = useAppStore();
 
   const {
     register,
@@ -106,11 +106,22 @@ export default function RegisterPage() {
         body: JSON.stringify({ name: data.name, email: data.email, organization: data.organization, password: data.password }),
       });
       const result = await res.json();
-      if (res.ok) {
-        toast.success('Account created successfully! Please sign in.');
-        setCurrentView('login');
+      if (res.ok && result.data) {
+        // Store tokens from registration response via store
+        if (result.data.accessToken && result.data.refreshToken) {
+          setTokens(result.data.accessToken, result.data.refreshToken);
+        }
+        // Auto-login after registration
+        if (result.data.user) {
+          setUser(result.data.user);
+          setCurrentView('dashboard');
+          toast.success('Account created successfully!');
+        } else {
+          toast.success('Account created successfully! Please sign in.');
+          setCurrentView('login');
+        }
       } else {
-        toast.error(result.error || 'Registration failed');
+        toast.error(result.error?.message || result.error || 'Registration failed');
       }
     } catch {
       toast.error('Connection error. Please try again.');

@@ -30,7 +30,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const { setCurrentView, navigateBack, setUser } = useAppStore();
+  const { setCurrentView, navigateBack, setUser, setTokens } = useAppStore();
 
   const {
     register,
@@ -50,12 +50,16 @@ export default function LoginPage() {
         body: JSON.stringify(data),
       });
       const result = await res.json();
-      if (res.ok && result.user) {
-        setUser(result.user);
+      if (res.ok && result.data?.user) {
+        // Store tokens via store for consistent persistence
+        if (result.data.accessToken && result.data.refreshToken) {
+          setTokens(result.data.accessToken, result.data.refreshToken);
+        }
+        setUser(result.data.user);
         setCurrentView('dashboard');
         toast.success('Welcome back!');
       } else {
-        toast.error(result.error || 'Invalid credentials');
+        toast.error(result.error?.message || result.error || 'Invalid credentials');
       }
     } catch {
       toast.error('Connection error. Please try again.');

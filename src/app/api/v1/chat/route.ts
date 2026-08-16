@@ -1,23 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, AuthError } from '@/lib/api-auth';
+import { inputSanitize, validateUuid } from '@/lib/security';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
 interface ChatMessage {
-  id: string
-  channelId: string
-  senderId: string
-  senderName: string
-  content: string
-  timestamp: string
-  avatar?: string
-  status?: 'sent' | 'delivered' | 'read'
-  isBot?: boolean
-  reactions?: Record<string, number>
+  id: string;
+  channelId: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  timestamp: string;
+  avatar?: string;
+  status?: 'sent' | 'delivered' | 'read';
+  isBot?: boolean;
+  reactions?: Record<string, number>;
 }
 
 // ── In-memory message store (fallback when WebSocket service is not available) ──
 
-const messageStore: ChatMessage[] = []
+const messageStore: ChatMessage[] = [];
 
 // Seed demo data
 const demoMessages: Omit<ChatMessage, 'timestamp'>[] = [
@@ -30,71 +32,105 @@ const demoMessages: Omit<ChatMessage, 'timestamp'>[] = [
   { id: 'msg7', channelId: 'c2', senderId: 'u1', senderName: 'Sarah Chen', content: 'Looking at it now. The JWT handling looks clean.', status: 'read' },
   { id: 'msg8', channelId: 'c5', senderId: 'u6', senderName: 'Alex Turner', content: 'Team offsite next Friday — please RSVP by Wednesday.', status: 'read', reactions: { '👍': 4 } },
   { id: 'msg9', channelId: 'c3', senderId: 'u5', senderName: 'Lisa Park', content: 'Check out this article on WebRTC optimisation.', status: 'read' },
-]
+];
 
 for (const dm of demoMessages) {
   messageStore.push({
     ...dm,
     timestamp: new Date(Date.now() - Math.random() * 3600_000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-  })
+  });
 }
 
-const MAX_MESSAGES = 500
+const MAX_MESSAGES = 500;
 
 // ── GET: fetch messages for a channel ───────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const channel = searchParams.get('channel') || 'c1'
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
+  try {
+    const user = await requireAuth();
 
-  const channelMessages = messageStore
-    .filter(m => m.channelId === channel)
-    .slice(-limit)
+    const { searchParams } = new URL(req.url);
+    const channel = searchParams.get('channel') || 'c1';
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
 
-  return NextResponse.json({
-    channel,
-    messages: channelMessages,
-    total: messageStore.filter(m => m.channelId === channel).length,
-  })
+    const channelMessages = messageStore
+      .filter(m => m.channelId === channel)
+      .slice(-limit);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        channel,
+        messages: channelMessages,
+        total: messageStore.filter(m => m.channelId === channel).length,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch messages' } },
+      { status: 500 }
+    );
+  }
 }
 
 // ── POST: send a new message ────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { channelId, senderId, senderName, content, avatar, isBot } = body
+    const user = await requireAuth();
 
-    if (!channelId || !content || !senderName) {
+    const body = await req.json();
+    const { channelId } = body;
+
+    // Validate channelId
+    if (!channelId || typeof channelId !== 'string' || channelId.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Missing required fields: channelId, senderName, content' },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: channelId' } },
         { status: 400 }
-      )
+      );
     }
 
+    // Sanitize content — senderId and senderName are FORCED from auth
+    const content = inputSanitize(body.content, 5000, 'content');
+
+    // Force senderId and senderName from authenticated user to prevent impersonation
     const msg: ChatMessage = {
       id: `http-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      channelId,
-      senderId: senderId || 'anonymous',
-      senderName,
-      content: content.slice(0, 5000), // safety limit
+      channelId: channelId.trim(),
+      senderId: user.id,        // FORCED from auth — ignore client-provided senderId
+      senderName: user.name,    // FORCED from auth — ignore client-provided senderName
+      content,
       timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      avatar: avatar || undefined,
+      avatar: user.avatar || undefined,
       status: 'sent',
-      isBot: isBot || false,
+      isBot: false,
       reactions: {},
-    }
+    };
 
-    messageStore.push(msg)
+    messageStore.push(msg);
 
     // Trim old messages
     if (messageStore.length > MAX_MESSAGES) {
-      messageStore.splice(0, messageStore.length - MAX_MESSAGES)
+      messageStore.splice(0, messageStore.length - MAX_MESSAGES);
     }
 
-    return NextResponse.json({ message: msg }, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    return NextResponse.json({ success: true, data: { message: msg } }, { status: 201 });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid request body' } },
+      { status: 400 }
+    );
   }
 }

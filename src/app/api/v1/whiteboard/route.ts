@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
+import { requireAuth, AuthError } from '@/lib/api-auth';
 
 // In-memory store for whiteboard state (mock persistence)
-const whiteboardStore = new Map<string, unknown[]>()
+const whiteboardStore = new Map<string, unknown[]>();
 
 /**
  * GET /api/v1/whiteboard
@@ -10,13 +11,29 @@ const whiteboardStore = new Map<string, unknown[]>()
  */
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId') || 'default'
+    const user = await requireAuth();
 
-    const data = whiteboardStore.get(sessionId) || []
-    return NextResponse.json({ success: true, data, sessionId })
-  } catch {
-    return NextResponse.json({ success: false, data: [] }, { status: 500 })
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId') || 'default';
+
+    // Validate sessionId format
+    if (typeof sessionId !== 'string' || sessionId.length > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid session ID' } },
+        { status: 400 }
+      );
+    }
+
+    const data = whiteboardStore.get(sessionId) || [];
+    return NextResponse.json({ success: true, data: { data, sessionId, userId: user.id } });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch whiteboard' } }, { status: 500 });
   }
 }
 
@@ -27,19 +44,45 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { sessionId = 'default', data = [] } = body
+    const user = await requireAuth();
 
-    if (!sessionId || !Array.isArray(data)) {
+    const body = await request.json();
+    const { sessionId = 'default', data = [] } = body;
+
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 100) {
       return NextResponse.json(
-        { success: false, error: 'sessionId and data array are required' },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid sessionId is required' } },
         { status: 400 }
-      )
+      );
     }
 
-    whiteboardStore.set(sessionId, data)
-    return NextResponse.json({ success: true, sessionId, saved: data.length })
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid request body' }, { status: 400 })
+    if (!Array.isArray(data)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Data must be an array' } },
+        { status: 400 }
+      );
+    }
+
+    // Limit data size to prevent memory abuse
+    if (data.length > 10000) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Data array exceeds maximum size of 10000 items' } },
+        { status: 400 }
+      );
+    }
+
+    whiteboardStore.set(sessionId, data);
+    return NextResponse.json({ success: true, data: { sessionId, saved: data.length, userId: user.id } });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid request body' } },
+      { status: 400 }
+    );
   }
 }

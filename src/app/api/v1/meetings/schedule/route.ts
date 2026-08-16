@@ -1,16 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { requireAuth, AuthError } from '@/lib/api-auth';
+import { inputSanitize, inputSanitizeOptional, validateInt, validateDate } from '@/lib/security';
+import { randomUUID } from 'crypto';
 
 function generateMeetingId(): string {
   const group = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz'
-    let result = ''
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    let result = '';
     for (let i = 0; i < 3; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    return result
-  }
-  return `${group()}-${group()}-${group()}`
+    return result;
+  };
+  return `${group()}-${group()}-${group()}`;
 }
 
 /**
@@ -19,9 +22,10 @@ function generateMeetingId(): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const user = await requireAuth();
+
+    const body = await request.json();
     const {
-      title,
       type = 'scheduled',
       scheduledAt,
       duration,
@@ -33,49 +37,44 @@ export async function POST(request: NextRequest) {
       description,
       participants = [],
       recurrence,
-    } = body
+    } = body;
 
     // Validate required fields
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Meeting title is required' } },
-        { status: 400 }
-      )
-    }
+    const title = inputSanitize(body.title, 200, 'Meeting title');
 
     // Validate meeting type
-    const validTypes = ['instant', 'scheduled', 'recurring', 'personal']
+    const validTypes = ['instant', 'scheduled', 'recurring', 'personal'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid meeting type: ${type}` } },
         { status: 400 }
-      )
+      );
     }
 
     // Validate recurring fields
     if (type === 'recurring' && recurrence) {
-      const validFrequencies = ['daily', 'weekly', 'biweekly', 'monthly']
+      const validFrequencies = ['daily', 'weekly', 'biweekly', 'monthly'];
       if (!validFrequencies.includes(recurrence.frequency)) {
         return NextResponse.json(
           { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid recurrence frequency: ${recurrence.frequency}` } },
           { status: 400 }
-        )
+        );
       }
       if (recurrence.endType === 'occurrences') {
-        const n = parseInt(recurrence.occurrences, 10)
-        if (isNaN(n) || n < 1 || n > 100) {
+        const n = validateInt(recurrence.occurrences, 1, 100, 0);
+        if (n < 1) {
           return NextResponse.json(
             { success: false, error: { code: 'VALIDATION_ERROR', message: 'Recurrence occurrences must be between 1 and 100' } },
             { status: 400 }
-          )
+          );
         }
       }
     }
 
-    // Generate meeting ID
-    const meetingId = generateMeetingId()
+    // Generate meeting ID using crypto.randomUUID for security
+    const meetingId = randomUUID();
 
-    // Build meeting data
+    // Build meeting data — force hostId from auth
     const meetingData: Record<string, unknown> = {
       title: title.trim(),
       meetingId,
@@ -85,31 +84,43 @@ export async function POST(request: NextRequest) {
       recordingEnabled,
       transcriptionEnabled,
       aiAssistantEnabled,
-    }
+      host: { connect: { id: user.id } },
+    };
 
     // Set scheduled start time if provided
     if (scheduledAt) {
-      try {
-        meetingData.startTime = new Date(scheduledAt)
-      } catch {
-        // ignore invalid date
+      const startDate = validateDate(scheduledAt);
+      if (startDate) {
+        meetingData.startTime = startDate;
       }
     }
 
-    // Store duration and muteOnEntry as JSON in a settings string
-    // (schema has limited fields, so we encode extras)
-    const settings: Record<string, unknown> = {}
-    if (duration) settings.duration = duration
-    if (muteOnEntry) settings.muteOnEntry = true
-    if (description) settings.description = description
-    if (participants.length > 0) settings.participants = participants
-    if (recurrence) settings.recurrence = recurrence
-    meetingData.password = JSON.stringify(settings)
+    // Store extras as JSON in a settings string
+    const settings: Record<string, unknown> = {};
+    const safeDuration = validateInt(duration, 5, 480, 0);
+    if (safeDuration > 0) settings.duration = safeDuration;
+    if (muteOnEntry) settings.muteOnEntry = true;
+    const safeDescription = inputSanitizeOptional(description, 2000);
+    if (safeDescription) settings.description = safeDescription;
+    if (Array.isArray(participants) && participants.length > 0) {
+      settings.participants = participants.slice(0, 50); // limit participants
+    }
+    if (recurrence) settings.recurrence = recurrence;
+    meetingData.password = JSON.stringify(settings);
 
     // Create meeting
     const meeting = await db.meeting.create({
       data: meetingData as Parameters<typeof db.meeting.create>[0]['data'],
-    })
+    });
+
+    // Create host participant record
+    await db.meetingParticipant.create({
+      data: {
+        meetingId: meeting.id,
+        userId: user.id,
+        role: 'host',
+      },
+    });
 
     // Audit log
     await db.auditLog.create({
@@ -117,6 +128,7 @@ export async function POST(request: NextRequest) {
         action: 'MEETING_SCHEDULED',
         resource: 'Meeting',
         resourceId: meeting.id,
+        userId: user.id,
         details: JSON.stringify({
           meetingId: meeting.meetingId,
           title: meeting.title,
@@ -125,25 +137,33 @@ export async function POST(request: NextRequest) {
           recurrence: recurrence || null,
         }),
       },
-    })
+    });
 
     return NextResponse.json({
       success: true,
-      meeting: {
-        id: meeting.id,
-        title: meeting.title,
-        meetingId: meeting.meetingId,
-        type: meeting.type,
-        status: meeting.status,
-        scheduledAt: meeting.startTime,
-        createdAt: meeting.createdAt,
+      data: {
+        meeting: {
+          id: meeting.id,
+          title: meeting.title,
+          meetingId: meeting.meetingId,
+          type: meeting.type,
+          status: meeting.status,
+          scheduledAt: meeting.startTime,
+          createdAt: meeting.createdAt,
+        },
       },
-    })
+    });
   } catch (error) {
-    console.error('Schedule meeting error:', error)
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    console.error('Schedule meeting error:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to schedule meeting' } },
       { status: 500 }
-    )
+    );
   }
 }

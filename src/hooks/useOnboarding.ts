@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useSyncExternalStore } from 'react'
+import { useSyncExternalStore, useCallback } from 'react'
 
-const ONBOARDING_KEY = 'alvision-onboarding-complete'
+const ONBOARDING_KEY = 'alvision-onboarding-seen'
 
-// Subscribe to localStorage changes
+// Subscribe to sessionStorage changes
 function subscribeToOnboarding(callback: () => void) {
   const handler = () => callback()
   window.addEventListener('storage', handler)
@@ -12,40 +12,39 @@ function subscribeToOnboarding(callback: () => void) {
 }
 
 function getOnboardingSnapshot(): string {
-  return localStorage.getItem(ONBOARDING_KEY) ?? 'false'
+  return sessionStorage.getItem(ONBOARDING_KEY) ?? ''
 }
 
 function getOnboardingServerSnapshot(): string {
-  return 'false'
+  return ''
 }
 
 export function useOnboarding() {
-  const localStorageValue = useSyncExternalStore(
+  const sessionStorageValue = useSyncExternalStore(
     subscribeToOnboarding,
     getOnboardingSnapshot,
     getOnboardingServerSnapshot
   )
 
-  const isCompleted = localStorageValue === 'true'
+  const isCompleted = sessionStorageValue !== ''
   const showOnboarding = !isCompleted
 
   const completeOnboarding = useCallback(() => {
-    localStorage.setItem(ONBOARDING_KEY, 'true')
-    window.dispatchEvent(new StorageEvent('storage', { key: ONBOARDING_KEY }))
-  }, [])
-
-  const resetOnboarding = useCallback(() => {
-    localStorage.removeItem(ONBOARDING_KEY)
+    sessionStorage.setItem(ONBOARDING_KEY, 'true')
+    // Trigger re-render by dispatching a storage event
     window.dispatchEvent(new StorageEvent('storage', { key: ONBOARDING_KEY }))
   }, [])
 
   const setShowOnboarding = useCallback((show: boolean) => {
     if (!show) {
       completeOnboarding()
-    } else {
-      resetOnboarding()
     }
-  }, [completeOnboarding, resetOnboarding])
+  }, [completeOnboarding])
+
+  const resetOnboarding = useCallback(() => {
+    sessionStorage.removeItem(ONBOARDING_KEY)
+    window.dispatchEvent(new StorageEvent('storage', { key: ONBOARDING_KEY }))
+  }, [])
 
   return {
     showOnboarding,

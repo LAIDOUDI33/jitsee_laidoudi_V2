@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'crypto';
 import { db } from '@/lib/db';
-
-function verifyPassword(password: string, storedHash: string): boolean {
-  const [salt, hash] = storedHash.split(':');
-  if (!salt || !hash) return false;
-  const computed = createHash('sha256').update(salt + password).digest('hex');
-  return computed === hash;
-}
+import { verifyPassword, createAccessToken, createRefreshToken, rateLimit, getClientIp } from '@/lib/server/auth';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password } = body;
 
-    // Validate inputs
+    // ─── Rate Limiting ───────────────────────────────────────────────
+    const clientIp = getClientIp(request);
+    const allowed = rateLimit(`login:${clientIp}`, 5, 300000); // 5 attempts per 5 min
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Please try again later.' } },
+        { status: 429 }
+      );
+    }
+
+    // ─── Input Validation ────────────────────────────────────────────
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } },
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Find user by email
+    // ─── Lookup User ─────────────────────────────────────────────────
     const user = await db.user.findUnique({
       where: { email: normalizedEmail },
       include: { organization: true },
@@ -44,7 +47,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
+    if (!user.isActive) {
+      return NextResponse.json(
+        { success: false, error: { code: 'ACCOUNT_DISABLED', message: 'Account is disabled. Contact your administrator.' } },
+        { status: 403 }
+      );
+    }
+
+    // ─── Verify Password (scrypt with timing-safe comparison) ────────
     const isValid = verifyPassword(password, user.passwordHash!);
     if (!isValid) {
       return NextResponse.json(
@@ -53,31 +63,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update lastLogin
+    // ─── Update lastLogin ────────────────────────────────────────────
     await db.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
 
-    // Create AuditLog entry
+    // ─── Create AuditLog ─────────────────────────────────────────────
     await db.auditLog.create({
       data: {
         action: 'USER_LOGIN',
         resource: 'User',
         resourceId: user.id,
+        userId: user.id,
         details: JSON.stringify({ email: user.email }),
+        ipAddress: clientIp,
+        userAgent: request.headers.get('user-agent') || undefined,
       },
     });
 
+    // ─── Generate JWT Tokens ─────────────────────────────────────────
+    const tokenPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      createAccessToken(tokenPayload),
+      createRefreshToken(tokenPayload),
+    ]);
+
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        organizationId: user.organizationId,
-        organizationName: user.organization?.name ?? null,
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          organizationId: user.organizationId,
+          organizationName: user.organization?.name ?? null,
+        },
+        accessToken,
+        refreshToken,
       },
     });
   } catch (error) {

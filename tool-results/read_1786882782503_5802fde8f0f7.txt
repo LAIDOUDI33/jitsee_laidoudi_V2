@@ -1,0 +1,558 @@
+    60→  const [loading, setLoading] = useState(false);
+    61→  const [step, setStep] = useState(1);
+    62→  const [orgMode, setOrgMode] = useState<'create' | 'join'>('create');
+    63→  const [termsAccepted, setTermsAccepted] = useState(false);
+    64→  const { setCurrentView, navigateBack } = useAppStore();
+    65→
+    66→  const {
+    67→    register,
+    68→    handleSubmit,
+    69→    watch,
+    70→    trigger,
+    71→    formState: { errors },
+    72→  } = useForm<RegisterForm>({
+    73→    resolver: zodResolver(registerSchema),
+    74→    defaultValues: { name: '', email: '', organization: '', password: '', confirmPassword: '' },
+    75→    mode: 'onChange',
+    76→  });
+    77→
+    78→  const passwordValue = watch('password');
+    79→  const nameValue = watch('name');
+    80→  const emailValue = watch('email');
+    81→  const confirmValue = watch('confirmPassword');
+    82→  const strength = useMemo(() => getPasswordStrength(passwordValue || ''), [passwordValue]);
+    83→
+    84→  const goToStep = async (s: number) => {
+    85→    if (s === 2 && step === 1) {
+    86→      const valid = await trigger(['name', 'email']);
+    87→      if (!valid) return;
+    88→    }
+    89→    if (s === 3 && step === 2) {
+    90→      const valid = await trigger(['password', 'confirmPassword']);
+    91→      if (!valid) return;
+    92→    }
+    93→    setStep(s);
+    94→  };
+    95→
+    96→  const onSubmit = async (data: RegisterForm) => {
+    97→    if (!termsAccepted) {
+    98→      toast.error('Please accept the Terms of Service and Privacy Policy');
+    99→      return;
+   100→    }
+   101→    setLoading(true);
+   102→    try {
+   103→      const res = await fetch('/api/v1/auth/register', {
+   104→        method: 'POST',
+   105→        headers: { 'Content-Type': 'application/json' },
+   106→        body: JSON.stringify({ name: data.name, email: data.email, organization: data.organization, password: data.password }),
+   107→      });
+   108→      const result = await res.json();
+   109→      if (res.ok && result.data) {
+   110→        // Store tokens from registration response
+   111→        if (result.data.accessToken) {
+   112→          localStorage.setItem('alvision_access_token', result.data.accessToken);
+   113→        }
+   114→        if (result.data.refreshToken) {
+   115→          localStorage.setItem('alvision_refresh_token', result.data.refreshToken);
+   116→        }
+   117→        // Auto-login after registration
+   118→        if (result.data.user) {
+   119→          setUser(result.data.user);
+   120→          setCurrentView('dashboard');
+   121→          toast.success('Account created successfully!');
+   122→        } else {
+   123→          toast.success('Account created successfully! Please sign in.');
+   124→          setCurrentView('login');
+   125→        }
+   126→      } else {
+   127→        toast.error(result.error?.message || result.error || 'Registration failed');
+   128→      }
+   129→    } catch {
+   130→      toast.error('Connection error. Please try again.');
+   131→    } finally {
+   132→      setLoading(false);
+   133→    }
+   134→  };
+   135→
+   136→  // Real-time validation helpers
+   137→  const nameValid = nameValue && nameValue.length > 0 && !errors.name;
+   138→  const nameInvalid = !!errors.name;
+   139→  const emailValid = emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
+   140→  const emailInvalid = emailValue && !emailValid;
+   141→  const confirmValid = confirmValue && confirmValue === passwordValue && confirmValue.length > 0;
+   142→  const confirmInvalid = confirmValue && confirmValue !== passwordValue;
+   143→
+   144→  return (
+   145→    <div className="min-h-screen flex">
+   146→      {/* Gradient panel */}
+   147→      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-fuchsia-600 via-violet-600 to-purple-700">
+   148→        {/* Animated floating gradient orbs */}
+   149→        <motion.div className="absolute top-20 right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" animate={{ y: [0, -25, 0], x: [0, 15, 0], scale: [1, 1.12, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const }} />
+   150→        <motion.div className="absolute bottom-24 left-20 w-56 h-56 rounded-full bg-purple-300/20 blur-3xl" animate={{ y: [0, 18, 0], x: [0, -12, 0], scale: [1, 0.9, 1] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' as const, delay: 1 }} />
+   151→        <motion.div className="absolute top-1/3 right-1/3 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-2xl" animate={{ y: [0, -15, 0], x: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' as const, delay: 2 }} />
+   152→        <motion.div className="absolute bottom-1/3 left-1/3 w-24 h-24 rounded-full bg-violet-200/15 blur-2xl" animate={{ y: [0, 20, 0], x: [0, -15, 0], scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const, delay: 3 }} />
+   153→        <motion.div className="absolute top-2/3 right-1/4 w-16 h-16 rounded-full bg-pink-300/10 blur-2xl" animate={{ y: [0, -12, 0], x: [0, 12, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' as const, delay: 4 }} />
+   154→
+   155→        {/* Geometric shapes */}
+   156→        <motion.div className="absolute top-40 left-16 w-14 h-14 rounded-xl border-2 border-white/15 rotate-45" animate={{ y: [0, -15, 0], rotate: [45, 60, 45] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const }} />
+   157→        <motion.div className="absolute bottom-36 right-24 w-10 h-10 rounded-full border-2 border-white/10" animate={{ y: [0, 20, 0] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.5 }} />
+   158→
+   159→        <div className="relative z-10 flex flex-col justify-center items-center p-12 w-full">
+   160→          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center">
+   161→            <svg width="80" height="80" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-8">
+   162→              <defs>
+   163→                <linearGradient id="register-logo-grad" x1="0" y1="0" x2="36" y2="36">
+   164→                  <stop offset="0%" stopColor="#93C5FD" />
+   165→                  <stop offset="100%" stopColor="#C4B5FD" />
+   166→                </linearGradient>
+   167→              </defs>
+   168→              <rect width="36" height="36" rx="8" fill="url(#register-logo-grad)" />
+   169→              <path d="M12 12.5C12 11.1193 13.1193 10 14.5 10H21.5C22.8807 10 24 11.1193 24 12.5V19.5C24 20.8807 22.8807 22 21.5 22H20L16 26V22H14.5C13.1193 22 12 20.8807 12 19.5V12.5Z" fill="white" fillOpacity="0.95" />
+   170→              <circle cx="17" cy="16" r="1.2" fill="#4F46E5" />
+   171→              <circle cx="20" cy="16" r="1.2" fill="#4F46E5" />
+   172→            </svg>
+   173→            <h1 className="text-4xl font-bold text-white mb-4">Get Started</h1>
+   174→            <p className="text-lg text-white/70 max-w-sm leading-relaxed">
+   175→              Create your account and start experiencing AI-powered video conferencing with ALVISION.
+   176→            </p>
+   177→
+   178→            {/* Feature list */}
+   179→            <div className="mt-10 space-y-3 text-left max-w-xs mx-auto">
+   180→              {['AI-powered meeting summaries', 'End-to-end encryption', 'Up to 100 participants per meeting'].map((feat, i) => (
+   181→                <motion.div key={feat} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.15 }} className="flex items-center gap-2.5">
+   182→                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0"><Check className="h-3 w-3 text-white" /></div>
+   183→                  <span className="text-sm text-white/70">{feat}</span>
+   184→                </motion.div>
+   185→              ))}
+   186→            </div>
+   187→          </motion.div>
+   188→        </div>
+   189→      </div>
+   190→
+   191→      {/* Form panel */}
+   192→      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12">
+   193→        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="w-full max-w-md">
+   194→          {/* Mobile logo */}
+   195→          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
+   196→            <Video className="h-6 w-6 text-primary" />
+   197→            <span className="font-bold text-xl bg-gradient-to-r from-fuchsia-500 to-violet-500 bg-clip-text text-transparent">ALVISION</span>
+   198→          </div>
+   199→
+   200→          {/* Back button */}
+   201→          <Button variant="ghost" size="sm" className="mb-6 -ml-2 hover:scale-[1.02] active:scale-[0.98] transition-transform" onClick={navigateBack}>
+   202→            <ArrowLeft className="mr-2 h-4 w-4" />Back
+   203→          </Button>
+   204→
+   205→          <Card className="border-0 shadow-none sm:border sm:shadow-sm">
+   206→            <CardContent className="p-0 sm:p-6">
+   207→              {/* Animated gradient accent line at top */}
+   208→              <motion.div
+   209→                className="h-1 rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 mb-6"
+   210→                initial={{ scaleX: 0, opacity: 0 }}
+   211→                animate={{ scaleX: 1, opacity: 1 }}
+   212→                transition={{ duration: 0.6, delay: 0.3 }}
+   213→              />
+   214→
+   215→              {/* Header */}
+   216→              <div className="mb-6">
+   217→                <h2 className="text-2xl font-bold tracking-tight">Create your account</h2>
+   218→                <p className="text-sm text-muted-foreground mt-1.5">Join ALVISION and transform your team collaboration</p>
+   219→              </div>
+   220→
+   221→              {/* Steps indicator */}
+   222→              <div className="flex items-center gap-0 mb-8">
+   223→                {steps.map((s, i) => (
+   224→                  <div key={s.id} className="flex items-center flex-1">
+   225→                    <button type="button" onClick={() => s.id < step && goToStep(s.id)} className="flex items-center gap-2 group">
+   226→                      <motion.div
+   227→                        className={`flex items-center justify-center w-8 h-8 rounded-full border-2 text-xs font-semibold transition-all duration-300 ${
+   228→                          s.id < step
+   229→                            ? 'bg-primary text-primary-foreground border-primary'
+   230→                            : s.id === step
+   231→                            ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25'
+   232→                            : 'bg-muted text-muted-foreground border-border'
+   233→                        }`}
+   234→                        whileHover={s.id < step ? { scale: 1.1 } : {}}
+   235→                      >
+   236→                        {s.id < step ? <Check className="h-3.5 w-3.5" /> : s.id}
+   237→                      </motion.div>
+   238→                      <span className={`text-xs font-medium hidden sm:inline transition-colors ${
+   239→                        s.id <= step ? 'text-foreground' : 'text-muted-foreground'
+   240→                      }`}>{s.label}</span>
+   241→                      {i < steps.length - 1 && (
+   242→                        <motion.div
+   243→                          className={`flex-1 h-0.5 mx-3 rounded-full ${s.id < step ? 'bg-primary' : 'bg-border'}`}
+   244→                          layoutId={`step-progress-${s.id}`}
+   245→                          transition={{ duration: 0.4, ease: 'easeInOut' as const }}
+   246→                        />
+   247→                      )}
+   248→                    </button>
+   249→                  </div>
+   250→                ))}
+   251→              </div>
+   252→
+   253→              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+   254→                <AnimatePresence mode="wait">
+   255→                  {/* Step 1: Account */}
+   256→                  {step === 1 && (
+   257→                    <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+   258→                      {/* Avatar upload placeholder */}
+   259→                      <div className="flex justify-center mb-2">
+   260→                        <div className="relative group cursor-pointer">
+   261→                          <motion.div
+   262→                            className="w-20 h-20 rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 flex items-center justify-center text-white text-2xl font-bold"
+   263→                            whileHover={{ scale: 1.05 }}
+   264→                            transition={{ duration: 0.2 }}
+   265→                          >
+   266→                            {nameValue ? nameValue.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : <User className="h-8 w-8 opacity-60" />}
+   267→                          </motion.div>
+   268→                          <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+   269→                            <Camera className="h-5 w-5 text-white" />
+   270→                          </div>
+   271→                        </div>
+   272→                      </div>
+   273→
+   274→                      {/* Full Name with validation indicator */}
+   275→                      <div className="space-y-2">
+   276→                        <Label htmlFor="name">Full Name</Label>
+   277→                        <div className="relative">
+   278→                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   279→                          <Input
+   280→                            id="name"
+   281→                            type="text"
+   282→                            placeholder="John Doe"
+   283→                            className={`pl-10 pr-9 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+   284→                              nameValid ? 'border-emerald-300 focus-visible:ring-emerald-500/20' : nameInvalid ? 'border-red-300 focus-visible:ring-red-500/20' : ''
+   285→                            }`}
+   286→                            {...register('name')}
+   287→                          />
+   288→                          <AnimatePresence>
+   289→                            {nameValid && (
+   290→                              <motion.div
+   291→                                initial={{ opacity: 0, scale: 0.5 }}
+   292→                                animate={{ opacity: 1, scale: 1 }}
+   293→                                exit={{ opacity: 0, scale: 0.5 }}
+   294→                                className="absolute right-3 top-1/2 -translate-y-1/2"
+   295→                              >
+   296→                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+   297→                              </motion.div>
+   298→                            )}
+   299→                            {nameInvalid && (
+   300→                              <motion.div
+   301→                                initial={{ opacity: 0, scale: 0.5 }}
+   302→                                animate={{ opacity: 1, scale: 1 }}
+   303→                                exit={{ opacity: 0, scale: 0.5 }}
+   304→                                className="absolute right-3 top-1/2 -translate-y-1/2"
+   305→                              >
+   306→                                <CircleX className="h-4 w-4 text-red-400" />
+   307→                              </motion.div>
+   308→                            )}
+   309→                          </AnimatePresence>
+   310→                        </div>
+   311→                        <AnimatePresence>
+   312→                          {errors.name && (
+   313→                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+   314→                              {errors.name.message}
+   315→                            </motion.p>
+   316→                          )}
+   317→                        </AnimatePresence>
+   318→                      </div>
+   319→
+   320→                      {/* Email with validation indicator */}
+   321→                      <div className="space-y-2">
+   322→                        <Label htmlFor="reg-email">Email</Label>
+   323→                        <div className="relative">
+   324→                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   325→                          <Input
+   326→                            id="reg-email"
+   327→                            type="email"
+   328→                            placeholder="you@company.com"
+   329→                            className={`pl-10 pr-9 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+   330→                              emailValid ? 'border-emerald-300' : emailInvalid ? 'border-red-300' : ''
+   331→                            }`}
+   332→                            {...register('email')}
+   333→                          />
+   334→                          <AnimatePresence>
+   335→                            {emailValid && (
+   336→                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+   337→                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+   338→                              </motion.div>
+   339→                            )}
+   340→                            {emailInvalid && (
+   341→                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+   342→                                <CircleX className="h-4 w-4 text-red-400" />
+   343→                              </motion.div>
+   344→                            )}
+   345→                          </AnimatePresence>
+   346→                        </div>
+   347→                        <AnimatePresence>
+   348→                          {errors.email && (
+   349→                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+   350→                              {errors.email.message}
+   351→                            </motion.p>
+   352→                          )}
+   353→                        </AnimatePresence>
+   354→                      </div>
+   355→
+   356→                      {/* Organization toggle */}
+   357→                      <div className="space-y-3 pt-2">
+   358→                        <Label>Organization</Label>
+   359→                        <div className="grid grid-cols-2 gap-2">
+   360→                          <motion.button
+   361→                            type="button"
+   362→                            onClick={() => setOrgMode('create')}
+   363→                            whileHover={{ scale: 1.02 }}
+   364→                            whileTap={{ scale: 0.98 }}
+   365→                            className={`p-3 rounded-lg border-2 text-left transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 ${
+   366→                              orgMode === 'create'
+   367→                                ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+   368→                                : 'border-border hover:border-primary/30'
+   369→                            }`}
+   370→                          >
+   371→                            <div className="flex items-center gap-2 mb-1"><Building2 className={`h-4 w-4 ${orgMode === 'create' ? 'text-primary' : ''}`} /><span className="text-sm font-medium">Create New</span></div>
+   372→                            <p className="text-[10px] text-muted-foreground">Start a new workspace</p>
+   373→                          </motion.button>
+   374→                          <motion.button
+   375→                            type="button"
+   376→                            onClick={() => setOrgMode('join')}
+   377→                            whileHover={{ scale: 1.02 }}
+   378→                            whileTap={{ scale: 0.98 }}
+   379→                            className={`p-3 rounded-lg border-2 text-left transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 ${
+   380→                              orgMode === 'join'
+   381→                                ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+   382→                                : 'border-border hover:border-primary/30'
+   383→                            }`}
+   384→                          >
+   385→                            <div className="flex items-center gap-2 mb-1"><User className={`h-4 w-4 ${orgMode === 'join' ? 'text-primary' : ''}`} /><span className="text-sm font-medium">Join Existing</span></div>
+   386→                            <p className="text-[10px] text-muted-foreground">Enter invite code</p>
+   387→                          </motion.button>
+   388→                        </div>
+   389→                        {orgMode === 'create' && (
+   390→                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+   391→                            <div className="relative">
+   392→                              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   393→                              <Input placeholder="Organization name" className="pl-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" {...register('organization')} />
+   394→                            </div>
+   395→                          </motion.div>
+   396→                        )}
+   397→                        {orgMode === 'join' && (
+   398→                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+   399→                            <Input placeholder="Enter invite code" className="focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" />
+   400→                          </motion.div>
+   401→                        )}
+   402→                      </div>
+   403→
+   404→                      <Button type="button" className="w-full hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => goToStep(2)}>
+   405→                        Continue <ArrowLeft className="h-4 w-4 rotate-180" />
+   406→                      </Button>
+   407→                    </motion.div>
+   408→                  )}
+   409→
+   410→                  {/* Step 2: Profile (Password) */}
+   411→                  {step === 2 && (
+   412→                    <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+   413→                      <div className="space-y-2">
+   414→                        <Label htmlFor="reg-password">Password</Label>
+   415→                        <div className="relative">
+   416→                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   417→                          <Input id="reg-password" type={showPassword ? 'text' : 'password'} placeholder="Create a strong password" className="pl-10 pr-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" {...register('password')} />
+   418→                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted" onClick={() => setShowPassword(!showPassword)}>
+   419→                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   420→                          </button>
+   421→                        </div>
+   422→                        <AnimatePresence>
+   423→                          {errors.password && (
+   424→                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+   425→                              {errors.password.message}
+   426→                            </motion.p>
+   427→                          )}
+   428→                        </AnimatePresence>
+   429→
+   430→                        {/* Enhanced password strength meter with animated glow */}
+   431→                        {passwordValue && passwordValue.length > 0 && (
+   432→                          <motion.div
+   433→                            initial={{ opacity: 0, height: 0 }}
+   434→                            animate={{ opacity: 1, height: 'auto' }}
+   435→                            exit={{ opacity: 0, height: 0 }}
+   436→                            className="space-y-2.5 overflow-hidden"
+   437→                          >
+   438→                            {/* Strength bar with glow effect */}
+   439→                            <div className="flex gap-1.5">
+   440→                              {[1, 2, 3, 4].map((level) => (
+   441→                                <motion.div
+   442→                                  key={level}
+   443→                                  className={`h-2 flex-1 rounded-full transition-colors duration-300 ${level <= strength.score ? strength.barColor : 'bg-muted'}`}
+   444→                                  initial={false}
+   445→                                  animate={level <= strength.score ? { boxShadow: `0 0 8px ${level <= 1 ? 'rgba(239,68,68,0.3)' : level <= 2 ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)'}` } : { boxShadow: 'none' }}
+   446→                                  transition={{ duration: 0.3 }}
+   447→                                />
+   448→                              ))}
+   449→                            </div>
+   450→                            <div className="flex items-center justify-between">
+   451→                              <p className={`text-xs font-semibold ${strength.textColor}`}>{strength.label}</p>
+   452→                              <span className="text-[10px] text-muted-foreground">{strength.score}/4</span>
+   453→                            </div>
+   454→                            {/* Check items with icons */}
+   455→                            <div className="grid grid-cols-2 gap-1.5">
+   456→                              {strength.checks.map((check) => (
+   457→                                <motion.div
+   458→                                  key={check.label}
+   459→                                  initial={false}
+   460→                                  animate={{ opacity: check.met ? 1 : 0.5 }}
+   461→                                  className="flex items-center gap-1.5"
+   462→                                >
+   463→                                  <motion.div
+   464→                                    className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-300 ${check.met ? 'bg-emerald-500' : 'bg-muted'}`}
+   465→                                    whileTap={check.met ? { scale: 1.2 } : {}}
+   466→                                  >
+   467→                                    {check.met && <Check className="h-2.5 w-2.5 text-white" />}
+   468→                                  </motion.div>
+   469→                                  <span className={`text-[11px] transition-colors duration-200 ${check.met ? 'text-foreground' : 'text-muted-foreground/60'}`}>{check.label}</span>
+   470→                                </motion.div>
+   471→                              ))}
+   472→                            </div>
+   473→                          </motion.div>
+   474→                        )}
+   475→                      </div>
+   476→
+   477→                      {/* Confirm Password with match indicator */}
+   478→                      <div className="space-y-2">
+   479→                        <Label htmlFor="confirm-password">Confirm Password</Label>
+   480→                        <div className="relative">
+   481→                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   482→                          <Input
+   483→                            id="confirm-password"
+   484→                            type={showConfirm ? 'text' : 'password'}
+   485→                            placeholder="Confirm your password"
+   486→                            className={`pl-10 pr-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+   487→                              confirmValid ? 'border-emerald-300' : confirmInvalid ? 'border-red-300' : ''
+   488→                            }`}
+   489→                            {...register('confirmPassword')}
+   490→                          />
+   491→                          <button type="button" className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted" onClick={() => setShowConfirm(!showConfirm)}>
+   492→                            {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   493→                          </button>
+   494→                          <AnimatePresence>
+   495→                            {confirmValid && (
+   496→                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+   497→                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+   498→                              </motion.div>
+   499→                            )}
+   500→                            {confirmInvalid && (
+   501→                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+   502→                                <CircleX className="h-4 w-4 text-red-400" />
+   503→                              </motion.div>
+   504→                            )}
+   505→                          </AnimatePresence>
+   506→                        </div>
+   507→                        <AnimatePresence>
+   508→                          {errors.confirmPassword && (
+   509→                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+   510→                              {errors.confirmPassword.message}
+   511→                            </motion.p>
+   512→                          )}
+   513→                        </AnimatePresence>
+   514→                      </div>
+   515→
+   516→                      <div className="flex gap-3">
+   517→                        <Button type="button" variant="outline" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => setStep(1)}>
+   518→                          <ArrowLeft className="h-4 w-4" /> Back
+   519→                        </Button>
+   520→                        <Button type="button" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => goToStep(3)}>
+   521→                          Continue <ArrowLeft className="h-4 w-4 rotate-180" />
+   522→                        </Button>
+   523→                      </div>
+   524→                    </motion.div>
+   525→                  )}
+   526→
+   527→                  {/* Step 3: Confirm */}
+   528→                  {step === 3 && (
+   529→                    <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+   530→                      <div className="p-4 rounded-lg bg-muted/50 border border-border/50 space-y-3">
+   531→                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Review your information</p>
+   532→                        <div className="space-y-2 text-sm">
+   533→                          <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span className="font-medium">{nameValue || '—'}</span></div>
+   534→                          <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium">{emailValue || '—'}</span></div>
+   535→                          <div className="flex justify-between"><span className="text-muted-foreground">Organization</span><span className="font-medium">{watch('organization') || 'Personal'}</span></div>
+   536→                          <div className="flex justify-between items-center">
+   537→                            <span className="text-muted-foreground">Password</span>
+   538→                            <motion.span
+   539→                              initial={false}
+   540→                              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
+   541→                                strength.score >= 3 ? 'bg-emerald-500/10 text-emerald-600' :
+   542→                                strength.score >= 2 ? 'bg-yellow-500/10 text-yellow-600' :
+   543→                                'bg-red-500/10 text-red-500'
+   544→                              }`}
+   545→                            >{strength.label.split(' —')[0]}</motion.span>
+   546→                          </div>
+   547→                        </div>
+   548→                      </div>
+   549→
+   550→                      {/* Terms of service */}
+   551→                      <div className="flex items-start gap-2.5 p-3 rounded-lg border border-border/50 bg-muted/30">
+   552→                        <Checkbox
+   553→                          id="terms"
+   554→                          checked={termsAccepted}
+   555→                          onCheckedChange={(v) => setTermsAccepted(v === true)}
+   556→                          className="mt-0.5 accent-primary"
+   557→                        />
+   558→                        <Label htmlFor="terms" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+   559→                          I agree to the{' '}
+   560→                          <button type="button" className="text-primary hover:underline font-medium">Terms of Service</button>
+   561→                          {' '}and{' '}
+   562→                          <button type="button" className="text-primary hover:underline font-medium">Privacy Policy</button>
+   563→                        </Label>
+   564→                      </div>
+   565→
+   566→                      <div className="flex gap-3">
+   567→                        <Button type="button" variant="outline" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => setStep(2)}>
+   568→                          <ArrowLeft className="h-4 w-4" /> Back
+   569→                        </Button>
+   570→                        <Button type="submit" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/15" disabled={loading}>
+   571→                          {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</> : <><Shield className="h-4 w-4" /> Create Account</>}
+   572→                        </Button>
+   573→                      </div>
+   574→                    </motion.div>
+   575→                  )}
+   576→                </AnimatePresence>
+   577→              </form>
+   578→
+   579→              {/* Separator */}
+   580→              <div className="relative my-6">
+   581→                <Separator />
+   582→                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">or continue with</span>
+   583→              </div>
+   584→
+   585→              {/* SSO buttons */}
+   586→              <div className="grid grid-cols-2 gap-3">
+   587→                <Button variant="outline" type="button" className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-red-500/5 hover:border-red-300/80 hover:-translate-y-0.5 group relative overflow-hidden" onClick={() => toast.info('SSO integration requires enterprise configuration')}>
+   588→                  <span className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+   589→                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
+   590→                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+   591→                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+   592→                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+   593→                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+   594→                  </svg>
+   595→                  <span className="relative z-10">Google</span>
+   596→                </Button>
+   597→                <Button variant="outline" type="button" className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-cyan-500/5 hover:border-cyan-300/80 hover:-translate-y-0.5 group relative overflow-hidden" onClick={() => toast.info('SSO integration requires enterprise configuration')}>
+   598→                  <span className="absolute inset-0 bg-cyan-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+   599→                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
+   600→                    <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z" fill="#00A4EF"/>
+   601→                  </svg>
+   602→                  <span className="relative z-10">Microsoft</span>
+   603→                </Button>
+   604→              </div>
+   605→
+   606→              <p className="mt-6 text-center text-sm text-muted-foreground">
+   607→                Already have an account?{' '}
+   608→                <button type="button" className="text-primary font-medium hover:underline" onClick={() => setCurrentView('login')}>Sign in</button>
+   609→              </p>
+   610→            </CardContent>
+   611→          </Card>
+   612→        </motion.div>
+   613→      </div>
+   614→    </div>
+   615→  );
+   616→}
+   617→

@@ -118,12 +118,11 @@ function isAdmin(role: string) {
 }
 
 function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClick?: () => void }) {
-  const { currentView, setCurrentView, user, setNotificationCount, notificationCount } = useAppStore()
+  const { currentView, setCurrentView, user } = useAppStore()
   const admin = user ? isAdmin(user.role) : false
 
   const handleNav = (view: AppView) => {
     setCurrentView(view)
-    if (notificationCount > 0) setNotificationCount(0)
     onItemClick?.()
   }
 
@@ -138,6 +137,7 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
           <TooltipTrigger asChild>
             <button
               onClick={() => handleNav(item.view)}
+              aria-label={item.label}
               className={cn(
                 'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 relative group',
                 active
@@ -305,7 +305,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showSoundWave, setShowSoundWave] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
-  const { currentView, setCurrentView, user, setUser, setSearchOpen } = useAppStore()
+  const { currentView, setCurrentView, user, clearAuth, setSearchOpen } = useAppStore()
 
   // Keyboard shortcuts
   useKeyboardShortcuts()
@@ -385,7 +385,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const handleSignOut = () => {
-    setUser(null)
+    clearAuth()
     setCurrentView('landing')
   }
 
@@ -413,6 +413,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <NavContent collapsed={collapsed} />
           <button
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className='absolute top-20 -right-3 z-10 w-6 h-6 rounded-full border bg-card flex items-center justify-center shadow-sm hover:bg-muted hover:shadow-md transition-all duration-200'
             style={{ left: collapsed ? '52px' : '244px' }}
           >
@@ -426,6 +427,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => setMobileOpen(false)}
               className='absolute top-4 right-4 z-10 rounded-sm opacity-70 hover:opacity-100 transition-opacity'
+              aria-label='Close sidebar menu'
             >
               <X className='h-4 w-4' />
             </button>
@@ -444,6 +446,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 size='icon'
                 className='lg:hidden shrink-0 h-9 w-9 rounded-lg'
                 onClick={() => setMobileOpen(true)}
+                aria-label='Open menu'
               >
                 <Menu className='h-5 w-5' />
               </Button>
@@ -494,7 +497,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {user && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant='ghost' size='icon' className='h-9 w-9 rounded-lg relative transition-all duration-200 hover:bg-muted'>
+                    <Button variant='ghost' size='icon' className='h-9 w-9 rounded-lg relative transition-all duration-200 hover:bg-muted'
+                      aria-label='User menu'>
                       <div className='relative'>
                         <Avatar className='h-7 w-7'>
                           <AvatarFallback className='bg-primary/10 text-primary text-[11px] font-semibold'>
