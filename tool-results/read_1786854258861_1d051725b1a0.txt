@@ -1,0 +1,699 @@
+     1→'use client';
+     2→
+     3→import { useAppStore } from '@/store/app-store';
+     4→import {
+     5→  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
+     6→  Hand, MoreHorizontal, Phone, Settings, Shield, CircleDot, Sparkles, Send, X,
+     7→  ChevronLeft, ArrowLeft, Maximize2, Minimize2, Copy, Check, Plus
+     8→} from 'lucide-react';
+     9→import { motion, AnimatePresence } from 'framer-motion';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Input } from '@/components/ui/input';
+    12→import { ScrollArea } from '@/components/ui/scroll-area';
+    13→import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+    14→import { Badge } from '@/components/ui/badge';
+    15→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    16→import { Separator } from '@/components/ui/separator';
+    17→import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+    18→import { toast } from 'sonner';
+    19→import { useState, useEffect, useRef, useCallback } from 'react';
+    20→
+    21→interface ChatMessage {
+    22→  id: string;
+    23→  sender: string;
+    24→  initials: string;
+    25→  color: string;
+    26→  text: string;
+    27→  time: string;
+    28→  isSystem?: boolean;
+    29→  isAI?: boolean;
+    30→}
+    31→
+    32→interface Participant {
+    33→  id: string;
+    34→  name: string;
+    35→  initials: string;
+    36→  color: string;
+    37→  role: 'Host' | 'Co-host' | 'Participant';
+    38→  micOn: boolean;
+    39→  videoOn: boolean;
+    40→}
+    41→
+    42→interface PollData {
+    43→  id: string;
+    44→  question: string;
+    45→  options: { label: string; votes: number; percentage: number }[];
+    46→  totalVotes: number;
+    47→}
+    48→
+    49→const mockParticipants: Participant[] = [
+    50→  { id: '1', name: 'Alex Johnson', initials: 'AJ', color: 'bg-blue-500', role: 'Host', micOn: true, videoOn: true },
+    51→  { id: '2', name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', role: 'Co-host', micOn: true, videoOn: true },
+    52→  { id: '3', name: 'Maya Patel', initials: 'MP', color: 'bg-green-500', role: 'Participant', micOn: false, videoOn: true },
+    53→  { id: '4', name: 'James Wilson', initials: 'JW', color: 'bg-orange-500', role: 'Participant', micOn: true, videoOn: false },
+    54→  { id: '5', name: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', role: 'Participant', micOn: true, videoOn: true },
+    55→  { id: '6', name: 'David Kim', initials: 'DK', color: 'bg-cyan-500', role: 'Participant', micOn: false, videoOn: false },
+    56→  { id: '7', name: 'Lisa Brown', initials: 'LB', color: 'bg-rose-500', role: 'Participant', micOn: true, videoOn: true },
+    57→  { id: '8', name: 'Tom Garcia', initials: 'TG', color: 'bg-amber-500', role: 'Participant', micOn: false, videoOn: true },
+    58→];
+    59→
+    60→const gridParticipants = mockParticipants.slice(0, 4);
+    61→
+    62→const initialChatMessages: ChatMessage[] = [
+    63→  { id: 'sys-1', sender: 'System', initials: '', color: '', text: 'Meeting started by Alex Johnson', time: '10:00 AM', isSystem: true },
+    64→  { id: 'msg-1', sender: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', text: 'Hi everyone! Ready to start the sprint planning?', time: '10:01 AM' },
+    65→  { id: 'msg-2', sender: 'Maya Patel', initials: 'MP', color: 'bg-green-500', text: 'Yes, I have the updated backlog items ready.', time: '10:02 AM' },
+    66→  { id: 'msg-3', sender: 'James Wilson', initials: 'JW', color: 'bg-orange-500', text: 'Great. Let me share the velocity report from last sprint.', time: '10:03 AM' },
+    67→  { id: 'msg-4', sender: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', text: 'Should we also discuss the tech debt items?', time: '10:04 AM' },
+    68→];
+    69→
+    70→const aiSuggestions = [
+    71→  'Summarize this meeting',
+    72→  'List action items',
+    73→  'Key decisions made',
+    74→  'Translate to French',
+    75→  'Identify risks',
+    76→];
+    77→
+    78→const mockPolls: PollData[] = [
+    79→  {
+    80→    id: 'poll-1',
+    81→    question: 'What should be the priority for this sprint?',
+    82→    options: [
+    83→      { label: 'New features', votes: 5, percentage: 45 },
+    84→      { label: 'Bug fixes', votes: 3, percentage: 27 },
+    85→      { label: 'Tech debt', votes: 2, percentage: 18 },
+    86→      { label: 'Documentation', votes: 1, percentage: 10 },
+    87→    ],
+    88→    totalVotes: 11,
+    89→  },
+    90→  {
+    91→    id: 'poll-2',
+    92→    question: 'Preferred meeting time for daily standups?',
+    93→    options: [
+    94→      { label: '9:00 AM', votes: 6, percentage: 55 },
+    95→      { label: '9:30 AM', votes: 3, percentage: 27 },
+    96→      { label: '10:00 AM', votes: 2, percentage: 18 },
+    97→    ],
+    98→    totalVotes: 11,
+    99→  },
+   100→];
+   101→
+   102→const aiResponses: { [key: string]: string } = {
+   103→  'Summarize this meeting': '## Meeting Summary\n\nThe team discussed sprint planning for Q4. Key topics included backlog prioritization, velocity improvements from last sprint (15% increase), and tech debt allocation. The team agreed to allocate 20% of capacity to tech debt. Action items were assigned to Sarah (backlog grooming), James (velocity report), and Maya (capacity planning).',
+   104→  'List action items': '**Action Items:**\n\n1. **Sarah Chen** - Groom and prioritize backlog items by EOD Tuesday\n2. **James Wilson** - Share velocity report with stakeholders\n3. **Maya Patel** - Update capacity planning spreadsheet\n4. **Alex Johnson** - Schedule follow-up with product team\n5. **Emily Zhang** - Create tech debt JIRA epic',
+   105→  'Key decisions made': '**Key Decisions:**\n\n1. Sprint velocity target set to 42 story points\n2. 20% capacity allocated to tech debt reduction\n3. Daily standups moved to 9:30 AM\n4. New feature: Real-time collaboration will be prioritized\n5. Code review SLA reduced from 24h to 12h',
+   106→  'Translate to French': '## Résumé de la réunion\n\nL\'\u00e9quipe a discuté de la planification du sprint pour le T4. Les sujets principaux incluaient la prioritisation du backlog, les améliorations de vélocité du dernier sprint (augmentation de 15%), et l\'allocation de la dette technique. L\'\u00e9quipe a convenu d\'allouer 20% de la capacité à la dette technique.',
+   107→  'Identify risks': '**Identified Risks:**\n\n1. **High** - Key engineer (David) on PTO next week during critical feature development\n2. **Medium** - Third-party API dependency may cause delays for authentication module\n3. **Medium** - Scope creep risk with 3 new feature requests from stakeholders\n4. **Low** - Testing environment capacity may need scaling for E2E tests',
+   108→};
+   109→
+   110→export default function MeetingRoomPage() {
+   111→  const {
+   112→    meetingTitle, meetingSidebarTab, setMeetingSidebarTab,
+   113→    setCurrentView, currentMeetingId, user
+   114→  } = useAppStore();
+   115→
+   116→  // Local state
+   117→  const [micOn, setMicOn] = useState(true);
+   118→  const [cameraOn, setCameraOn] = useState(true);
+   119→  const [screenSharing, setScreenSharing] = useState(false);
+   120→  const [handRaised, setHandRaised] = useState(false);
+   121→  const [recording, setRecording] = useState(false);
+   122→  const [elapsed, setElapsed] = useState(0);
+   123→  const [copied, setCopied] = useState(false);
+   124→  const [sidebarOpen, setSidebarOpen] = useState(false);
+   125→  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+   126→  const [chatInput, setChatInput] = useState('');
+   127→  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+   128→  const [aiInput, setAiInput] = useState('');
+   129→  const [aiTyping, setAiTyping] = useState(false);
+   130→  const [showMoreMenu, setShowMoreMenu] = useState(false);
+   131→  const [isFullscreen, setIsFullscreen] = useState(false);
+   132→
+   133→  const chatEndRef = useRef<HTMLDivElement>(null);
+   134→  const aiEndRef = useRef<HTMLDivElement>(null);
+   135→  const moreMenuRef = useRef<HTMLDivElement>(null);
+   136→
+   137→  // Timer
+   138→  useEffect(() => {
+   139→    const interval = setInterval(() => {
+   140→      setElapsed(prev => prev + 1);
+   141→    }, 1000);
+   142→    return () => clearInterval(interval);
+   143→  }, []);
+   144→
+   145→  // Auto-scroll chat
+   146→  useEffect(() => {
+   147→    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+   148→  }, [chatMessages]);
+   149→
+   150→  useEffect(() => {
+   151→    aiEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+   152→  }, [aiMessages, aiTyping]);
+   153→
+   154→  // Close more menu on outside click
+   155→  useEffect(() => {
+   156→    const handleClick = (e: MouseEvent) => {
+   157→      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+   158→        setShowMoreMenu(false);
+   159→      }
+   160→    };
+   161→    document.addEventListener('mousedown', handleClick);
+   162→    return () => document.removeEventListener('mousedown', handleClick);
+   163→  }, []);
+   164→
+   165→  const formatTime = (seconds: number) => {
+   166→    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+   167→    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+   168→    const s = (seconds % 60).toString().padStart(2, '0');
+   169→    return `${h}:${m}:${s}`;
+   170→  };
+   171→
+   172→  const handleCopyMeetingId = () => {
+   173→    navigator.clipboard?.writeText(currentMeetingId || 'alv-mtg-2024-001');
+   174→    setCopied(true);
+   175→    toast.success('Meeting ID copied!');
+   176→    setTimeout(() => setCopied(false), 2000);
+   177→  };
+   178→
+   179→  const handleSendChat = () => {
+   180→    if (!chatInput.trim()) return;
+   181→    const msg: ChatMessage = {
+   182→      id: `msg-${Date.now()}`,
+   183→      sender: user?.name || 'You',
+   184→      initials: (user?.name || 'Y').split(' ').map(n => n[0]).join(''),
+   185→      color: 'bg-blue-500',
+   186→      text: chatInput.trim(),
+   187→      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+   188→    };
+   189→    setChatMessages(prev => [...prev, msg]);
+   190→    setChatInput('');
+   191→  };
+   192→
+   193→  const handleAISuggestion = (suggestion: string) => {
+   194→    const userMsg: ChatMessage = {
+   195→      id: `ai-user-${Date.now()}`,
+   196→      sender: user?.name || 'You',
+   197→      initials: (user?.name || 'Y').split(' ').map(n => n[0]).join(''),
+   198→      color: 'bg-blue-500',
+   199→      text: suggestion,
+   200→      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+   201→    };
+   202→    setAiMessages(prev => [...prev, userMsg]);
+   203→    setAiTyping(true);
+   204→
+   205→    setTimeout(() => {
+   206→      setAiTyping(false);
+   207→      const aiMsg: ChatMessage = {
+   208→        id: `ai-${Date.now()}`,
+   209→        sender: 'ALVISION AI',
+   210→        initials: 'AI',
+   211→        color: 'bg-violet-500',
+   212→        text: aiResponses[suggestion] || 'I\'m analyzing the meeting content. Based on the discussion so far, here are my insights...',
+   213→        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+   214→        isAI: true,
+   215→      };
+   216→      setAiMessages(prev => [...prev, aiMsg]);
+   217→    }, 2000);
+   218→  };
+   219→
+   220→  const handleSendAI = () => {
+   221→    if (!aiInput.trim()) return;
+   222→    handleAISuggestion(aiInput.trim());
+   223→    setAiInput('');
+   224→  };
+   225→
+   226→  const handleLeaveMeeting = () => {
+   227→    toast.success('You left the meeting');
+   228→    setCurrentView('dashboard');
+   229→  };
+   230→
+   231→  const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls') => {
+   232→    if (tab && sidebarOpen && meetingSidebarTab === tab) {
+   233→      setSidebarOpen(false);
+   234→    } else if (tab) {
+   235→      setMeetingSidebarTab(tab);
+   236→      setSidebarOpen(true);
+   237→    } else {
+   238→      setSidebarOpen(prev => !prev);
+   239→    }
+   240→  };
+   241→
+   242→  const toolbarButtons = [
+   243→    { icon: micOn ? <Mic size={20} /> : <MicOff size={20} />, active: micOn, activeColor: '', inactiveColor: 'text-red-400', label: micOn ? 'Mute' : 'Unmute', onClick: () => setMicOn(!micOn) },
+   244→    { icon: cameraOn ? <Video size={20} /> : <VideoOff size={20} />, active: cameraOn, activeColor: '', inactiveColor: 'text-red-400', label: cameraOn ? 'Stop Camera' : 'Start Camera', onClick: () => setCameraOn(!cameraOn) },
+   245→    { icon: screenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />, active: !screenSharing, activeColor: '', inactiveColor: 'text-green-400', label: screenSharing ? 'Stop Sharing' : 'Share Screen', onClick: () => { setScreenSharing(!screenSharing); toast(screenSharing ? 'Screen sharing stopped' : 'Screen sharing started'); } },
+   246→    { icon: <Hand size={20} />, active: handRaised, activeColor: '', inactiveColor: 'text-yellow-400', label: handRaised ? 'Lower Hand' : 'Raise Hand', onClick: () => setHandRaised(!handRaised) },
+   247→    { icon: <CircleDot size={20} />, active: !recording, activeColor: '', inactiveColor: 'text-red-500', label: recording ? 'Stop Recording' : 'Start Recording', onClick: () => { setRecording(!recording); toast(recording ? 'Recording stopped' : 'Recording started'); } },
+   248→    { icon: <MessageSquare size={20} />, active: meetingSidebarTab === 'chat' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'Chat', onClick: () => toggleSidebar('chat') },
+   249→    { icon: <Users size={20} />, active: meetingSidebarTab === 'participants' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'Participants', onClick: () => toggleSidebar('participants') },
+   250→    { icon: <Sparkles size={20} />, active: meetingSidebarTab === 'ai' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'AI Assistant', onClick: () => toggleSidebar('ai') },
+   251→  ];
+   252→
+   253→  const getRoleBadge = (role: string) => {
+   254→    switch (role) {
+   255→      case 'Host': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+   256→      case 'Co-host': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400';
+   257→      default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+   258→    }
+   259→  };
+   260→
+   261→  return (
+   262→    <TooltipProvider delayDuration={200}>
+   263→    <div className="h-screen w-screen flex bg-slate-950 text-white overflow-hidden">
+   264→      {/* Main Meeting Area */}
+   265→      <div className="flex-1 relative flex flex-col">
+   266→        {/* Meeting Grid */}
+   267→        <div className="flex-1 relative">
+   268→          {/* ALVISION Watermark */}
+   269→          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+   270→            <span className="text-[12rem] font-black text-white/[0.03] tracking-widest select-none">ALVISION</span>
+   271→          </div>
+   272→
+   273→          {/* Meeting Title Overlay - Top */}
+   274→          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
+   275→            <div className="flex items-center gap-3">
+   276→              <button
+   277→                onClick={() => setCurrentView('dashboard')}
+   278→                className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+   279→              >
+   280→                <ArrowLeft size={16} />
+   281→              </button>
+   282→              <div>
+   283→                <h2 className="text-sm font-semibold">{meetingTitle || 'Sprint Planning - Q4'}</h2>
+   284→                {recording && (
+   285→                  <div className="flex items-center gap-1.5 mt-0.5">
+   286→                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+   287→                    <span className="text-[10px] font-medium text-red-400">REC</span>
+   288→                  </div>
+   289→                )}
+   290→              </div>
+   291→            </div>
+   292→
+   293→            <div className="flex items-center gap-3">
+   294→              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs">
+   295→                <span className="text-white/60">ID:</span>
+   296→                <span className="font-mono">{currentMeetingId || 'alv-mtg-2024-001'}</span>
+   297→                <button onClick={handleCopyMeetingId} className="text-white/60 hover:text-white transition-colors">
+   298→                  {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+   299→                </button>
+   300→              </div>
+   301→              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono">
+   302→                {formatTime(elapsed)}
+   303→              </div>
+   304→              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs">
+   305→                <Users size={12} /> 8
+   306→              </div>
+   307→              <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 text-xs text-green-400">
+   308→                <Shield size={12} /> E2E
+   309→              </div>
+   310→            </div>
+   311→          </div>
+   312→
+   313→          {/* Participant Grid */}
+   314→          <div className="relative z-10 h-full flex items-center justify-center p-4 pt-16 pb-24">
+   315→            <div className={`grid gap-3 w-full max-w-5xl h-full ${
+   316→              gridParticipants.length === 1 ? 'grid-cols-1' :
+   317→              gridParticipants.length === 2 ? 'grid-cols-2' :
+   318→              'grid-cols-1 sm:grid-cols-2'
+   319→            }`}>
+   320→              {gridParticipants.map((p, i) => (
+   321→                <motion.div
+   322→                  key={p.id}
+   323→                  initial={{ opacity: 0, scale: 0.95 }}
+   324→                  animate={{ opacity: 1, scale: 1 }}
+   325→                  transition={{ delay: i * 0.1 }}
+   326→                  className={`relative rounded-2xl bg-slate-900 overflow-hidden flex items-center justify-center min-h-[200px] sm:min-h-[250px] ${
+   327→                    i === 0 ? 'ring-2 ring-blue-500/50' : 'ring-1 ring-white/10'
+   328→                  }`}
+   329→                >
+   330→                  {/* Avatar Placeholder */}
+   331→                  <div className="flex flex-col items-center gap-3">
+   332→                    <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full ${p.color} flex items-center justify-center text-xl sm:text-2xl font-bold text-white`}>
+   333→                      {p.initials}
+   334→                    </div>
+   335→                  </div>
+   336→
+   337→                  {/* Name Overlay - Bottom */}
+   338→                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-center justify-between">
+   339→                    <div className="flex items-center gap-2">
+   340→                      <span className="text-sm font-medium">{p.name}</span>
+   341→                      {p.role === 'Host' && (
+   342→                        <Badge variant="secondary" className="text-[10px] h-4 bg-blue-500/20 text-blue-300 border-0">Host</Badge>
+   343→                      )}
+   344→                    </div>
+   345→                    <div className="flex items-center gap-1.5">
+   346→                      {p.micOn ? (
+   347→                        <Mic size={14} className="text-green-400" />
+   348→                      ) : (
+   349→                        <MicOff size={14} className="text-red-400" />
+   350→                      )}
+   351→                      {!p.videoOn && (
+   352→                        <VideoOff size={14} className="text-white/50" />
+   353→                      )}
+   354→                    </div>
+   355→                  </div>
+   356→                </motion.div>
+   357→              ))}
+   358→            </div>
+   359→          </div>
+   360→        </div>
+   361→
+   362→        {/* Bottom Toolbar */}
+   363→        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center pb-4 px-4">
+   364→          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-lg rounded-2xl p-2">
+   365→            {toolbarButtons.map((btn, i) => (
+   366→              <Tooltip key={i}>
+   367→                <TooltipTrigger asChild>
+   368→                  <button
+   369→                    onClick={btn.onClick}
+   370→                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
+   371→                      btn.inactiveColor && !btn.active
+   372→                        ? btn.inactiveColor + ' bg-white/5'
+   373→                        : btn.activeColor || 'hover:bg-white/20'
+   374→                    } ${btn.active ? '' : 'bg-white/5'}`}
+   375→                  >
+   376→                    {btn.icon}
+   377→                  </button>
+   378→                </TooltipTrigger>
+   379→                <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
+   380→                  {btn.label}
+   381→                </TooltipContent>
+   382→              </Tooltip>
+   383→            ))}
+   384→
+   385→            {/* More Button */}
+   386→            <div className="relative" ref={moreMenuRef}>
+   387→              <Tooltip>
+   388→                <TooltipTrigger asChild>
+   389→                  <button
+   390→                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+   391→                    className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/20 transition-all"
+   392→                  >
+   393→                    <MoreHorizontal size={20} />
+   394→                  </button>
+   395→                </TooltipTrigger>
+   396→                <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
+   397→                  More options
+   398→                </TooltipContent>
+   399→              </Tooltip>
+   400→
+   401→              <AnimatePresence>
+   402→                {showMoreMenu && (
+   403→                  <motion.div
+   404→                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+   405→                    animate={{ opacity: 1, y: 0, scale: 1 }}
+   406→                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+   407→                    className="absolute bottom-full right-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl z-50"
+   408→                  >
+   409→                    {['Settings', 'Reactions', 'Whiteboard', 'Breakout Rooms', 'Polls'].map(item => (
+   410→                      <button
+   411→                        key={item}
+   412→                        onClick={() => {
+   413→                          if (item === 'Polls') toggleSidebar('polls');
+   414→                          setShowMoreMenu(false);
+   415→                        }}
+   416→                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+   417→                      >
+   418→                        {item}
+   419→                      </button>
+   420→                    ))}
+   421→                  </motion.div>
+   422→                )}
+   423→              </AnimatePresence>
+   424→            </div>
+   425→
+   426→            <Separator orientation="vertical" className="h-8 bg-white/10 mx-1" />
+   427→
+   428→            {/* Leave Button */}
+   429→            <Tooltip>
+   430→              <TooltipTrigger asChild>
+   431→                <button
+   432→                  onClick={handleLeaveMeeting}
+   433→                  className="h-11 px-5 rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center gap-2 text-sm font-medium transition-colors"
+   434→                >
+   435→                  <Phone size={18} className="rotate-[135deg]" />
+   436→                  <span className="hidden sm:inline">Leave</span>
+   437→                </button>
+   438→              </TooltipTrigger>
+   439→              <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
+   440→                Leave meeting
+   441→              </TooltipContent>
+   442→            </Tooltip>
+   443→          </div>
+   444→        </div>
+   445→      </div>
+   446→
+   447→      {/* Right Sidebar */}
+   448→      <AnimatePresence>
+   449→        {sidebarOpen && (
+   450→          <motion.div
+   451→            initial={{ width: 0, opacity: 0 }}
+   452→            animate={{ width: 384, opacity: 1 }}
+   453→            exit={{ width: 0, opacity: 0 }}
+   454→            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+   455→            className="h-full bg-slate-900 border-l border-white/10 flex flex-col overflow-hidden shrink-0 max-sm:w-full"
+   456→          >
+   457→            {/* Sidebar Tabs */}
+   458→            <div className="border-b border-white/10 px-2 pt-2">
+   459→              <div className="flex items-center justify-between mb-2">
+   460→                <Tabs value={meetingSidebarTab} onValueChange={(v) => setMeetingSidebarTab(v as 'chat' | 'participants' | 'ai' | 'polls')} className="w-full">
+   461→                  <TabsList className="bg-slate-800 w-full h-9">
+   462→                    <TabsTrigger value="chat" className="flex-1 text-xs data-[state=active]:bg-slate-700">Chat</TabsTrigger>
+   463→                    <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-slate-700">People</TabsTrigger>
+   464→                    <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-slate-700">AI</TabsTrigger>
+   465→                    <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-slate-700">Polls</TabsTrigger>
+   466→                  </TabsList>
+   467→                </Tabs>
+   468→                <button onClick={() => setSidebarOpen(false)} className="ml-1 w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center shrink-0">
+   469→                  <X size={14} className="text-white/60" />
+   470→                </button>
+   471→              </div>
+   472→            </div>
+   473→
+   474→            {/* Tab Content */}
+   475→            <div className="flex-1 overflow-hidden">
+   476→              {meetingSidebarTab === 'chat' && (
+   477→                <div className="flex flex-col h-full">
+   478→                  <ScrollArea className="flex-1 max-h-[calc(100vh-12rem)]">
+   479→                    <div className="p-3 space-y-3">
+   480→                      {chatMessages.map((msg) => (
+   481→                        <div key={msg.id}>
+   482→                          {msg.isSystem ? (
+   483→                            <div className="flex items-center gap-2 py-1">
+   484→                              <div className="flex-1 h-px bg-white/10" />
+   485→                              <span className="text-[10px] text-white/40 px-2">{msg.text}</span>
+   486→                              <div className="flex-1 h-px bg-white/10" />
+   487→                            </div>
+   488→                          ) : (
+   489→                            <div className="flex gap-2.5">
+   490→                              <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+   491→                                <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
+   492→                              </Avatar>
+   493→                              <div className="flex-1 min-w-0">
+   494→                                <div className="flex items-baseline gap-2">
+   495→                                  <span className="text-xs font-semibold">{msg.sender}</span>
+   496→                                  <span className="text-[10px] text-white/30">{msg.time}</span>
+   497→                                </div>
+   498→                                <p className="text-sm text-white/80 mt-0.5 break-words">{msg.text}</p>
+   499→                              </div>
+   500→                            </div>
+   501→                          )}
+   502→                        </div>
+   503→                      ))}
+   504→                      <div ref={chatEndRef} />
+   505→                    </div>
+   506→                  </ScrollArea>
+   507→                  <div className="p-3 border-t border-white/10">
+   508→                    <div className="flex gap-2">
+   509→                      <Input
+   510→                        value={chatInput}
+   511→                        onChange={(e) => setChatInput(e.target.value)}
+   512→                        onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+   513→                        placeholder="Type a message..."
+   514→                        className="bg-slate-800 border-white/10 text-sm h-9 placeholder:text-white/30"
+   515→                      />
+   516→                      <Button size="icon" onClick={handleSendChat} className="h-9 w-9 shrink-0 bg-blue-600 hover:bg-blue-700">
+   517→                        <Send size={14} />
+   518→                      </Button>
+   519→                    </div>
+   520→                  </div>
+   521→                </div>
+   522→              )}
+   523→
+   524→              {meetingSidebarTab === 'participants' && (
+   525→                <div className="flex flex-col h-full">
+   526→                  <div className="px-4 py-3 border-b border-white/10">
+   527→                    <h3 className="text-sm font-semibold">{mockParticipants.length} Participants</h3>
+   528→                  </div>
+   529→                  <ScrollArea className="flex-1">
+   530→                    <div className="p-2 space-y-0.5">
+   531→                      {mockParticipants.map((p) => (
+   532→                        <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors">
+   533→                          <Avatar className="w-8 h-8 shrink-0">
+   534→                            <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
+   535→                          </Avatar>
+   536→                          <div className="flex-1 min-w-0">
+   537→                            <div className="flex items-center gap-2">
+   538→                              <span className="text-sm font-medium truncate">{p.name}</span>
+   539→                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getRoleBadge(p.role)}`}>{p.role}</span>
+   540→                            </div>
+   541→                          </div>
+   542→                          <div className="flex items-center gap-2">
+   543→                            {p.micOn ? <Mic size={14} className="text-green-400" /> : <MicOff size={14} className="text-red-400" />}
+   544→                            {p.videoOn ? <Video size={14} className="text-green-400" /> : <VideoOff size={14} className="text-white/30" />}
+   545→                            {p.role !== 'Host' && (
+   546→                              <Tooltip>
+   547→                                <TooltipTrigger asChild>
+   548→                                  <button className="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10">
+   549→                                    <MicOff size={12} className="text-white/40" />
+   550→                                  </button>
+   551→                                </TooltipTrigger>
+   552→                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute</TooltipContent>
+   553→                              </Tooltip>
+   554→                            )}
+   555→                          </div>
+   556→                        </div>
+   557→                      ))}
+   558→                    </div>
+   559→                  </ScrollArea>
+   560→                </div>
+   561→              )}
+   562→
+   563→              {meetingSidebarTab === 'ai' && (
+   564→                <div className="flex flex-col h-full">
+   565→                  <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+   566→                    <Sparkles size={16} className="text-violet-400" />
+   567→                    <h3 className="text-sm font-semibold">AI Meeting Assistant</h3>
+   568→                  </div>
+   569→                  <ScrollArea className="flex-1">
+   570→                    <div className="p-3 space-y-3">
+   571→                      {aiMessages.length === 0 && !aiTyping && (
+   572→                        <div className="py-6">
+   573→                          <div className="w-12 h-12 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-3">
+   574→                            <Sparkles size={24} className="text-violet-400" />
+   575→                          </div>
+   576→                          <p className="text-center text-sm text-white/50 mb-4">Ask me anything about this meeting</p>
+   577→                          <div className="flex flex-wrap gap-2 justify-center">
+   578→                            {aiSuggestions.map((suggestion) => (
+   579→                              <button
+   580→                                key={suggestion}
+   581→                                onClick={() => handleAISuggestion(suggestion)}
+   582→                                className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors"
+   583→                              >
+   584→                                {suggestion}
+   585→                              </button>
+   586→                            ))}
+   587→                          </div>
+   588→                        </div>
+   589→                      )}
+   590→
+   591→                      {aiMessages.map((msg) => (
+   592→                        <div key={msg.id} className={`flex gap-2.5 ${msg.isAI ? 'border-l-2 border-violet-500/50 pl-3' : ''}`}>
+   593→                          <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+   594→                            <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
+   595→                          </Avatar>
+   596→                          <div className="flex-1 min-w-0">
+   597→                            <div className="flex items-baseline gap-2">
+   598→                              <span className="text-xs font-semibold">{msg.sender}</span>
+   599→                              <span className="text-[10px] text-white/30">{msg.time}</span>
+   600→                            </div>
+   601→                            <div className="text-sm text-white/80 mt-1 break-words whitespace-pre-wrap leading-relaxed">
+   602→                              {msg.text}
+   603→                            </div>
+   604→                          </div>
+   605→                        </div>
+   606→                      ))}
+   607→
+   608→                      {aiTyping && (
+   609→                        <div className="flex gap-2.5 border-l-2 border-violet-500/50 pl-3">
+   610→                          <Avatar className="w-7 h-7 shrink-0">
+   611→                            <AvatarFallback className="bg-violet-500 text-white text-[10px] font-bold">AI</AvatarFallback>
+   612→                          </Avatar>
+   613→                          <div className="flex items-center gap-1 py-2">
+   614→                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '0ms' }} />
+   615→                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '150ms' }} />
+   616→                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '300ms' }} />
+   617→                          </div>
+   618→                        </div>
+   619→                      )}
+   620→
+   621→                      {aiMessages.length > 0 && (
+   622→                        <div className="flex flex-wrap gap-2 pt-2">
+   623→                          {aiSuggestions.map((suggestion) => (
+   624→                            <button
+   625→                              key={suggestion}
+   626→                              onClick={() => handleAISuggestion(suggestion)}
+   627→                              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors"
+   628→                            >
+   629→                              {suggestion}
+   630→                            </button>
+   631→                          ))}
+   632→                        </div>
+   633→                      )}
+   634→
+   635→                      <div ref={aiEndRef} />
+   636→                    </div>
+   637→                  </ScrollArea>
+   638→                  <div className="p-3 border-t border-white/10">
+   639→                    <div className="flex gap-2">
+   640→                      <Input
+   641→                        value={aiInput}
+   642→                        onChange={(e) => setAiInput(e.target.value)}
+   643→                        onKeyDown={(e) => e.key === 'Enter' && handleSendAI()}
+   644→                        placeholder="Ask AI something..."
+   645→                        className="bg-slate-800 border-white/10 text-sm h-9 placeholder:text-white/30"
+   646→                      />
+   647→                      <Button size="icon" onClick={handleSendAI} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700">
+   648→                        <Send size={14} />
+   649→                      </Button>
+   650→                    </div>
+   651→                  </div>
+   652→                </div>
+   653→              )}
+   654→
+   655→              {meetingSidebarTab === 'polls' && (
+   656→                <div className="flex flex-col h-full">
+   657→                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+   658→                    <h3 className="text-sm font-semibold">Polls</h3>
+   659→                    <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
+   660→                      <Plus size={12} className="mr-1" /> Create Poll
+   661→                    </Button>
+   662→                  </div>
+   663→                  <ScrollArea className="flex-1">
+   664→                    <div className="p-3 space-y-4">
+   665→                      {mockPolls.map((poll) => (
+   666→                        <div key={poll.id} className="bg-slate-800/50 rounded-xl p-4 border border-white/5">
+   667→                          <h4 className="text-sm font-semibold mb-3">{poll.question}</h4>
+   668→                          <div className="space-y-2.5">
+   669→                            {poll.options.map((opt) => (
+   670→                              <div key={opt.label} className="space-y-1">
+   671→                                <div className="flex items-center justify-between text-xs">
+   672→                                  <span>{opt.label}</span>
+   673→                                  <span className="text-white/50">{opt.votes} votes ({opt.percentage}%)</span>
+   674→                                </div>
+   675→                                <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+   676→                                  <div
+   677→                                    className="h-full rounded-full bg-blue-500 transition-all"
+   678→                                    style={{ width: `${opt.percentage}%` }}
+   679→                                  />
+   680→                                </div>
+   681→                              </div>
+   682→                            ))}
+   683→                          </div>
+   684→                          <p className="text-[10px] text-white/30 mt-3">{poll.totalVotes} total votes</p>
+   685→                        </div>
+   686→                      ))}
+   687→                    </div>
+   688→                  </ScrollArea>
+   689→                </div>
+   690→              )}
+   691→            </div>
+   692→          </motion.div>
+   693→        )}
+   694→      </AnimatePresence>
+   695→    </div>
+   696→    </TooltipProvider>
+   697→  );
+   698→}
+   699→

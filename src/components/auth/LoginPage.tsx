@@ -4,14 +4,15 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video, Loader2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAppStore } from '@/store/app-store';
 
 const loginSchema = z.object({
@@ -21,9 +22,14 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+const trustedCompanies = [
+  'TechCorp', 'GlobalNet', 'InnovateCo', 'DataFlow', 'CloudSync', 'NexGen',
+];
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const { setCurrentView, navigateBack, setUser } = useAppStore();
 
   const {
@@ -60,30 +66,62 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
-        {/* Floating orbs with animation */}
+      {/* Right panel on desktop (gradient) */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 order-1">
+        {/* Animated floating gradient orbs - 6 orbs with varied sizes, colors, speeds */}
         <motion.div
-          className="absolute top-20 left-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"
-          animate={{ y: [0, -20, 0], x: [0, 10, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-16 left-12 w-72 h-72 rounded-full bg-white/10 blur-3xl"
+          animate={{ y: [0, -30, 0], x: [0, 15, 0], scale: [1, 1.15, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
-          className="absolute bottom-32 right-20 w-48 h-48 rounded-full bg-blue-300/20 blur-3xl"
-          animate={{ y: [0, 15, 0], x: [0, -12, 0] }}
-          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          className="absolute bottom-24 right-16 w-56 h-56 rounded-full bg-fuchsia-300/20 blur-3xl"
+          animate={{ y: [0, 20, 0], x: [0, -18, 0], scale: [1, 0.9, 1] }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
         />
         <motion.div
-          className="absolute top-1/2 left-1/3 w-32 h-32 rounded-full bg-indigo-300/15 blur-2xl"
-          animate={{ y: [0, -12, 0], x: [0, 8, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+          className="absolute top-1/2 left-1/4 w-40 h-40 rounded-full bg-pink-300/15 blur-2xl"
+          animate={{ y: [0, -15, 0], x: [0, 12, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+        />
+        <motion.div
+          className="absolute top-1/4 right-1/4 w-28 h-28 rounded-full bg-violet-200/20 blur-2xl"
+          animate={{ y: [0, 25, 0], x: [0, -10, 0] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
+        />
+        <motion.div
+          className="absolute bottom-1/3 left-1/2 w-20 h-20 rounded-full bg-rose-400/15 blur-2xl"
+          animate={{ y: [0, -20, 0], x: [0, 20, 0], scale: [1, 1.3, 1] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
+        />
+        <motion.div
+          className="absolute top-2/3 right-1/2 w-32 h-32 rounded-full bg-indigo-300/10 blur-3xl"
+          animate={{ y: [0, 15, 0], x: [0, -15, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 5 }}
+        />
+
+        {/* Geometric floating shapes */}
+        <motion.div
+          className="absolute top-32 right-24 w-16 h-16 rounded-xl border-2 border-white/20 rotate-12"
+          animate={{ y: [0, -20, 0], rotate: [12, 20, 12] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-40 left-24 w-12 h-12 rounded-full border-2 border-white/15"
+          animate={{ y: [0, 15, 0], x: [0, 8, 0] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+        />
+        <motion.div
+          className="absolute top-2/3 right-1/3 w-10 h-10 rounded-lg border-2 border-white/10 -rotate-12"
+          animate={{ y: [0, -12, 0], rotate: [-12, 5, -12] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 2.5 }}
         />
 
         <div className="relative z-10 flex flex-col justify-center items-center p-12 w-full">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7 }}
             className="text-center"
           >
             <svg
@@ -110,15 +148,38 @@ export default function LoginPage() {
               <circle cx="20" cy="16" r="1.2" fill="#4F46E5" />
             </svg>
             <h1 className="text-4xl font-bold text-white mb-4">Welcome Back</h1>
-            <p className="text-lg text-blue-100/80 max-w-sm">
+            <p className="text-lg text-white/70 max-w-sm leading-relaxed">
               Sign in to continue your AI-powered video conferencing experience with ALVISION.
             </p>
+
+            {/* Trusted by section */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="mt-12"
+            >
+              <p className="text-xs text-white/50 uppercase tracking-widest mb-4">Trusted by 10,000+ organizations</p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {trustedCompanies.map((name, i) => (
+                  <motion.span
+                    key={name}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + i * 0.1 }}
+                    className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 text-xs text-white/60 font-medium"
+                  >
+                    {name}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         </div>
       </div>
 
-      {/* Right panel - form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12">
+      {/* Left panel - form (right on desktop) */}
+      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 order-2">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -128,7 +189,7 @@ export default function LoginPage() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
             <Video className="h-6 w-6 text-primary" />
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+            <span className="font-bold text-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
               ALVISION
             </span>
           </div>
@@ -137,7 +198,7 @@ export default function LoginPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="mb-6 -ml-2"
+            className="mb-6 -ml-2 hover:scale-[1.02] active:scale-[0.98] transition-transform"
             onClick={navigateBack}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -146,6 +207,14 @@ export default function LoginPage() {
 
           <Card className="border-0 shadow-none sm:border sm:shadow-sm">
             <CardContent className="p-0 sm:p-6">
+              {/* Animated gradient accent line at top */}
+              <motion.div
+                className="h-1 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 mb-6"
+                initial={{ scaleX: 0, opacity: 0 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              />
+
               {/* Header */}
               <div className="mb-8">
                 <h2 className="text-2xl font-bold tracking-tight">Sign in to your account</h2>
@@ -165,13 +234,22 @@ export default function LoginPage() {
                       id="email"
                       type="email"
                       placeholder="you@company.com"
-                      className="pl-10 focus:ring-2 focus:ring-primary/20"
+                      className="pl-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200"
                       {...register('email')}
                     />
                   </div>
-                  {errors.email && (
-                    <p className="text-xs text-destructive">{errors.email.message}</p>
-                  )}
+                  <AnimatePresence>
+                    {errors.email && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, y: -4, height: 0 }}
+                        className="text-xs text-destructive overflow-hidden"
+                      >
+                        {errors.email.message}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* Password */}
@@ -192,37 +270,59 @@ export default function LoginPage() {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
-                      className="pl-10 pr-10 focus:ring-2 focus:ring-primary/20"
+                      className="pl-10 pr-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200"
                       {...register('password')}
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  {errors.password && (
-                    <p className="text-xs text-destructive">{errors.password.message}</p>
-                  )}
+                  <AnimatePresence>
+                    {errors.password && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, y: -4, height: 0 }}
+                        className="text-xs text-destructive overflow-hidden"
+                      >
+                        {errors.password.message}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* Remember me */}
                 <div className="flex items-center gap-2">
-                  <input
+                  <Checkbox
                     id="remember"
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input accent-primary"
+                    checked={rememberMe}
+                    onCheckedChange={(v) => setRememberMe(v === true)}
+                    className="accent-primary"
                   />
-                  <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-                    Remember me
+                  <Label htmlFor="remember" className="text-sm font-normal cursor-pointer select-none">
+                    Remember me for 30 days
                   </Label>
                 </div>
 
                 {/* Submit */}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Signing in...' : 'Sign In'}
+                <Button
+                  type="submit"
+                  className="w-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 gap-2 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/15"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
                 </Button>
               </form>
 
@@ -234,16 +334,18 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              {/* SSO buttons */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* SSO provider buttons */}
+              <div className="grid grid-cols-3 gap-3">
                 <Button
                   variant="outline"
                   type="button"
+                  className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-red-500/5 hover:border-red-300/80 hover:-translate-y-0.5 group relative overflow-hidden"
                   onClick={() =>
-                    toast.info('SSO integration requires enterprise configuration')
+                    toast.info('Google SSO integration requires enterprise configuration')
                   }
                 >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                  <span className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
                     <path
                       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                       fill="#4285F4"
@@ -261,19 +363,33 @@ export default function LoginPage() {
                       fill="#EA4335"
                     />
                   </svg>
-                  Google
+                  <span className="hidden xl:inline relative z-10">Google</span>
                 </Button>
                 <Button
                   variant="outline"
                   type="button"
+                  className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-cyan-500/5 hover:border-cyan-300/80 hover:-translate-y-0.5 group relative overflow-hidden"
                   onClick={() =>
-                    toast.info('SSO integration requires enterprise configuration')
+                    toast.info('Microsoft SSO integration requires enterprise configuration')
                   }
                 >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                  <span className="absolute inset-0 bg-cyan-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
                     <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z" fill="#00A4EF"/>
                   </svg>
-                  Microsoft
+                  <span className="hidden xl:inline relative z-10">Microsoft</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300/80 hover:-translate-y-0.5 group relative overflow-hidden"
+                  onClick={() =>
+                    toast.info('SAML SSO integration requires enterprise IdP configuration')
+                  }
+                >
+                  <span className="absolute inset-0 bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <Shield className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="hidden xl:inline relative z-10">SAML</span>
                 </Button>
               </div>
 
@@ -286,18 +402,6 @@ export default function LoginPage() {
                   onClick={() => setCurrentView('register')}
                 >
                   Sign up
-                </button>
-              </p>
-
-              {/* Create account prompt */}
-              <p className="mt-3 text-center text-sm text-muted-foreground">
-                New to ALVISION?{' '}
-                <button
-                  type="button"
-                  className="text-primary font-medium hover:underline"
-                  onClick={() => setCurrentView('register')}
-                >
-                  Create an account
                 </button>
               </p>
             </CardContent>

@@ -1,26 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from 'sonner'
 import {
   BookOpen,
   Search,
-  Plus,
   FileText,
   Video,
   ExternalLink,
   Clock,
   Tag,
-  FolderOpen,
   Sparkles,
   ArrowRight,
   Bookmark,
   TrendingUp,
+  GraduationCap,
+  Shield,
+  Settings2,
+  Wrench,
+  Puzzle,
+  History,
+  Eye,
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface KnowledgeArticle {
   id: string
@@ -28,8 +34,8 @@ interface KnowledgeArticle {
   description: string
   category: string
   tags: string[]
- type: 'article' | 'video' | 'guide' | 'faq'
- author: string
+  type: 'article' | 'video' | 'guide' | 'faq'
+  author: string
   date: string
   readTime: string
   views: number
@@ -47,13 +53,32 @@ const mockArticles: KnowledgeArticle[] = [
   { id: 'k8', title: 'FAQ: Common Questions', description: 'Answers to the most frequently asked questions about ALVISION.', category: 'Getting Started', tags: ['faq', 'help'], type: 'faq', author: 'Support Team', date: 'Dec 15, 2024', readTime: '12 min', views: 523, bookmarked: true },
 ]
 
-const categories = ['All', 'Getting Started', 'AI Features', 'Best Practices', 'Security', 'Administration', 'Features', 'Integrations']
+const categoryConfig: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
+  'Getting Started': { icon: <GraduationCap className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+  'AI Features': { icon: <Sparkles className='h-4 w-4' />, color: 'text-violet-600', bg: 'bg-violet-500/10' },
+  'Best Practices': { icon: <TrendingUp className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
+  'Security': { icon: <Shield className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-red-500/10' },
+  'Administration': { icon: <Settings2 className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+  'Features': { icon: <Wrench className='h-4 w-4' />, color: 'text-teal-600', bg: 'bg-teal-500/10' },
+  'Integrations': { icon: <Puzzle className='h-4 w-4' />, color: 'text-rose-600', bg: 'bg-rose-500/10' },
+}
 
-const typeIcons: Record<string, React.ReactNode> = {
-  article: <FileText className='h-4 w-4' />,
-  video: <Video className='h-4 w-4' />,
-  guide: <BookOpen className='h-4 w-4' />,
-  faq: <Sparkles className='h-4 w-4' />,
+const categories = ['All', ...Object.keys(categoryConfig)]
+
+const typeIcons: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
+  article: { icon: <FileText className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
+  video: { icon: <Video className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-red-500/10' },
+  guide: { icon: <BookOpen className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+  faq: { icon: <Sparkles className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+}
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
 }
 
 export default function KnowledgePage() {
@@ -70,32 +95,81 @@ export default function KnowledgePage() {
   })
 
   const toggleBookmark = (id: string) => {
-    setArticles(prev => prev.map(a => a.id === id ? { ...a, bookmarked: !a.bookmarked } : a))
+    setArticles(prev => prev.map(a => {
+      if (a.id === id) {
+        const updated = { ...a, bookmarked: !a.bookmarked }
+        toast.success(updated.bookmarked ? 'Bookmarked!' : 'Bookmark removed')
+        return updated
+      }
+      return a
+    }))
   }
 
   const trending = [...articles].sort((a, b) => b.views - a.views).slice(0, 3)
+  const recentlyViewed = articles.slice(0, 3)
+
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, number> = {}
+    articles.forEach(a => {
+      stats[a.category] = (stats[a.category] || 0) + 1
+    })
+    return stats
+  }, [articles])
+
+  const highlightText = (text: string, query: string) => {
+    if (!query) return text
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = text.split(regex)
+    return parts.map((part, i) => regex.test(part) ? <mark key={i} className='bg-primary/20 text-primary rounded px-0.5'>{part}</mark> : part)
+  }
 
   return (
     <div className='space-y-6'>
+      {/* Header */}
+      <div className='relative'>
+        <h2 className='text-3xl font-bold tracking-tight'>Knowledge Base</h2>
+        <p className='text-muted-foreground text-sm mt-1'>Guides, tutorials, and best practices for ALVISION</p>
+        <div className='h-1 w-12 rounded-full bg-gradient-to-r from-primary to-primary/50 mt-2' />
+      </div>
+
       {/* Hero search */}
-      <Card className='bg-gradient-to-br from-blue-500/5 to-violet-500/5 border-blue-200/50 dark:border-blue-800/30'>
-        <CardContent className='p-8 text-center'>
-          <div className='w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center mx-auto mb-4'>
-            <BookOpen className='h-6 w-6 text-white' />
+      <Card className='bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border-primary/10 overflow-hidden'>
+        <CardContent className='p-8 text-center relative'>
+          <div className='w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-4 shadow-lg'>
+            <BookOpen className='h-7 w-7 text-primary-foreground' />
           </div>
-          <h2 className='text-2xl font-bold mb-2'>Knowledge Base</h2>
-          <p className='text-muted-foreground mb-6 max-w-lg mx-auto'>Find guides, tutorials, and best practices to get the most out of ALVISION.</p>
+          <h3 className='text-xl font-bold mb-2'>Find answers fast</h3>
+          <p className='text-muted-foreground mb-6 max-w-lg mx-auto text-sm'>Search across {articles.length} articles, guides, and FAQs</p>
           <div className='relative max-w-lg mx-auto'>
             <Search className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground' />
-            <Input placeholder='Search articles, guides, FAQs...' className='pl-12 h-12 text-base' value={search} onChange={e => setSearch(e.target.value)} />
+            <Input placeholder='Search articles, guides, FAQs...' className='pl-12 h-12 text-base border-primary/20 focus-visible:border-primary/40 transition-colors' value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
+      {/* Category cards */}
+      <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3'>
+        {Object.entries(categoryConfig).map(([name, config]) => (
+          <motion.button
+            key={name}
+            whileHover={{ scale: 1.03, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setActiveCategory(activeCategory === name ? 'All' : name)}
+            className={`p-3 rounded-xl border text-center transition-all border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 ${activeCategory === name ? 'border-primary ring-1 ring-primary/20 bg-primary/5' : 'hover:shadow-md'}`}
+          >
+            <div className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center mx-auto mb-2 ${config.color}`}>
+              {config.icon}
+            </div>
+            <p className='text-[11px] font-medium leading-tight'>{name}</p>
+            <p className='text-[10px] text-muted-foreground mt-0.5'>{categoryStats[name] || 0} articles</p>
+          </motion.button>
+        ))}
+      </div>
+
       <div className='flex flex-col lg:flex-row gap-6'>
         {/* Main content */}
         <div className='flex-1 space-y-4'>
-          {/* Categories */}
+          {/* Category filter pills */}
           <div className='flex gap-2 flex-wrap'>
             {categories.map(c => (
               <Button
@@ -103,80 +177,121 @@ export default function KnowledgePage() {
                 variant={activeCategory === c ? 'default' : 'outline'}
                 size='sm'
                 onClick={() => setActiveCategory(c)}
-              >{c}</Button>
+                className={`hover:scale-[1.02] active:scale-[0.98] transition-transform ${activeCategory === c ? 'bg-gradient-to-r from-primary to-primary/90' : ''}`}
+              >
+                {c === 'All' && <BookOpen className='h-3.5 w-3.5 mr-1' />}
+                {c}
+                {c !== 'All' && <span className='ml-1 opacity-60'>{categoryStats[c] || 0}</span>}
+              </Button>
             ))}
           </div>
 
           {/* Articles */}
-          <div className='space-y-3'>
-            {filtered.map(article => (
-              <Card key={article.id} className='group hover:shadow-md transition-shadow cursor-pointer'>
-                <CardContent className='p-5'>
-                  <div className='flex items-start gap-4'>
-                    <div className='p-2 rounded-lg bg-primary/10 text-primary shrink-0 mt-0.5'>
-                      {typeIcons[article.type]}
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div>
-                          <h3 className='font-semibold group-hover:text-primary transition-colors'>{article.title}</h3>
-                          <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>{article.description}</p>
+          <motion.div variants={container} initial='hidden' animate='show' className='space-y-3'>
+            {filtered.map(article => {
+              const typeCfg = typeIcons[article.type]
+              const catCfg = categoryConfig[article.category]
+              return (
+                <motion.div key={article.id} variants={item}>
+                  <Card className='group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer'>
+                    <CardContent className='p-5'>
+                      <div className='flex items-start gap-4'>
+                        <div className={`p-2.5 rounded-xl ${typeCfg.bg} ${typeCfg.color} shrink-0 mt-0.5 group-hover:scale-110 transition-transform`}>
+                          {typeCfg.icon}
                         </div>
-                        <button onClick={() => toggleBookmark(article.id)} className='shrink-0'>
-                          <Bookmark className={`h-4 w-4 transition-colors ${article.bookmarked ? 'fill-primary text-primary' : 'text-muted-foreground hover:text-primary'}`} />
-                        </button>
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex items-start justify-between gap-2'>
+                            <div>
+                              <h3 className='font-semibold group-hover:text-primary transition-colors'>{highlightText(article.title, search)}</h3>
+                              <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>{highlightText(article.description, search)}</p>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleBookmark(article.id) }}
+                              className='shrink-0 p-1 rounded-md hover:bg-muted transition-colors'
+                            >
+                              <Bookmark className={`h-4 w-4 transition-colors ${article.bookmarked ? 'fill-primary text-primary' : 'text-muted-foreground hover:text-primary'}`} />
+                            </button>
+                          </div>
+                          <div className='flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-muted-foreground'>
+                            <span className='flex items-center gap-1'><Clock className='h-3 w-3' />{article.readTime}</span>
+                            <span>{article.date}</span>
+                            <span>by {article.author}</span>
+                            <span className='flex items-center gap-1'><Eye className='h-3 w-3' />{article.views} views</span>
+                          </div>
+                          <div className='flex flex-wrap gap-1.5 mt-2.5'>
+                            <Badge variant='outline' className={`text-[10px] gap-1 ${catCfg?.bg || ''} ${catCfg?.color || ''} border-current/20`}>
+                              {catCfg?.icon} {article.category}
+                            </Badge>
+                            {article.tags.slice(0, 3).map(tag => (
+                              <Badge key={tag} variant='secondary' className='text-[10px]'>
+                                <Tag className='h-2.5 w-2.5 mr-0.5' />{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <ArrowRight className='h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-0.5 shrink-0 mt-1' />
                       </div>
-                      <div className='flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-muted-foreground'>
-                        <span className='flex items-center gap-1'><Clock className='h-3 w-3' />{article.readTime}</span>
-                        <span>{article.date}</span>
-                        <span>by {article.author}</span>
-                        <span className='flex items-center gap-1'><TrendingUp className='h-3 w-3' />{article.views} views</span>
-                      </div>
-                      <div className='flex flex-wrap gap-1.5 mt-2.5'>
-                        <Badge variant='outline' className='text-[10px]'>{article.category}</Badge>
-                        {article.tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant='secondary' className='text-[10px]'>
-                            <Tag className='h-2.5 w-2.5 mr-0.5' />{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <ArrowRight className='h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1' />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )
+            })}
             {filtered.length === 0 && (
-              <div className='text-center py-12 text-muted-foreground'>
-                <BookOpen className='h-10 w-10 mx-auto mb-3 opacity-40' />
-                <p className='font-medium'>No articles found</p>
-                <p className='text-sm'>Try a different search or category</p>
+              <div className='flex flex-col items-center justify-center py-16'>
+                <div className='relative'>
+                  <BookOpen className='h-16 w-16 text-muted-foreground/20' />
+                  <div className='absolute inset-0 flex items-center justify-center'>
+                    <BookOpen className='h-8 w-8 text-muted-foreground/40' />
+                  </div>
+                </div>
+                <p className='font-medium mt-4'>No articles found</p>
+                <p className='text-sm text-muted-foreground mt-1'>Try a different search or category</p>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
 
         {/* Sidebar */}
         <div className='w-full lg:w-72 space-y-4 hidden lg:block'>
-          <Card>
-            <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><TrendingUp className='h-4 w-4' /> Trending</CardTitle></CardHeader>
-            <CardContent className='space-y-3'>
-              {trending.map((a, i) => (
-                <button key={a.id} className='w-full text-left flex gap-3 group'>
-                  <span className='text-lg font-bold text-muted-foreground/40'>{i + 1}</span>
-                  <div>
+          {/* Recently Viewed */}
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+            <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><History className='h-4 w-4' /> Recently Viewed</CardTitle></CardHeader>
+            <CardContent className='space-y-3 divide-y divide-border/50'>
+              {recentlyViewed.map(a => (
+                <div key={a.id} className='pt-3 first:pt-0'>
+                  <button className='w-full text-left group'>
                     <p className='text-sm font-medium group-hover:text-primary transition-colors line-clamp-2'>{a.title}</p>
-                    <p className='text-xs text-muted-foreground mt-0.5'>{a.views} views</p>
-                  </div>
-                </button>
+                    <p className='text-xs text-muted-foreground mt-0.5'>{a.readTime} · {a.date}</p>
+                  </button>
+                </div>
               ))}
             </CardContent>
           </Card>
-          <Card>
+
+          {/* Trending */}
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+            <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><TrendingUp className='h-4 w-4 text-primary' /> Trending</CardTitle></CardHeader>
+            <CardContent className='space-y-3 divide-y divide-border/50'>
+              {trending.map((a, i) => (
+                <div key={a.id} className='flex gap-3 group pt-3 first:pt-0'>
+                  <span className='text-lg font-bold text-muted-foreground/30'>{i + 1}</span>
+                  <div className='flex-1 min-w-0'>
+                    <button className='w-full text-left'>
+                      <p className='text-sm font-medium group-hover:text-primary transition-colors line-clamp-2'>{a.title}</p>
+                      <p className='text-xs text-muted-foreground mt-0.5'>{a.views} views</p>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Quick Links */}
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
             <CardHeader className='pb-3'><CardTitle className='text-sm'>Quick Links</CardTitle></CardHeader>
-            <CardContent className='space-y-2'>
+            <CardContent className='space-y-1 divide-y divide-border/50'>
               {['API Documentation', 'Release Notes', 'Community Forum', 'Feature Requests'].map(link => (
-                <button key={link} className='w-full flex items-center justify-between p-2 rounded-lg hover:bg-muted text-sm transition-colors'>
+                <button key={link} className='w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 text-sm transition-colors'>
                   <span>{link}</span>
                   <ExternalLink className='h-3.5 w-3.5 text-muted-foreground' />
                 </button>

@@ -9,6 +9,15 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { LayoutDashboard,
   Video,
   Users,
@@ -32,8 +41,16 @@ import { LayoutDashboard,
   Server,
   Activity,
   X,
-  Bell,
+  Search,
+  HelpCircle,
+  User as UserIcon,
+  MonitorUp,
 } from 'lucide-react'
+import NotificationDropdown from '@/components/shared/NotificationDropdown'
+import SearchCommand from '@/components/shared/SearchCommand'
+import QuickStartMeeting from '@/components/shared/QuickStartMeeting'
+import OnboardingModal from '@/components/shared/OnboardingModal'
+import { useOnboarding } from '@/hooks/useOnboarding'
 
 interface NavItem {
   label: string
@@ -94,20 +111,34 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
             <button
               onClick={() => handleNav(item.view)}
               className={cn(
-                'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors relative group',
+                'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 relative group',
                 active
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-medium shadow-sm'
+                  : 'text-muted-foreground hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent hover:text-foreground hover:shadow-sm',
                 collapsed && 'justify-center px-2'
               )}
             >
               {active && (
-                <div className='absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full' />
+                <motion.div
+                  layoutId='sidebar-active-indicator'
+                  className='absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full'
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  style={{ transformOrigin: 'left' }}
+                />
               )}
-              <span className={cn('shrink-0', active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}>
+              <span className={cn(
+                'shrink-0 transition-all duration-200',
+                active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+              )}>
                 {item.icon}
               </span>
-              {!collapsed && <span className='truncate'>{item.label}</span>}
+              {!collapsed && (
+                <span className={cn('truncate transition-all duration-200', active && 'translate-x-0.5')}>
+                  {item.label}
+                </span>
+              )}
             </button>
           </TooltipTrigger>
           {collapsed && (
@@ -119,6 +150,10 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
       </TooltipProvider>
     )
   }
+
+  const userInitials = user
+    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '??'
 
   return (
     <div className='flex flex-col h-full'>
@@ -167,39 +202,24 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
       {/* User section */}
       <div className='border-t p-3 shrink-0'>
         {user && (
-          <>
-            <div
-              className={cn(
-                'flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors',
-                collapsed && 'justify-center'
-              )}
-              onClick={() => handleNav('profile')}
-            >
-              <Avatar className='h-8 w-8 shrink-0'>
+          <div className={cn('flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-all duration-200', collapsed && 'justify-center')}
+            onClick={() => handleNav('profile')}>
+            <div className='relative shrink-0'>
+              <Avatar className='h-8 w-8'>
                 <AvatarFallback className='bg-primary/10 text-primary text-xs font-semibold'>
-                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  {userInitials}
                 </AvatarFallback>
               </Avatar>
-              {!collapsed && (
-                <div className='flex-1 min-w-0'>
-                  <p className='text-sm font-medium truncate'>{user.name}</p>
-                  <p className='text-xs text-muted-foreground truncate'>{user.role}</p>
-                </div>
-              )}
+              {/* Online status indicator */}
+              <span className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card' />
             </div>
             {!collapsed && (
-              <button
-                onClick={() => {
-                  useAppStore.getState().setUser(null)
-                  setCurrentView('landing')
-                }}
-                className='w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors mt-1'
-              >
-                <LogOut className='h-4 w-4' />
-                <span>Sign Out</span>
-              </button>
+              <div className='flex-1 min-w-0'>
+                <p className='text-sm font-medium truncate'>{user.name}</p>
+                <p className='text-xs text-muted-foreground truncate'>{user.role}</p>
+              </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -209,7 +229,8 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { currentView, setCurrentView } = useAppStore()
+  const { currentView, setCurrentView, user, setUser, setSearchOpen } = useAppStore()
+  const { showOnboarding, setShowOnboarding, completeOnboarding } = useOnboarding()
 
   const viewBreadcrumbs: Record<string, { label: string; view?: AppView }[]> = useMemo(() => ({
     dashboard: [],
@@ -230,6 +251,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'admin-system': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'System' }],
     settings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Settings' }],
     profile: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Profile' }],
+    search: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Search' }],
   }), [])
 
   const viewLabels: Record<string, string> = {
@@ -251,105 +273,187 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'admin-system': 'System',
     settings: 'Settings',
     profile: 'Profile',
+    search: 'Search',
   }
 
+  const handleSignOut = () => {
+    setUser(null)
+    setCurrentView('landing')
+  }
+
+  const userInitials = user
+    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '??'
+
   return (
-    <div className='h-screen flex bg-background overflow-hidden'>
-      {/* Desktop sidebar */}
-      <aside
-        className={cn(
-          'hidden lg:flex flex-col border-r bg-card transition-all duration-300 shrink-0',
-          collapsed ? 'w-[68px]' : 'w-[260px]'
-        )}
-      >
-        <NavContent collapsed={collapsed} />
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className='absolute top-20 -right-3 z-10 w-6 h-6 rounded-full border bg-card flex items-center justify-center shadow-sm hover:bg-muted transition-colors'
-          style={{ left: collapsed ? '52px' : '244px' }}
-        >
-          {collapsed ? <ChevronRight className='h-3 w-3' /> : <ChevronLeft className='h-3 w-3' />}
-        </button>
-      </aside>
-
-      {/* Mobile sidebar */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side='left' className='w-[280px] p-0'>
-          <button
-            onClick={() => setMobileOpen(false)}
-            className='absolute top-4 right-4 z-10 rounded-sm opacity-70 hover:opacity-100 transition-opacity'
-          >
-            <X className='h-4 w-4' />
-          </button>
-          <NavContent collapsed={false} onItemClick={() => setMobileOpen(false)} />
-        </SheetContent>
-      </Sheet>
-
-      {/* Main content */}
-      <main className='flex-1 flex flex-col min-w-0'>
-        {/* Top bar */}
-        <header className='h-16 border-b flex items-center justify-between px-4 lg:px-6 shrink-0 bg-card'>
-          <div className='flex items-center gap-3'>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='lg:hidden'
-              onClick={() => setMobileOpen(true)}
-            >
-              <Menu className='h-5 w-5' />
-            </Button>
-            <h1 className='text-lg font-semibold'>{viewLabels[currentView] || 'Dashboard'}</h1>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Button variant='ghost' size='icon' className='relative'>
-              <Bell className='h-4 w-4' />
-              <span className='absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-bold'>
-                3
-              </span>
-            </Button>
-          </div>
-        </header>
-
-        {/* Gradient accent line at top of content */}
-        <div className='h-0.5 bg-gradient-to-r from-primary/50 to-transparent shrink-0' />
-
-        {/* Breadcrumb navigation */}
-        <div className='px-4 lg:px-6 py-3 flex items-center gap-1.5 text-sm text-muted-foreground shrink-0'>
-          {(viewBreadcrumbs[currentView] || []).map((crumb, i) => (
-            <span key={i} className='flex items-center gap-1.5'>
-              {i > 0 && <ChevronRight className='w-3.5 h-3.5' />}
-              {crumb.view ? (
-                <button
-                  onClick={() => setCurrentView(crumb.view!)}
-                  className='hover:text-foreground transition-colors'
-                >
-                  {crumb.label}
-                </button>
-              ) : (
-                <span className='text-foreground font-medium'>{crumb.label}</span>
-              )}
-            </span>
-          ))}
-          {(!viewBreadcrumbs[currentView] || viewBreadcrumbs[currentView].length === 0) && (
-            <span className='text-foreground font-medium'>{viewLabels[currentView] || 'Dashboard'}</span>
+    <>
+      <SearchCommand />
+      <OnboardingModal
+        open={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onComplete={completeOnboarding}
+      />
+      <div className='h-screen flex bg-background overflow-hidden'>
+        {/* Desktop sidebar */}
+        <aside
+          className={cn(
+            'hidden lg:flex flex-col border-r bg-card transition-all duration-300 shrink-0 relative',
+            collapsed ? 'w-[68px]' : 'w-[260px]'
           )}
-        </div>
+        >
+          <NavContent collapsed={collapsed} />
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className='absolute top-20 -right-3 z-10 w-6 h-6 rounded-full border bg-card flex items-center justify-center shadow-sm hover:bg-muted hover:shadow-md transition-all duration-200'
+            style={{ left: collapsed ? '52px' : '244px' }}
+          >
+            {collapsed ? <ChevronRight className='h-3 w-3' /> : <ChevronLeft className='h-3 w-3' />}
+          </button>
+        </aside>
 
-        {/* Page content with view transition */}
-        <div className='flex-1 overflow-y-auto p-4 lg:p-6'>
-          <AnimatePresence mode='wait'>
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+        {/* Mobile sidebar */}
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetContent side='left' className='w-[280px] p-0'>
+            <button
+              onClick={() => setMobileOpen(false)}
+              className='absolute top-4 right-4 z-10 rounded-sm opacity-70 hover:opacity-100 transition-opacity'
             >
-              {children}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </main>
-    </div>
+              <X className='h-4 w-4' />
+            </button>
+            <NavContent collapsed={false} onItemClick={() => setMobileOpen(false)} />
+          </SheetContent>
+        </Sheet>
+
+        {/* Main content */}
+        <main className='flex-1 flex flex-col min-w-0'>
+          {/* Top bar */}
+          <header className='h-14 border-b flex items-center justify-between px-4 lg:px-6 shrink-0 bg-card/80 backdrop-blur-sm'>
+            {/* Left: mobile menu + search */}
+            <div className='flex items-center gap-3 flex-1 min-w-0'>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='lg:hidden shrink-0 h-9 w-9 rounded-lg'
+                onClick={() => setMobileOpen(true)}
+              >
+                <Menu className='h-5 w-5' />
+              </Button>
+
+              {/* Search bar with Cmd+K hint */}
+              <button
+                onClick={() => setSearchOpen(true)}
+                className='flex items-center gap-2 h-9 px-3 rounded-lg border border-border/50 bg-muted/30 hover:bg-muted hover:border-border transition-all duration-200 w-full max-w-md group'
+              >
+                <Search className='h-4 w-4 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors' />
+                <span className='text-sm text-muted-foreground/60 group-hover:text-muted-foreground transition-colors truncate'>
+                  Search...
+                </span>
+                <kbd className='ml-auto hidden sm:flex items-center gap-0.5 rounded-md border border-border/60 bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/60'>
+                  <span className='text-xs'>⌘</span>K
+                </kbd>
+              </button>
+            </div>
+
+            {/* Right: actions */}
+            <div className='flex items-center gap-2 shrink-0 ml-3'>
+              {/* Quick start meeting button */}
+              <QuickStartMeeting />
+
+              {/* Notification bell */}
+              <NotificationDropdown />
+
+              {/* User avatar dropdown */}
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant='ghost' size='icon' className='h-9 w-9 rounded-lg relative transition-all duration-200 hover:bg-muted'>
+                      <div className='relative'>
+                        <Avatar className='h-7 w-7'>
+                          <AvatarFallback className='bg-primary/10 text-primary text-[11px] font-semibold'>
+                            {userInitials}
+                          </AvatarFallback>
+                        </Avatar>
+                        {/* Online status dot */}
+                        <span className='absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-card' />
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end' className='w-48 rounded-lg'>
+                    <DropdownMenuLabel className='font-normal'>
+                      <div className='flex flex-col gap-0.5'>
+                        <p className='text-sm font-medium'>{user.name}</p>
+                        <p className='text-xs text-muted-foreground'>{user.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setCurrentView('profile')} className='transition-colors duration-150 cursor-pointer'>
+                      <UserIcon className='mr-2 h-4 w-4' />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setCurrentView('settings')} className='transition-colors duration-150 cursor-pointer'>
+                      <Settings className='mr-2 h-4 w-4' />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className='transition-colors duration-150 cursor-pointer'>
+                      <HelpCircle className='mr-2 h-4 w-4' />
+                      Help
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleSignOut}
+                      variant='destructive'
+                      className='transition-colors duration-150 cursor-pointer'
+                    >
+                      <LogOut className='mr-2 h-4 w-4' />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </header>
+
+          {/* Gradient accent line */}
+          <div className='h-0.5 bg-gradient-to-r from-primary/50 to-transparent shrink-0' />
+
+          {/* Breadcrumb navigation */}
+          <div className='px-4 lg:px-6 py-2.5 flex items-center gap-1.5 text-sm text-muted-foreground shrink-0'>
+            {(viewBreadcrumbs[currentView] || []).map((crumb, i) => (
+              <span key={i} className='flex items-center gap-1.5'>
+                {i > 0 && <ChevronRight className='w-3.5 h-3.5' />}
+                {crumb.view ? (
+                  <button
+                    onClick={() => setCurrentView(crumb.view!)}
+                    className='hover:text-foreground transition-colors'
+                  >
+                    {crumb.label}
+                  </button>
+                ) : (
+                  <span className='text-foreground font-medium'>{crumb.label}</span>
+                )}
+              </span>
+            ))}
+            {(!viewBreadcrumbs[currentView] || viewBreadcrumbs[currentView].length === 0) && (
+              <span className='text-foreground font-medium'>{viewLabels[currentView] || 'Dashboard'}</span>
+            )}
+          </div>
+
+          {/* Page content with view transition */}
+          <div className='flex-1 overflow-y-auto p-4 lg:p-6'>
+            <AnimatePresence mode='wait'>
+              <motion.div
+                key={currentView}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
+      </div>
+    </>
   )
 }

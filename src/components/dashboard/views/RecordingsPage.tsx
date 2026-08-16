@@ -1,26 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { toast } from 'sonner'
 import {
   Film,
   Search,
   Play,
+  Pause,
   Download,
   Share2,
   Trash2,
   Clock,
   HardDrive,
   FileVideo,
-  Filter,
   MoreVertical,
-  Mic,
   Captions,
   Sparkles,
+  Brain,
+  TrendingUp,
+  Eye,
+  Users,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -37,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Recording {
   id: string
@@ -49,24 +54,57 @@ interface Recording {
   host: string
   hasTranscript: boolean
   hasAiSummary: boolean
+  quality: 'HD' | 'SD'
   views: number
   shared: boolean
 }
 
 const mockRecordings: Recording[] = [
-  { id: 'r1', title: 'Q4 Strategy Review', meetingId: 'm1', date: 'Jan 12, 2025', duration: '1h 02m', size: '234 MB', participants: 5, host: 'Sarah Chen', hasTranscript: true, hasAiSummary: true, views: 12, shared: true },
-  { id: 'r2', title: 'Client Onboarding - Acme Corp', meetingId: 'm4', date: 'Jan 10, 2025', duration: '1h 28m', size: '312 MB', participants: 4, host: 'Emily Davis', hasTranscript: true, hasAiSummary: true, views: 8, shared: false },
-  { id: 'r3', title: 'Product Design Review', meetingId: 'm2', date: 'Jan 9, 2025', duration: '47m', size: '156 MB', participants: 3, host: 'You', hasTranscript: true, hasAiSummary: false, views: 5, shared: false },
-  { id: 'r4', title: 'Security Review Board', meetingId: 'm7', date: 'Jan 8, 2025', duration: '2h 05m', size: '445 MB', participants: 6, host: 'James Wilson', hasTranscript: false, hasAiSummary: true, views: 3, shared: true },
-  { id: 'r5', title: 'Sprint 14 Planning', meetingId: 'm3', date: 'Jan 7, 2025', duration: '58m', size: '189 MB', participants: 8, host: 'Mike Johnson', hasTranscript: true, hasAiSummary: true, views: 15, shared: true },
-  { id: 'r6', title: '1:1 with Manager', meetingId: 'm6', date: 'Jan 6, 2025', duration: '28m', size: '89 MB', participants: 2, host: 'Alex Turner', hasTranscript: false, hasAiSummary: false, views: 1, shared: false },
+  { id: 'r1', title: 'Q4 Strategy Review', meetingId: 'm1', date: 'Jan 12, 2025', duration: '1h 02m', size: '234 MB', participants: 5, host: 'Sarah Chen', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 12, shared: true },
+  { id: 'r2', title: 'Client Onboarding - Acme Corp', meetingId: 'm4', date: 'Jan 10, 2025', duration: '1h 28m', size: '312 MB', participants: 4, host: 'Emily Davis', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 8, shared: false },
+  { id: 'r3', title: 'Product Design Review', meetingId: 'm2', date: 'Jan 9, 2025', duration: '47m', size: '156 MB', participants: 3, host: 'You', hasTranscript: true, hasAiSummary: false, quality: 'SD', views: 5, shared: false },
+  { id: 'r4', title: 'Security Review Board', meetingId: 'm7', date: 'Jan 8, 2025', duration: '2h 05m', size: '445 MB', participants: 6, host: 'James Wilson', hasTranscript: false, hasAiSummary: true, quality: 'HD', views: 3, shared: true },
+  { id: 'r5', title: 'Sprint 14 Planning', meetingId: 'm3', date: 'Jan 7, 2025', duration: '58m', size: '189 MB', participants: 8, host: 'Mike Johnson', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 15, shared: true },
+  { id: 'r6', title: '1:1 with Manager', meetingId: 'm6', date: 'Jan 6, 2025', duration: '28m', size: '89 MB', participants: 2, host: 'Alex Turner', hasTranscript: false, hasAiSummary: false, quality: 'SD', views: 1, shared: false },
 ]
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+}
+
+const sparkline = (bars: number[], color: string) => (
+  <div className='flex items-end gap-[2px] h-5'>
+    {bars.map((v, i) => (
+      <div key={i} className={`w-1 rounded-full ${color} transition-all`} style={{ height: `${v}%` }} />
+    ))}
+  </div>
+)
 
 export default function RecordingsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
   const [playing, setPlaying] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!playing) return
+    const timer = setInterval(() => {
+      setProgress(prev => {
+        const curr = prev[playing] || 0
+        if (curr >= 100) {
+          setPlaying(null)
+          return { ...prev, [playing]: 0 }
+        }
+        return { ...prev, [playing]: Math.min(curr + 2, 100) }
+      })
+    }, 300)
+    return () => clearInterval(timer)
+  }, [playing])
 
   const filtered = [...mockRecordings]
     .filter(r => r.title.toLowerCase().includes(search.toLowerCase()))
@@ -83,14 +121,75 @@ export default function RecordingsPage() {
     return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
   }, 0)
 
+  const handleShare = (title: string) => toast.success(`Share link copied for "${title}"`)
+  const handleDownload = (title: string) => toast.success(`Downloading "${title}"...`)
+  const handleDelete = (title: string) => toast.success(`"${title}" moved to trash`)
+
   return (
     <div className='space-y-6'>
+      {/* Header */}
+      <div className='relative'>
+        <h2 className='text-3xl font-bold tracking-tight'>Recordings</h2>
+        <p className='text-muted-foreground text-sm mt-1'>Review meeting recordings, transcripts, and AI-generated summaries</p>
+        <div className='h-1 w-12 rounded-full bg-gradient-to-r from-primary to-primary/50 mt-2' />
+      </div>
+
       {/* Stats */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        <Card><CardContent className='p-4 flex items-center gap-3'><div className='p-2 rounded-lg bg-red-500/10'><FileVideo className='h-5 w-5 text-red-600' /></div><div><p className='text-2xl font-bold'>{mockRecordings.length}</p><p className='text-xs text-muted-foreground'>Recordings</p></div></CardContent></Card>
-        <Card><CardContent className='p-4 flex items-center gap-3'><div className='p-2 rounded-lg bg-blue-500/10'><Clock className='h-5 w-5 text-blue-600' /></div><div><p className='text-2xl font-bold'>7h 48m</p><p className='text-xs text-muted-foreground'>Total Duration</p></div></CardContent></Card>
-        <Card><CardContent className='p-4 flex items-center gap-3'><div className='p-2 rounded-lg bg-violet-500/10'><HardDrive className='h-5 w-5 text-violet-600' /></div><div><p className='text-2xl font-bold'>{totalSize.toFixed(0)} MB</p><p className='text-xs text-muted-foreground'>Storage Used</p></div></CardContent></Card>
-        <Card><CardContent className='p-4 flex items-center gap-3'><div className='p-2 rounded-lg bg-emerald-500/10'><Sparkles className='h-5 w-5 text-emerald-600' /></div><div><p className='text-2xl font-bold'>{mockRecordings.filter(r => r.hasAiSummary).length}</p><p className='text-xs text-muted-foreground'>AI Summarized</p></div></CardContent></Card>
+        <motion.div variants={item} initial='hidden' animate='show'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+            <CardContent className='p-4 flex items-center gap-3'>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5'><FileVideo className='h-5 w-5 text-red-600' /></div>
+              <div className='flex-1'>
+                <div className='flex items-center justify-between'>
+                  <p className='text-2xl font-bold'>{mockRecordings.length}</p>
+                  <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+2</span>
+                </div>
+                <p className='text-xs text-muted-foreground'>Recordings</p>
+                {sparkline([20, 30, 25, 40, 45, 50, 60], 'bg-red-500/40')}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div variants={item} initial='hidden' animate='show'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+            <CardContent className='p-4 flex items-center gap-3'>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/10 to-sky-500/5'><Clock className='h-5 w-5 text-sky-600' /></div>
+              <div className='flex-1'>
+                <p className='text-2xl font-bold'>7h 48m</p>
+                <p className='text-xs text-muted-foreground'>Total Duration</p>
+                {sparkline([30, 40, 35, 50, 55, 60, 70], 'bg-sky-500/40')}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div variants={item} initial='hidden' animate='show'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+            <CardContent className='p-4 flex items-center gap-3'>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-500/5'><HardDrive className='h-5 w-5 text-violet-600' /></div>
+              <div className='flex-1'>
+                <p className='text-2xl font-bold'>{totalSize.toFixed(0)} MB</p>
+                <p className='text-xs text-muted-foreground'>Storage Used</p>
+                {sparkline([50, 55, 52, 58, 60, 63, 67], 'bg-violet-500/40')}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div variants={item} initial='hidden' animate='show'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+            <CardContent className='p-4 flex items-center gap-3'>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><Brain className='h-5 w-5 text-emerald-600' /></div>
+              <div className='flex-1'>
+                <div className='flex items-center justify-between'>
+                  <p className='text-2xl font-bold'>{mockRecordings.filter(r => r.hasAiSummary).length}</p>
+                  <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />AI</span>
+                </div>
+                <p className='text-xs text-muted-foreground'>AI Summarized</p>
+                {sparkline([10, 20, 30, 40, 50, 60, 67], 'bg-emerald-500/40')}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Toolbar */}
@@ -112,70 +211,93 @@ export default function RecordingsPage() {
       </div>
 
       {/* Recording cards */}
-      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+      <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(rec => (
-          <Card key={rec.id} className='group hover:shadow-md transition-shadow overflow-hidden'>
-            {/* Video preview area */}
-            <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center'>
-              <Film className='h-12 w-12 text-zinc-600' />
-              <Button
-                size='icon'
-                className='absolute inset-0 m-auto h-14 w-14 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all opacity-0 group-hover:opacity-100'
-                onClick={() => setPlaying(playing === rec.id ? null : rec.id)}
-              >
-                <Play className='h-6 w-6 text-white ml-0.5' />
-              </Button>
-              <Badge variant='secondary' className='absolute bottom-2 right-2 text-xs bg-black/50 text-white border-0'>
-                {rec.duration}
-              </Badge>
-            </div>
-            <CardContent className='p-4'>
-              <div className='flex items-start justify-between gap-2 mb-2'>
-                <div className='min-w-0'>
-                  <h3 className='font-semibold text-sm truncate'>{rec.title}</h3>
-                  <p className='text-xs text-muted-foreground mt-0.5'>{rec.date} · {rec.participants} participants</p>
+          <motion.div key={rec.id} variants={item}>
+            <Card className='group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden'>
+              {/* Video preview area */}
+              <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center'>
+                <Film className='h-12 w-12 text-zinc-600' />
+                <Button
+                  size='icon'
+                  className='absolute inset-0 m-auto h-14 w-14 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95'
+                  onClick={() => setPlaying(playing === rec.id ? null : rec.id)}
+                >
+                  {playing === rec.id ? <Pause className='h-6 w-6 text-white' /> : <Play className='h-6 w-6 text-white ml-0.5' />}
+                </Button>
+                {/* Duration badge */}
+                <Badge variant='secondary' className='absolute bottom-2 right-2 text-xs bg-black/60 text-white border-0 backdrop-blur-sm'>
+                  <Clock className='h-3 w-3 mr-1' />{rec.duration}
+                </Badge>
+                {/* Quality badge */}
+                <Badge variant='secondary' className={`absolute bottom-2 left-2 text-[10px] border-0 ${rec.quality === 'HD' ? 'bg-emerald-500/80 text-white' : 'bg-zinc-600/80 text-white'}`}>
+                  {rec.quality}
+                </Badge>
+                {/* Playback progress */}
+                {(playing === rec.id || progress[rec.id]) && (
+                  <div className='absolute bottom-0 left-0 right-0'>
+                    <Progress value={progress[rec.id] || 0} className='h-1' />
+                  </div>
+                )}
+              </div>
+              <CardContent className='p-4'>
+                <div className='flex items-start justify-between gap-2 mb-2'>
+                  <div className='min-w-0'>
+                    <h3 className='font-semibold text-sm truncate group-hover:text-primary transition-colors'>{rec.title}</h3>
+                    <p className='text-xs text-muted-foreground mt-0.5'>{rec.date} · {rec.participants} participants</p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0'><MoreVertical className='h-4 w-4' /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem className='gap-2' onClick={() => setPlaying(rec.id)}><Play className='h-4 w-4' /> Play</DropdownMenuItem>
+                      <DropdownMenuItem className='gap-2' onClick={() => handleDownload(rec.title)}><Download className='h-4 w-4' /> Download</DropdownMenuItem>
+                      <DropdownMenuItem className='gap-2' onClick={() => handleShare(rec.title)}><Share2 className='h-4 w-4' /> Share</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className='gap-2 text-red-600' onClick={() => handleDelete(rec.title)}><Trash2 className='h-4 w-4' /> Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0'><MoreVertical className='h-4 w-4' /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
-                    <DropdownMenuItem className='gap-2'><Play className='h-4 w-4' /> Play</DropdownMenuItem>
-                    <DropdownMenuItem className='gap-2'><Download className='h-4 w-4' /> Download</DropdownMenuItem>
-                    <DropdownMenuItem className='gap-2'><Share2 className='h-4 w-4' /> Share</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className='gap-2 text-red-600'><Trash2 className='h-4 w-4' /> Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <div className='flex items-center gap-2 text-xs text-muted-foreground mb-3'>
-                <span>Host: {rec.host}</span>
-                <span>·</span>
-                <span>{rec.size}</span>
-                <span>·</span>
-                <span>{rec.views} views</span>
-              </div>
-              <div className='flex items-center gap-2 flex-wrap'>
-                {rec.hasTranscript && <Badge variant='outline' className='text-[10px] gap-1'><Captions className='h-3 w-3' /> Transcript</Badge>}
-                {rec.hasAiSummary && <Badge variant='outline' className='text-[10px] gap-1'><Sparkles className='h-3 w-3' /> AI Summary</Badge>}
-                {rec.shared && <Badge variant='outline' className='text-[10px]'>Shared</Badge>}
-              </div>
-              {playing === rec.id && (
-                <div className='mt-3 space-y-1'>
-                  <Progress value={progress} className='h-1.5' />
-                  <p className='text-[11px] text-muted-foreground'>Playing... {rec.duration}</p>
+                <div className='flex items-center gap-3 text-xs text-muted-foreground mb-3'>
+                  <span className='flex items-center gap-1'><Users className='h-3 w-3' />{rec.host}</span>
+                  <span>{rec.size}</span>
+                  <span className='flex items-center gap-1'><Eye className='h-3 w-3' />{rec.views} views</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className='flex items-center gap-2 flex-wrap'>
+                  {rec.hasTranscript && <Badge variant='outline' className='text-[10px] gap-1 border-sky-200 dark:border-sky-800 text-sky-600 bg-sky-500/5'><Captions className='h-3 w-3' /> Transcript</Badge>}
+                  {rec.hasAiSummary && (
+                    <Badge variant='outline' className='text-[10px] gap-1 border-emerald-200 dark:border-emerald-800 text-emerald-600 bg-emerald-500/5'>
+                      <Brain className='h-3 w-3' /> AI Summary Available
+                    </Badge>
+                  )}
+                  {rec.shared && <Badge variant='outline' className='text-[10px] border-primary/20 text-primary bg-primary/5'>Shared</Badge>}
+                </div>
+                {/* Playback indicator */}
+                {playing === rec.id && (
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className='mt-3 flex items-center gap-2'>
+                    <div className='w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
+                    <span className='text-[11px] text-emerald-600 font-medium'>Playing — {rec.duration}</span>
+                    <Progress value={progress[rec.id] || 0} className='h-1.5 flex-1' />
+                    <span className='text-[10px] text-muted-foreground'>{Math.round(progress[rec.id] || 0)}%</span>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {filtered.length === 0 && (
-        <div className='text-center py-16 text-muted-foreground'>
-          <Film className='h-12 w-12 mx-auto mb-4 opacity-40' />
-          <p className='font-medium'>No recordings found</p>
-          <p className='text-sm'>Recordings from your meetings will appear here</p>
+        <div className='flex flex-col items-center justify-center py-16'>
+          <div className='relative'>
+            <Film className='h-16 w-16 text-muted-foreground/20' />
+            <div className='absolute inset-0 flex items-center justify-center'>
+              <Film className='h-8 w-8 text-muted-foreground/40' />
+            </div>
+          </div>
+          <p className='font-medium mt-4'>No recordings found</p>
+          <p className='text-sm text-muted-foreground mt-1'>Recordings from your meetings will appear here</p>
         </div>
       )}
     </div>

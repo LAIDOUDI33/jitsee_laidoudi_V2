@@ -5,6 +5,7 @@ export type AppView =
   | 'login' 
   | 'register' 
   | 'forgot-password'
+  | 'search'
   | 'dashboard' 
   | 'meeting-room'
   | 'meetings' 
@@ -24,6 +25,15 @@ export type AppView =
   | 'admin-system'
   | 'settings'
   | 'profile'
+
+export interface NotificationItem {
+  id: string
+  icon: 'video' | 'message' | 'users' | 'file' | 'shield'
+  title: string
+  description: string
+  time: string
+  unread: boolean
+}
 
 interface User {
   id: string
@@ -60,7 +70,58 @@ interface AppState {
   // Notifications
   notificationCount: number
   setNotificationCount: (count: number) => void
+  notifications: NotificationItem[]
+  markNotificationRead: (id: string) => void
+  markAllNotificationsRead: () => void
+  addNotification: (notification: NotificationItem) => void
+
+  // Search
+  searchOpen: boolean
+  setSearchOpen: (open: boolean) => void
 }
+
+const defaultNotifications: NotificationItem[] = [
+  {
+    id: 'n1',
+    icon: 'video',
+    title: 'Meeting starting soon',
+    description: 'Sprint Planning with Engineering team starts in 5 minutes',
+    time: '2m ago',
+    unread: true,
+  },
+  {
+    id: 'n2',
+    icon: 'message',
+    title: 'New message in #design',
+    description: 'Sarah Chen: Updated the mockups for the new dashboard',
+    time: '15m ago',
+    unread: true,
+  },
+  {
+    id: 'n3',
+    icon: 'users',
+    title: 'Team member joined',
+    description: 'Alex Rivera has joined the Product team',
+    time: '1h ago',
+    unread: true,
+  },
+  {
+    id: 'n4',
+    icon: 'file',
+    title: 'Recording ready',
+    description: 'AI summary for Q4 Review meeting is now available',
+    time: '3h ago',
+    unread: false,
+  },
+  {
+    id: 'n5',
+    icon: 'shield',
+    title: 'Security alert resolved',
+    description: 'Unusual login attempt from new device has been verified',
+    time: '1d ago',
+    unread: false,
+  },
+]
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentView: 'landing',
@@ -86,4 +147,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   notificationCount: 3,
   setNotificationCount: (count) => set({ notificationCount: count }),
+  notifications: defaultNotifications,
+  markNotificationRead: (id) => {
+    const notifications = get().notifications.map(n =>
+      n.id === id ? { ...n, unread: false } : n
+    )
+    const unreadCount = notifications.filter(n => n.unread).length
+    set({ notifications, notificationCount: unreadCount })
+  },
+  markAllNotificationsRead: () => {
+    const notifications = get().notifications.map(n => ({ ...n, unread: false }))
+    set({ notifications, notificationCount: 0 })
+  },
+  addNotification: (notification) => {
+    const notifications = [notification, ...get().notifications]
+    const unreadCount = notifications.filter(n => n.unread).length
+    set({ notifications, notificationCount: unreadCount })
+  },
+
+  searchOpen: false,
+  setSearchOpen: (open) => set({ searchOpen: open }),
 }))

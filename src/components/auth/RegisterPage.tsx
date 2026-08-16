@@ -4,14 +4,15 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video, User, Building2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video, User, Building2, Camera, Check, Loader2, Shield, CircleCheck, CircleX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAppStore } from '@/store/app-store';
 
 const registerSchema = z.object({
@@ -27,55 +28,82 @@ const registerSchema = z.object({
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
-function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+const steps = [
+  { id: 1, label: 'Account', icon: <User className="h-3.5 w-3.5" /> },
+  { id: 2, label: 'Profile', icon: <Building2 className="h-3.5 w-3.5" /> },
+  { id: 3, label: 'Confirm', icon: <Check className="h-3.5 w-3.5" /> },
+];
+
+function getPasswordStrength(password: string) {
   let score = 0;
-  if (password.length >= 8) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
+  const checks: { label: string; met: boolean }[] = [];
 
-  const levels = [
-    { score: 0, label: '', color: 'bg-muted' },
-    { score: 1, label: 'Weak', color: 'bg-red-500' },
-    { score: 2, label: 'Fair', color: 'bg-yellow-500' },
-    { score: 3, label: 'Good', color: 'bg-yellow-400' },
-    { score: 4, label: 'Strong', color: 'bg-green-500' },
-  ];
+  if (password.length >= 8) { score++; checks.push({ label: '8+ characters', met: true }); } else { checks.push({ label: '8+ characters', met: false }); }
+  if (/[A-Z]/.test(password)) { score++; checks.push({ label: 'Uppercase letter', met: true }); } else { checks.push({ label: 'Uppercase letter', met: false }); }
+  if (/[0-9]/.test(password)) { score++; checks.push({ label: 'Number', met: true }); } else { checks.push({ label: 'Number', met: false }); }
+  if (/[^A-Za-z0-9]/.test(password)) { score++; checks.push({ label: 'Special character', met: true }); } else { checks.push({ label: 'Special character', met: false }); }
 
-  return levels[password.length === 0 ? 0 : score];
+  const config = score <= 1
+    ? { label: 'Weak — easily guessed', color: 'bg-red-500', textColor: 'text-red-500', glowColor: 'shadow-red-500/20', barColor: 'bg-red-500' }
+    : score <= 2
+    ? { label: 'Fair — could be stronger', color: 'bg-yellow-500', textColor: 'text-yellow-600', glowColor: 'shadow-yellow-500/20', barColor: 'bg-yellow-500' }
+    : score <= 3
+    ? { label: 'Good — reasonably strong', color: 'bg-emerald-400', textColor: 'text-emerald-500', glowColor: 'shadow-emerald-400/20', barColor: 'bg-emerald-400' }
+    : { label: 'Strong — excellent security', color: 'bg-emerald-500', textColor: 'text-emerald-600', glowColor: 'shadow-emerald-500/20', barColor: 'bg-emerald-500' };
+
+  return { score, ...config, checks };
 }
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [orgMode, setOrgMode] = useState<'create' | 'join'>('create');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { setCurrentView, navigateBack } = useAppStore();
 
   const {
     register,
     handleSubmit,
     watch,
+    trigger,
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: { name: '', email: '', organization: '', password: '', confirmPassword: '' },
+    mode: 'onChange',
   });
 
   const passwordValue = watch('password');
+  const nameValue = watch('name');
+  const emailValue = watch('email');
+  const confirmValue = watch('confirmPassword');
   const strength = useMemo(() => getPasswordStrength(passwordValue || ''), [passwordValue]);
 
+  const goToStep = async (s: number) => {
+    if (s === 2 && step === 1) {
+      const valid = await trigger(['name', 'email']);
+      if (!valid) return;
+    }
+    if (s === 3 && step === 2) {
+      const valid = await trigger(['password', 'confirmPassword']);
+      if (!valid) return;
+    }
+    setStep(s);
+  };
+
   const onSubmit = async (data: RegisterForm) => {
+    if (!termsAccepted) {
+      toast.error('Please accept the Terms of Service and Privacy Policy');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          organization: data.organization,
-          password: data.password,
-        }),
+        body: JSON.stringify({ name: data.name, email: data.email, organization: data.organization, password: data.password }),
       });
       const result = await res.json();
       if (res.ok) {
@@ -91,30 +119,32 @@ export default function RegisterPage() {
     }
   };
 
+  // Real-time validation helpers
+  const nameValid = nameValue && nameValue.length > 0 && !errors.name;
+  const nameInvalid = !!errors.name;
+  const emailValid = emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
+  const emailInvalid = emailValue && !emailValid;
+  const confirmValid = confirmValue && confirmValue === passwordValue && confirmValue.length > 0;
+  const confirmInvalid = confirmValue && confirmValue !== passwordValue;
+
   return (
     <div className="min-h-screen flex">
-      {/* Left panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
-        {/* Floating orbs */}
-        <div className="absolute top-20 right-16 w-64 h-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-24 left-20 w-48 h-48 rounded-full bg-purple-300/20 blur-3xl" />
-        <div className="absolute top-1/3 right-1/3 w-32 h-32 rounded-full bg-blue-300/15 blur-2xl" />
+      {/* Gradient panel */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-fuchsia-600 via-violet-600 to-purple-700">
+        {/* Animated floating gradient orbs */}
+        <motion.div className="absolute top-20 right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" animate={{ y: [0, -25, 0], x: [0, 15, 0], scale: [1, 1.12, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div className="absolute bottom-24 left-20 w-56 h-56 rounded-full bg-purple-300/20 blur-3xl" animate={{ y: [0, 18, 0], x: [0, -12, 0], scale: [1, 0.9, 1] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 1 }} />
+        <motion.div className="absolute top-1/3 right-1/3 w-40 h-40 rounded-full bg-fuchsia-300/15 blur-2xl" animate={{ y: [0, -15, 0], x: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 2 }} />
+        <motion.div className="absolute bottom-1/3 left-1/3 w-24 h-24 rounded-full bg-violet-200/15 blur-2xl" animate={{ y: [0, 20, 0], x: [0, -15, 0], scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 3 }} />
+        <motion.div className="absolute top-2/3 right-1/4 w-16 h-16 rounded-full bg-pink-300/10 blur-2xl" animate={{ y: [0, -12, 0], x: [0, 12, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 4 }} />
+
+        {/* Geometric shapes */}
+        <motion.div className="absolute top-40 left-16 w-14 h-14 rounded-xl border-2 border-white/15 rotate-45" animate={{ y: [0, -15, 0], rotate: [45, 60, 45] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} />
+        <motion.div className="absolute bottom-36 right-24 w-10 h-10 rounded-full border-2 border-white/10" animate={{ y: [0, 20, 0] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }} />
 
         <div className="relative z-10 flex flex-col justify-center items-center p-12 w-full">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center"
-          >
-            <svg
-              width="80"
-              height="80"
-              viewBox="0 0 36 36"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="mx-auto mb-8"
-            >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center">
+            <svg width="80" height="80" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-8">
               <defs>
                 <linearGradient id="register-logo-grad" x1="0" y1="0" x2="36" y2="36">
                   <stop offset="0%" stopColor="#93C5FD" />
@@ -122,254 +152,446 @@ export default function RegisterPage() {
                 </linearGradient>
               </defs>
               <rect width="36" height="36" rx="8" fill="url(#register-logo-grad)" />
-              <path
-                d="M12 12.5C12 11.1193 13.1193 10 14.5 10H21.5C22.8807 10 24 11.1193 24 12.5V19.5C24 20.8807 22.8807 22 21.5 22H20L16 26V22H14.5C13.1193 22 12 20.8807 12 19.5V12.5Z"
-                fill="white"
-                fillOpacity="0.95"
-              />
+              <path d="M12 12.5C12 11.1193 13.1193 10 14.5 10H21.5C22.8807 10 24 11.1193 24 12.5V19.5C24 20.8807 22.8807 22 21.5 22H20L16 26V22H14.5C13.1193 22 12 20.8807 12 19.5V12.5Z" fill="white" fillOpacity="0.95" />
               <circle cx="17" cy="16" r="1.2" fill="#4F46E5" />
               <circle cx="20" cy="16" r="1.2" fill="#4F46E5" />
             </svg>
             <h1 className="text-4xl font-bold text-white mb-4">Get Started</h1>
-            <p className="text-lg text-blue-100/80 max-w-sm">
+            <p className="text-lg text-white/70 max-w-sm leading-relaxed">
               Create your account and start experiencing AI-powered video conferencing with ALVISION.
             </p>
+
+            {/* Feature list */}
+            <div className="mt-10 space-y-3 text-left max-w-xs mx-auto">
+              {['AI-powered meeting summaries', 'End-to-end encryption', 'Up to 100 participants per meeting'].map((feat, i) => (
+                <motion.div key={feat} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.15 }} className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0"><Check className="h-3 w-3 text-white" /></div>
+                  <span className="text-sm text-white/70">{feat}</span>
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         </div>
       </div>
 
-      {/* Right panel - form */}
+      {/* Form panel */}
       <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12">
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="w-full max-w-md"
-        >
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-2.5 mb-8">
             <Video className="h-6 w-6 text-primary" />
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
-              ALVISION
-            </span>
+            <span className="font-bold text-xl bg-gradient-to-r from-fuchsia-500 to-violet-500 bg-clip-text text-transparent">ALVISION</span>
           </div>
 
           {/* Back button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-6 -ml-2"
-            onClick={navigateBack}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+          <Button variant="ghost" size="sm" className="mb-6 -ml-2 hover:scale-[1.02] active:scale-[0.98] transition-transform" onClick={navigateBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />Back
           </Button>
 
           <Card className="border-0 shadow-none sm:border sm:shadow-sm">
             <CardContent className="p-0 sm:p-6">
+              {/* Animated gradient accent line at top */}
+              <motion.div
+                className="h-1 rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-500 to-purple-500 mb-6"
+                initial={{ scaleX: 0, opacity: 0 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              />
+
               {/* Header */}
-              <div className="mb-8">
+              <div className="mb-6">
                 <h2 className="text-2xl font-bold tracking-tight">Create your account</h2>
-                <p className="text-sm text-muted-foreground mt-1.5">
-                  Join ALVISION and transform your team collaboration
-                </p>
+                <p className="text-sm text-muted-foreground mt-1.5">Join ALVISION and transform your team collaboration</p>
               </div>
 
-              {/* Form */}
+              {/* Steps indicator */}
+              <div className="flex items-center gap-0 mb-8">
+                {steps.map((s, i) => (
+                  <div key={s.id} className="flex items-center flex-1">
+                    <button type="button" onClick={() => s.id < step && goToStep(s.id)} className="flex items-center gap-2 group">
+                      <motion.div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full border-2 text-xs font-semibold transition-all duration-300 ${
+                          s.id < step
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : s.id === step
+                            ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}
+                        whileHover={s.id < step ? { scale: 1.1 } : {}}
+                      >
+                        {s.id < step ? <Check className="h-3.5 w-3.5" /> : s.id}
+                      </motion.div>
+                      <span className={`text-xs font-medium hidden sm:inline transition-colors ${
+                        s.id <= step ? 'text-foreground' : 'text-muted-foreground'
+                      }`}>{s.label}</span>
+                      {i < steps.length - 1 && (
+                        <motion.div
+                          className={`flex-1 h-0.5 mx-3 rounded-full ${s.id < step ? 'bg-primary' : 'bg-border'}`}
+                          layoutId={`step-progress-${s.id}`}
+                          transition={{ duration: 0.4, ease: 'easeInOut' }}
+                        />
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                {/* Full Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="John Doe"
-                      className="pl-10"
-                      {...register('name')}
-                    />
-                  </div>
-                  {errors.name && (
-                    <p className="text-xs text-destructive">{errors.name.message}</p>
-                  )}
-                </div>
-
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="reg-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="reg-email"
-                      type="email"
-                      placeholder="you@company.com"
-                      className="pl-10"
-                      {...register('email')}
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="text-xs text-destructive">{errors.email.message}</p>
-                  )}
-                </div>
-
-                {/* Organization */}
-                <div className="space-y-2">
-                  <Label htmlFor="org">Organization Name <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="org"
-                      type="text"
-                      placeholder="Acme Inc."
-                      className="pl-10"
-                      {...register('organization')}
-                    />
-                  </div>
-                </div>
-
-                {/* Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="reg-password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Create a strong password"
-                      className="pl-10 pr-10"
-                      {...register('password')}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-xs text-destructive">{errors.password.message}</p>
-                  )}
-
-                  {/* Password strength indicator */}
-                  {passwordValue && passwordValue.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4].map((level) => (
-                          <div
-                            key={level}
-                            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                              level <= strength.score ? strength.color : 'bg-muted'
-                            }`}
-                          />
-                        ))}
+                <AnimatePresence mode="wait">
+                  {/* Step 1: Account */}
+                  {step === 1 && (
+                    <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+                      {/* Avatar upload placeholder */}
+                      <div className="flex justify-center mb-2">
+                        <div className="relative group cursor-pointer">
+                          <motion.div
+                            className="w-20 h-20 rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 flex items-center justify-center text-white text-2xl font-bold"
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {nameValue ? nameValue.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : <User className="h-8 w-8 opacity-60" />}
+                          </motion.div>
+                          <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="h-5 w-5 text-white" />
+                          </div>
+                        </div>
                       </div>
-                      <p className={`text-xs ${
-                        strength.score <= 1
-                          ? 'text-red-500'
-                          : strength.score <= 2
-                          ? 'text-yellow-600'
-                          : 'text-green-600'
-                      }`}>
-                        {strength.label}
-                      </p>
-                    </div>
-                  )}
-                </div>
 
-                {/* Confirm Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="confirm-password"
-                      type={showConfirm ? 'text' : 'password'}
-                      placeholder="Confirm your password"
-                      className="pl-10 pr-10"
-                      {...register('confirmPassword')}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowConfirm(!showConfirm)}
-                    >
-                      {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.confirmPassword && (
-                    <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-                  )}
-                </div>
+                      {/* Full Name with validation indicator */}
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Full Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="name"
+                            type="text"
+                            placeholder="John Doe"
+                            className={`pl-10 pr-9 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+                              nameValid ? 'border-emerald-300 focus-visible:ring-emerald-500/20' : nameInvalid ? 'border-red-300 focus-visible:ring-red-500/20' : ''
+                            }`}
+                            {...register('name')}
+                          />
+                          <AnimatePresence>
+                            {nameValid && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.5 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.5 }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2"
+                              >
+                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+                              </motion.div>
+                            )}
+                            {nameInvalid && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.5 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.5 }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2"
+                              >
+                                <CircleX className="h-4 w-4 text-red-400" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <AnimatePresence>
+                          {errors.name && (
+                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+                              {errors.name.message}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
 
-                {/* Submit */}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Creating account...' : 'Create Account'}
-                </Button>
+                      {/* Email with validation indicator */}
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-email">Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="reg-email"
+                            type="email"
+                            placeholder="you@company.com"
+                            className={`pl-10 pr-9 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+                              emailValid ? 'border-emerald-300' : emailInvalid ? 'border-red-300' : ''
+                            }`}
+                            {...register('email')}
+                          />
+                          <AnimatePresence>
+                            {emailValid && (
+                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+                              </motion.div>
+                            )}
+                            {emailInvalid && (
+                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <CircleX className="h-4 w-4 text-red-400" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <AnimatePresence>
+                          {errors.email && (
+                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+                              {errors.email.message}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Organization toggle */}
+                      <div className="space-y-3 pt-2">
+                        <Label>Organization</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <motion.button
+                            type="button"
+                            onClick={() => setOrgMode('create')}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`p-3 rounded-lg border-2 text-left transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 ${
+                              orgMode === 'create'
+                                ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+                                : 'border-border hover:border-primary/30'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1"><Building2 className={`h-4 w-4 ${orgMode === 'create' ? 'text-primary' : ''}`} /><span className="text-sm font-medium">Create New</span></div>
+                            <p className="text-[10px] text-muted-foreground">Start a new workspace</p>
+                          </motion.button>
+                          <motion.button
+                            type="button"
+                            onClick={() => setOrgMode('join')}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`p-3 rounded-lg border-2 text-left transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 ${
+                              orgMode === 'join'
+                                ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+                                : 'border-border hover:border-primary/30'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1"><User className={`h-4 w-4 ${orgMode === 'join' ? 'text-primary' : ''}`} /><span className="text-sm font-medium">Join Existing</span></div>
+                            <p className="text-[10px] text-muted-foreground">Enter invite code</p>
+                          </motion.button>
+                        </div>
+                        {orgMode === 'create' && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+                            <div className="relative">
+                              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input placeholder="Organization name" className="pl-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" {...register('organization')} />
+                            </div>
+                          </motion.div>
+                        )}
+                        {orgMode === 'join' && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2">
+                            <Input placeholder="Enter invite code" className="focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" />
+                          </motion.div>
+                        )}
+                      </div>
+
+                      <Button type="button" className="w-full hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => goToStep(2)}>
+                        Continue <ArrowLeft className="h-4 w-4 rotate-180" />
+                      </Button>
+                    </motion.div>
+                  )}
+
+                  {/* Step 2: Profile (Password) */}
+                  {step === 2 && (
+                    <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-password">Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input id="reg-password" type={showPassword ? 'text' : 'password'} placeholder="Create a strong password" className="pl-10 pr-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200" {...register('password')} />
+                          <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted" onClick={() => setShowPassword(!showPassword)}>
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {errors.password && (
+                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+                              {errors.password.message}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Enhanced password strength meter with animated glow */}
+                        {passwordValue && passwordValue.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-2.5 overflow-hidden"
+                          >
+                            {/* Strength bar with glow effect */}
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4].map((level) => (
+                                <motion.div
+                                  key={level}
+                                  className={`h-2 flex-1 rounded-full transition-colors duration-300 ${level <= strength.score ? strength.barColor : 'bg-muted'}`}
+                                  initial={false}
+                                  animate={level <= strength.score ? { boxShadow: `0 0 8px ${level <= 1 ? 'rgba(239,68,68,0.3)' : level <= 2 ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)'}` } : { boxShadow: 'none' }}
+                                  transition={{ duration: 0.3 }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p className={`text-xs font-semibold ${strength.textColor}`}>{strength.label}</p>
+                              <span className="text-[10px] text-muted-foreground">{strength.score}/4</span>
+                            </div>
+                            {/* Check items with icons */}
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {strength.checks.map((check) => (
+                                <motion.div
+                                  key={check.label}
+                                  initial={false}
+                                  animate={{ opacity: check.met ? 1 : 0.5 }}
+                                  className="flex items-center gap-1.5"
+                                >
+                                  <motion.div
+                                    className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-300 ${check.met ? 'bg-emerald-500' : 'bg-muted'}`}
+                                    whileTap={check.met ? { scale: 1.2 } : {}}
+                                  >
+                                    {check.met && <Check className="h-2.5 w-2.5 text-white" />}
+                                  </motion.div>
+                                  <span className={`text-[11px] transition-colors duration-200 ${check.met ? 'text-foreground' : 'text-muted-foreground/60'}`}>{check.label}</span>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {/* Confirm Password with match indicator */}
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-password">Confirm Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="confirm-password"
+                            type={showConfirm ? 'text' : 'password'}
+                            placeholder="Confirm your password"
+                            className={`pl-10 pr-10 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_0_4px_hsl(var(--primary)/0.06)] transition-all duration-200 ${
+                              confirmValid ? 'border-emerald-300' : confirmInvalid ? 'border-red-300' : ''
+                            }`}
+                            {...register('confirmPassword')}
+                          />
+                          <button type="button" className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted" onClick={() => setShowConfirm(!showConfirm)}>
+                            {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                          <AnimatePresence>
+                            {confirmValid && (
+                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+                              </motion.div>
+                            )}
+                            {confirmInvalid && (
+                              <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <CircleX className="h-4 w-4 text-red-400" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <AnimatePresence>
+                          {errors.confirmPassword && (
+                            <motion.p initial={{ opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -4, height: 0 }} className="text-xs text-destructive overflow-hidden">
+                              {errors.confirmPassword.message}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button type="button" variant="outline" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => setStep(1)}>
+                          <ArrowLeft className="h-4 w-4" /> Back
+                        </Button>
+                        <Button type="button" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => goToStep(3)}>
+                          Continue <ArrowLeft className="h-4 w-4 rotate-180" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Step 3: Confirm */}
+                  {step === 3 && (
+                    <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
+                      <div className="p-4 rounded-lg bg-muted/50 border border-border/50 space-y-3">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Review your information</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span className="font-medium">{nameValue || '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium">{emailValue || '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Organization</span><span className="font-medium">{watch('organization') || 'Personal'}</span></div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Password</span>
+                            <motion.span
+                              initial={false}
+                              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
+                                strength.score >= 3 ? 'bg-emerald-500/10 text-emerald-600' :
+                                strength.score >= 2 ? 'bg-yellow-500/10 text-yellow-600' :
+                                'bg-red-500/10 text-red-500'
+                              }`}
+                            >{strength.label.split(' —')[0]}</motion.span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Terms of service */}
+                      <div className="flex items-start gap-2.5 p-3 rounded-lg border border-border/50 bg-muted/30">
+                        <Checkbox
+                          id="terms"
+                          checked={termsAccepted}
+                          onCheckedChange={(v) => setTermsAccepted(v === true)}
+                          className="mt-0.5 accent-primary"
+                        />
+                        <Label htmlFor="terms" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+                          I agree to the{' '}
+                          <button type="button" className="text-primary hover:underline font-medium">Terms of Service</button>
+                          {' '}and{' '}
+                          <button type="button" className="text-primary hover:underline font-medium">Privacy Policy</button>
+                        </Label>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button type="button" variant="outline" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2" onClick={() => setStep(2)}>
+                          <ArrowLeft className="h-4 w-4" /> Back
+                        </Button>
+                        <Button type="submit" className="flex-1 hover:scale-[1.02] active:scale-[0.98] transition-transform gap-2 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/15" disabled={loading}>
+                          {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</> : <><Shield className="h-4 w-4" /> Create Account</>}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </form>
 
               {/* Separator */}
               <div className="relative my-6">
                 <Separator />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                  or continue with
-                </span>
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">or continue with</span>
               </div>
 
               {/* SSO buttons */}
               <div className="grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() =>
-                    toast.info('SSO integration requires enterprise configuration')
-                  }
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
+                <Button variant="outline" type="button" className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-red-500/5 hover:border-red-300/80 hover:-translate-y-0.5 group relative overflow-hidden" onClick={() => toast.info('SSO integration requires enterprise configuration')}>
+                  <span className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
-                  Google
+                  <span className="relative z-10">Google</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() =>
-                    toast.info('SSO integration requires enterprise configuration')
-                  }
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                <Button variant="outline" type="button" className="hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 hover:shadow-lg hover:shadow-cyan-500/5 hover:border-cyan-300/80 hover:-translate-y-0.5 group relative overflow-hidden" onClick={() => toast.info('SSO integration requires enterprise configuration')}>
+                  <span className="absolute inset-0 bg-cyan-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <svg className="h-4 w-4 relative z-10 group-hover:scale-110 transition-transform duration-200" viewBox="0 0 24 24">
                     <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z" fill="#00A4EF"/>
                   </svg>
-                  Microsoft
+                  <span className="relative z-10">Microsoft</span>
                 </Button>
               </div>
 
-              {/* Sign in link */}
               <p className="mt-6 text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
-                <button
-                  type="button"
-                  className="text-primary font-medium hover:underline"
-                  onClick={() => setCurrentView('login')}
-                >
-                  Sign in
-                </button>
+                <button type="button" className="text-primary font-medium hover:underline" onClick={() => setCurrentView('login')}>Sign in</button>
               </p>
             </CardContent>
           </Card>

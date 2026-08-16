@@ -3,21 +3,22 @@
 import { useAppStore } from '@/store/app-store';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
-  Hand, MoreHorizontal, Phone, Settings, Shield, CircleDot, Sparkles, Send, X,
-  ChevronLeft, ArrowLeft, Maximize2, Minimize2, Copy, Check, Plus
+  Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
+  ArrowLeft, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
+  Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
+// ─── Interfaces ───────────────────────────────────────────────
 interface ChatMessage {
   id: string;
   sender: string;
@@ -27,6 +28,7 @@ interface ChatMessage {
   time: string;
   isSystem?: boolean;
   isAI?: boolean;
+  reactions?: string[];
 }
 
 interface Participant {
@@ -37,34 +39,41 @@ interface Participant {
   role: 'Host' | 'Co-host' | 'Participant';
   micOn: boolean;
   videoOn: boolean;
+  online?: boolean;
+  handRaised?: boolean;
 }
 
 interface PollData {
   id: string;
   question: string;
-  options: { label: string; votes: number; percentage: number }[];
+  options: { label: string; votes: number; percentage: number; voted?: boolean }[];
   totalVotes: number;
 }
 
-const mockParticipants: Participant[] = [
-  { id: '1', name: 'Alex Johnson', initials: 'AJ', color: 'bg-blue-500', role: 'Host', micOn: true, videoOn: true },
-  { id: '2', name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', role: 'Co-host', micOn: true, videoOn: true },
-  { id: '3', name: 'Maya Patel', initials: 'MP', color: 'bg-green-500', role: 'Participant', micOn: false, videoOn: true },
-  { id: '4', name: 'James Wilson', initials: 'JW', color: 'bg-orange-500', role: 'Participant', micOn: true, videoOn: false },
-  { id: '5', name: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', role: 'Participant', micOn: true, videoOn: true },
-  { id: '6', name: 'David Kim', initials: 'DK', color: 'bg-cyan-500', role: 'Participant', micOn: false, videoOn: false },
-  { id: '7', name: 'Lisa Brown', initials: 'LB', color: 'bg-rose-500', role: 'Participant', micOn: true, videoOn: true },
-  { id: '8', name: 'Tom Garcia', initials: 'TG', color: 'bg-amber-500', role: 'Participant', micOn: false, videoOn: true },
-];
+interface FloatingReaction {
+  id: string;
+  emoji: string;
+  x: number;
+}
 
-const gridParticipants = mockParticipants.slice(0, 4);
+// ─── Data ─────────────────────────────────────────────────────
+const mockParticipants: Participant[] = [
+  { id: '1', name: 'Alex Johnson', initials: 'AJ', color: 'bg-blue-500', role: 'Host', micOn: true, videoOn: true, online: true },
+  { id: '2', name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', role: 'Co-host', micOn: true, videoOn: true, online: true, handRaised: true },
+  { id: '3', name: 'Maya Patel', initials: 'MP', color: 'bg-emerald-500', role: 'Participant', micOn: false, videoOn: true, online: true },
+  { id: '4', name: 'James Wilson', initials: 'JW', color: 'bg-orange-500', role: 'Participant', micOn: true, videoOn: false, online: true },
+  { id: '5', name: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', role: 'Participant', micOn: true, videoOn: true, online: true },
+  { id: '6', name: 'David Kim', initials: 'DK', color: 'bg-cyan-500', role: 'Participant', micOn: false, videoOn: false, online: false },
+  { id: '7', name: 'Lisa Brown', initials: 'LB', color: 'bg-rose-500', role: 'Participant', micOn: true, videoOn: true, online: true },
+  { id: '8', name: 'Tom Garcia', initials: 'TG', color: 'bg-amber-500', role: 'Participant', micOn: false, videoOn: true, online: true },
+];
 
 const initialChatMessages: ChatMessage[] = [
   { id: 'sys-1', sender: 'System', initials: '', color: '', text: 'Meeting started by Alex Johnson', time: '10:00 AM', isSystem: true },
-  { id: 'msg-1', sender: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', text: 'Hi everyone! Ready to start the sprint planning?', time: '10:01 AM' },
-  { id: 'msg-2', sender: 'Maya Patel', initials: 'MP', color: 'bg-green-500', text: 'Yes, I have the updated backlog items ready.', time: '10:02 AM' },
+  { id: 'msg-1', sender: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', text: 'Hi everyone! Ready to start the sprint planning?', time: '10:01 AM', reactions: ['👍', '🚀'] },
+  { id: 'msg-2', sender: 'Maya Patel', initials: 'MP', color: 'bg-emerald-500', text: 'Yes, I have the updated backlog items ready.', time: '10:02 AM' },
   { id: 'msg-3', sender: 'James Wilson', initials: 'JW', color: 'bg-orange-500', text: 'Great. Let me share the velocity report from last sprint.', time: '10:03 AM' },
-  { id: 'msg-4', sender: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', text: 'Should we also discuss the tech debt items?', time: '10:04 AM' },
+  { id: 'msg-4', sender: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', text: 'Should we also discuss the tech debt items?', time: '10:04 AM', reactions: ['❤️'] },
 ];
 
 const aiSuggestions = [
@@ -91,7 +100,7 @@ const mockPolls: PollData[] = [
     id: 'poll-2',
     question: 'Preferred meeting time for daily standups?',
     options: [
-      { label: '9:00 AM', votes: 6, percentage: 55 },
+      { label: '9:00 AM', votes: 6, percentage: 55, voted: true },
       { label: '9:30 AM', votes: 3, percentage: 27 },
       { label: '10:00 AM', votes: 2, percentage: 18 },
     ],
@@ -103,23 +112,123 @@ const aiResponses: { [key: string]: string } = {
   'Summarize this meeting': '## Meeting Summary\n\nThe team discussed sprint planning for Q4. Key topics included backlog prioritization, velocity improvements from last sprint (15% increase), and tech debt allocation. The team agreed to allocate 20% of capacity to tech debt. Action items were assigned to Sarah (backlog grooming), James (velocity report), and Maya (capacity planning).',
   'List action items': '**Action Items:**\n\n1. **Sarah Chen** - Groom and prioritize backlog items by EOD Tuesday\n2. **James Wilson** - Share velocity report with stakeholders\n3. **Maya Patel** - Update capacity planning spreadsheet\n4. **Alex Johnson** - Schedule follow-up with product team\n5. **Emily Zhang** - Create tech debt JIRA epic',
   'Key decisions made': '**Key Decisions:**\n\n1. Sprint velocity target set to 42 story points\n2. 20% capacity allocated to tech debt reduction\n3. Daily standups moved to 9:30 AM\n4. New feature: Real-time collaboration will be prioritized\n5. Code review SLA reduced from 24h to 12h',
-  'Translate to French': '## Résumé de la réunion\n\nL\'\u00e9quipe a discuté de la planification du sprint pour le T4. Les sujets principaux incluaient la prioritisation du backlog, les améliorations de vélocité du dernier sprint (augmentation de 15%), et l\'allocation de la dette technique. L\'\u00e9quipe a convenu d\'allouer 20% de la capacité à la dette technique.',
+  'Translate to French': '## R\u00e9sum\u00e9 de la r\u00e9union\n\nL\'\u00e9quipe a discut\u00e9 de la planification du sprint pour le T4. Les sujets principaux incluaient la prioritisation du backlog, les am\u00e9liorations de v\u00e9locit\u00e9 du dernier sprint (augmentation de 15%), et l\'allocation de la dette technique.',
   'Identify risks': '**Identified Risks:**\n\n1. **High** - Key engineer (David) on PTO next week during critical feature development\n2. **Medium** - Third-party API dependency may cause delays for authentication module\n3. **Medium** - Scope creep risk with 3 new feature requests from stakeholders\n4. **Low** - Testing environment capacity may need scaling for E2E tests',
 };
 
+const reactionEmojis = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F680}'];
+const reactionEmojiLabels = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F680}'];
+
+// ─── Helpers ──────────────────────────────────────────────────
+const colorToGradient: Record<string, string> = {
+  'bg-blue-500': 'from-blue-600 via-blue-700 to-slate-900',
+  'bg-pink-500': 'from-pink-600 via-pink-700 to-slate-900',
+  'bg-green-500': 'from-emerald-600 via-emerald-700 to-slate-900',
+  'bg-emerald-500': 'from-emerald-600 via-emerald-700 to-slate-900',
+  'bg-orange-500': 'from-orange-600 via-orange-700 to-slate-900',
+  'bg-violet-500': 'from-violet-600 via-violet-700 to-slate-900',
+  'bg-cyan-500': 'from-cyan-600 via-cyan-700 to-slate-900',
+  'bg-rose-500': 'from-rose-600 via-rose-700 to-slate-900',
+  'bg-amber-500': 'from-amber-600 via-amber-700 to-slate-900',
+};
+
+function getGradient(color: string) {
+  return colorToGradient[color] || 'from-slate-700 via-slate-800 to-slate-900';
+}
+
+function getRoleBadgeClass(role: string) {
+  switch (role) {
+    case 'Host': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+    case 'Co-host': return 'bg-violet-500/20 text-violet-300 border-violet-500/30';
+    default: return 'bg-white/10 text-white/50 border-white/10';
+  }
+}
+
+// ─── Audio Level Bars ─────────────────────────────────────────
+function AudioLevelBars() {
+  const [levels, setLevels] = useState([3, 5, 2]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLevels([
+        Math.max(1, Math.floor(Math.random() * 6) + 1),
+        Math.max(1, Math.floor(Math.random() * 6) + 1),
+        Math.max(1, Math.floor(Math.random() * 6) + 1),
+      ]);
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="flex items-end gap-[2px] h-4">
+      {levels.map((h, i) => (
+        <motion.div
+          key={i}
+          className="w-[3px] rounded-full bg-emerald-400"
+          animate={{ height: [2, h * 4, 2] }}
+          transition={{ duration: 0.4, delay: i * 0.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Floating Reaction ────────────────────────────────────────
+function FloatingReactionEmoji({ emoji, x, onDone }: { emoji: string; x: number; onDone: () => void }) {
+  return (
+    <motion.div
+      className="fixed bottom-32 text-4xl pointer-events-none z-[100]"
+      style={{ left: x }}
+      initial={{ y: 0, opacity: 1, scale: 0.5 }}
+      animate={{ y: -200, opacity: 0, scale: 1.2 }}
+      transition={{ duration: 2, ease: 'easeOut' }}
+      onAnimationComplete={onDone}
+    >
+      {emoji}
+    </motion.div>
+  );
+}
+
+// ─── AI Typing Indicator ──────────────────────────────────────
+function AITypingIndicator() {
+  return (
+    <div className="flex gap-2.5 border-l-2 border-violet-500/50 pl-3">
+      <Avatar className="w-7 h-7 shrink-0">
+        <AvatarFallback className="bg-violet-500 text-white text-[10px] font-bold">AI</AvatarFallback>
+      </Avatar>
+      <div className="flex items-center gap-1.5 py-2.5">
+        <motion.span
+          className="w-2 h-2 rounded-full bg-violet-400"
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+        />
+        <motion.span
+          className="w-2 h-2 rounded-full bg-violet-400"
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }}
+        />
+        <motion.span
+          className="w-2 h-2 rounded-full bg-violet-400"
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────
 export default function MeetingRoomPage() {
   const {
-    meetingTitle, meetingSidebarTab, setMeetingSidebarTab,
+    meetingTitle, setMeetingTitle, meetingSidebarTab, setMeetingSidebarTab,
     setCurrentView, currentMeetingId, user
   } = useAppStore();
 
-  // Local state
+  // --- State ---
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const [copied, setCopied] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
@@ -129,39 +238,60 @@ export default function MeetingRoomPage() {
   const [aiTyping, setAiTyping] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [gridLayout, setGridLayout] = useState<'grid' | 'speaker' | 'gallery'>('grid');
+  const [pinnedParticipant, setPinnedParticipant] = useState<string | null>(null);
+  const [showReactions, setShowReactions] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(meetingTitle || 'Sprint Planning - Q4');
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [votedPolls, setVotedPolls] = useState<Record<string, string>>({});
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const meetingContainerRef = useRef<HTMLDivElement>(null);
 
-  // Timer
+  // --- Meeting elapsed timer (always running) ---
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(prev => prev + 1);
-    }, 1000);
+    const interval = setInterval(() => setElapsed(prev => prev + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-scroll chat
+  // --- Recording timer ---
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
+    if (!isRecording) { setRecordingTime(0); return; }
+    const interval = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
-  useEffect(() => {
-    aiEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [aiMessages, aiTyping]);
+  // --- Auto-scroll chat ---
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
+  useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [aiMessages, aiTyping]);
 
-  // Close more menu on outside click
+  // --- Close more menu on outside click ---
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setShowMoreMenu(false);
-      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setShowMoreMenu(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // --- Focus title input when editing ---
+  useEffect(() => { if (isEditingTitle) titleInputRef.current?.focus(); }, [isEditingTitle]);
+
+  // --- Clean up floating reactions ---
+  const removeReaction = useCallback((id: string) => {
+    setFloatingReactions(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  // --- Formatters ---
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
@@ -169,11 +299,42 @@ export default function MeetingRoomPage() {
     return `${h}:${m}:${s}`;
   };
 
+  // --- Handlers ---
   const handleCopyMeetingId = () => {
     navigator.clipboard?.writeText(currentMeetingId || 'alv-mtg-2024-001');
     setCopied(true);
     toast.success('Meeting ID copied!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!meetingContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      meetingContainerRef.current.requestFullscreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.();
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const handleSendReaction = (emoji: string) => {
+    const id = `reaction-${Date.now()}-${Math.random()}`;
+    const x = 100 + Math.random() * (window.innerWidth - 200);
+    setFloatingReactions(prev => [...prev, { id, emoji, x }]);
+    setShowReactions(false);
+    // Also simulate someone else reacting
+    setTimeout(() => {
+      const id2 = `reaction-${Date.now()}-${Math.random()}`;
+      const x2 = 150 + Math.random() * (window.innerWidth - 300);
+      setFloatingReactions(prev => [...prev, { id: id2, emoji, x: x2 }]);
+    }, 800);
   };
 
   const handleSendChat = () => {
@@ -185,9 +346,33 @@ export default function MeetingRoomPage() {
       color: 'bg-blue-500',
       text: chatInput.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      reactions: [],
     };
     setChatMessages(prev => [...prev, msg]);
     setChatInput('');
+    setShowMentionList(false);
+  };
+
+  const handleChatInputChange = (value: string) => {
+    setChatInput(value);
+    const atIndex = value.lastIndexOf('@');
+    if (atIndex >= 0) {
+      const query = value.slice(atIndex + 1).split(/\s/)[0];
+      if (query.length > 0 || atIndex === value.length - 1) {
+        setMentionQuery(query.toLowerCase());
+        setShowMentionList(true);
+        return;
+      }
+    }
+    setShowMentionList(false);
+  };
+
+  const handleMentionSelect = (name: string) => {
+    const atIndex = chatInput.lastIndexOf('@');
+    const before = chatInput.slice(0, atIndex);
+    setChatInput(`${before}@${name} `);
+    setShowMentionList(false);
+    chatInputRef.current?.focus();
   };
 
   const handleAISuggestion = (suggestion: string) => {
@@ -201,7 +386,6 @@ export default function MeetingRoomPage() {
     };
     setAiMessages(prev => [...prev, userMsg]);
     setAiTyping(true);
-
     setTimeout(() => {
       setAiTyping(false);
       const aiMsg: ChatMessage = {
@@ -209,7 +393,7 @@ export default function MeetingRoomPage() {
         sender: 'ALVISION AI',
         initials: 'AI',
         color: 'bg-violet-500',
-        text: aiResponses[suggestion] || 'I\'m analyzing the meeting content. Based on the discussion so far, here are my insights...',
+        text: aiResponses[suggestion] || "I'm analyzing the meeting content. Based on the discussion so far, here are my insights...",
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isAI: true,
       };
@@ -229,243 +413,427 @@ export default function MeetingRoomPage() {
   };
 
   const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls') => {
-    if (tab && sidebarOpen && meetingSidebarTab === tab) {
-      setSidebarOpen(false);
-    } else if (tab) {
-      setMeetingSidebarTab(tab);
-      setSidebarOpen(true);
-    } else {
-      setSidebarOpen(prev => !prev);
+    if (tab && sidebarOpen && meetingSidebarTab === tab) setSidebarOpen(false);
+    else if (tab) { setMeetingSidebarTab(tab); setSidebarOpen(true); }
+    else setSidebarOpen(prev => !prev);
+  };
+
+  const handleTitleSave = () => {
+    setIsEditingTitle(false);
+    if (titleDraft.trim()) {
+      setMeetingTitle(titleDraft.trim());
+      toast.success('Meeting title updated');
     }
   };
 
-  const toolbarButtons = [
-    { icon: micOn ? <Mic size={20} /> : <MicOff size={20} />, active: micOn, activeColor: '', inactiveColor: 'text-red-400', label: micOn ? 'Mute' : 'Unmute', onClick: () => setMicOn(!micOn) },
-    { icon: cameraOn ? <Video size={20} /> : <VideoOff size={20} />, active: cameraOn, activeColor: '', inactiveColor: 'text-red-400', label: cameraOn ? 'Stop Camera' : 'Start Camera', onClick: () => setCameraOn(!cameraOn) },
-    { icon: screenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />, active: !screenSharing, activeColor: '', inactiveColor: 'text-green-400', label: screenSharing ? 'Stop Sharing' : 'Share Screen', onClick: () => { setScreenSharing(!screenSharing); toast(screenSharing ? 'Screen sharing stopped' : 'Screen sharing started'); } },
-    { icon: <Hand size={20} />, active: handRaised, activeColor: '', inactiveColor: 'text-yellow-400', label: handRaised ? 'Lower Hand' : 'Raise Hand', onClick: () => setHandRaised(!handRaised) },
-    { icon: <CircleDot size={20} />, active: !recording, activeColor: '', inactiveColor: 'text-red-500', label: recording ? 'Stop Recording' : 'Start Recording', onClick: () => { setRecording(!recording); toast(recording ? 'Recording stopped' : 'Recording started'); } },
-    { icon: <MessageSquare size={20} />, active: meetingSidebarTab === 'chat' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'Chat', onClick: () => toggleSidebar('chat') },
-    { icon: <Users size={20} />, active: meetingSidebarTab === 'participants' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'Participants', onClick: () => toggleSidebar('participants') },
-    { icon: <Sparkles size={20} />, active: meetingSidebarTab === 'ai' && sidebarOpen, activeColor: 'bg-white/20', inactiveColor: '', label: 'AI Assistant', onClick: () => toggleSidebar('ai') },
-  ];
-
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'Host': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'Co-host': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400';
-      default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
-    }
+  const handleVotePoll = (pollId: string, optionLabel: string) => {
+    setVotedPolls(prev => ({ ...prev, [pollId]: optionLabel }));
+    toast.success('Vote recorded!', { description: `You voted for "${optionLabel}"` });
   };
 
+  const handleTogglePin = (id: string) => {
+    setPinnedParticipant(prev => prev === id ? null : id);
+    toast(pinnedParticipant === id ? 'Unpinned participant' : 'Pinned participant');
+  };
+
+  // --- Filtered participants ---
+  const filteredParticipants = useMemo(() => {
+    if (!participantSearch.trim()) return mockParticipants;
+    return mockParticipants.filter(p => p.name.toLowerCase().includes(participantSearch.toLowerCase()));
+  }, [participantSearch]);
+
+  const filteredMentions = useMemo(() => {
+    if (!mentionQuery) return mockParticipants.slice(0, 5);
+    return mockParticipants.filter(p => p.name.toLowerCase().includes(mentionQuery));
+  }, [mentionQuery]);
+
+  // --- Grid participants based on layout ---
+  const displayParticipants = useMemo(() => {
+    if (pinnedParticipant && gridLayout === 'speaker') {
+      const pinned = mockParticipants.find(p => p.id === pinnedParticipant);
+      const others = mockParticipants.filter(p => p.id !== pinnedParticipant);
+      return pinned ? [pinned, ...others.slice(0, 5)] : mockParticipants.slice(0, 6);
+    }
+    if (gridLayout === 'speaker') {
+      return [mockParticipants[0], ...mockParticipants.slice(1, 6)];
+    }
+    if (gridLayout === 'gallery') {
+      return mockParticipants;
+    }
+    return mockParticipants.slice(0, 4);
+  }, [gridLayout, pinnedParticipant]);
+
+  const onlineCount = mockParticipants.filter(p => p.online !== false).length;
+
+  // ─── Render ─────────────────────────────────────────────────
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="h-screen w-screen flex bg-slate-950 text-white overflow-hidden">
-      {/* Main Meeting Area */}
-      <div className="flex-1 relative flex flex-col">
-        {/* Meeting Grid */}
-        <div className="flex-1 relative">
-          {/* ALVISION Watermark */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <span className="text-[12rem] font-black text-white/[0.03] tracking-widest select-none">ALVISION</span>
-          </div>
+    <div ref={meetingContainerRef} className="h-screen w-screen flex bg-slate-950 text-white overflow-hidden">
 
-          {/* Meeting Title Overlay - Top */}
-          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
-            <div className="flex items-center gap-3">
+      {/* ── Floating Reactions Overlay ── */}
+      <div className="fixed inset-0 pointer-events-none z-[100]">
+        <AnimatePresence>
+          {floatingReactions.map(r => (
+            <FloatingReactionEmoji key={r.id} emoji={r.emoji} x={r.x} onDone={() => removeReaction(r.id)} />
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Main Meeting Area ── */}
+      <div className="flex-1 relative flex flex-col min-w-0">
+
+        {/* ── ALVISION Watermark ── */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+          <span className="text-[10rem] sm:text-[12rem] font-black text-white/[0.02] tracking-[0.3em] select-none">ALVISION</span>
+        </div>
+
+        {/* ── Top Bar ── */}
+        <div className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/70 via-black/40 to-transparent">
+          <div className="flex items-center justify-between px-3 sm:px-5 py-3">
+            {/* Left: Back + Title */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <button
                 onClick={() => setCurrentView('dashboard')}
-                className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0"
               >
                 <ArrowLeft size={16} />
               </button>
-              <div>
-                <h2 className="text-sm font-semibold">{meetingTitle || 'Sprint Planning - Q4'}</h2>
-                {recording && (
+              <div className="min-w-0">
+                {isEditingTitle ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      ref={titleInputRef}
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleTitleSave(); if (e.key === 'Escape') { setIsEditingTitle(false); setTitleDraft(meetingTitle || 'Sprint Planning - Q4'); } }}
+                      className="bg-white/10 border border-white/20 rounded-md px-2 py-0.5 text-sm font-semibold outline-none focus:border-violet-500/50 w-48 sm:w-64"
+                    />
+                    <button onClick={handleTitleSave} className="w-6 h-6 rounded flex items-center justify-center hover:bg-white/20 text-emerald-400">
+                      <CheckCircle2 size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setIsEditingTitle(true); setTitleDraft(meetingTitle || 'Sprint Planning - Q4'); }}
+                    className="flex items-center gap-1.5 group min-w-0"
+                  >
+                    <h2 className="text-sm font-semibold truncate">{meetingTitle || 'Sprint Planning - Q4'}</h2>
+                    <Pencil size={12} className="text-white/0 group-hover:text-white/50 transition-colors shrink-0" />
+                  </button>
+                )}
+                {isRecording && (
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-[10px] font-medium text-red-400">REC</span>
+                    <motion.span
+                      className="w-2 h-2 rounded-full bg-red-500"
+                      animate={{ opacity: [1, 0.3, 1], scale: [1, 0.85, 1] }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <span className="text-[10px] font-mono font-medium text-red-400">REC {formatTime(recordingTime)}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs">
-                <span className="text-white/60">ID:</span>
-                <span className="font-mono">{currentMeetingId || 'alv-mtg-2024-001'}</span>
-                <button onClick={handleCopyMeetingId} className="text-white/60 hover:text-white transition-colors">
-                  {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                </button>
-              </div>
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono">
+            {/* Right: Info pills */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Meeting Timer */}
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] font-mono text-white/70">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 {formatTime(elapsed)}
               </div>
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 text-xs">
-                <Users size={12} /> 8
+              {/* Meeting ID */}
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] font-mono">
+                <span className="text-white/50">ID:</span>
+                <span>{currentMeetingId || 'alv-mtg-001'}</span>
+                <button onClick={handleCopyMeetingId} className="text-white/40 hover:text-white transition-colors">
+                  {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                </button>
               </div>
-              <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 text-xs text-green-400">
-                <Shield size={12} /> E2E
+              {/* Participants count */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px]">
+                <Users size={11} className="text-white/60" />
+                <span>{onlineCount}/{mockParticipants.length}</span>
               </div>
-            </div>
-          </div>
-
-          {/* Participant Grid */}
-          <div className="relative z-10 h-full flex items-center justify-center p-4 pt-16 pb-24">
-            <div className={`grid gap-3 w-full max-w-5xl h-full ${
-              gridParticipants.length === 1 ? 'grid-cols-1' :
-              gridParticipants.length === 2 ? 'grid-cols-2' :
-              'grid-cols-1 sm:grid-cols-2'
-            }`}>
-              {gridParticipants.map((p, i) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  className={`relative rounded-2xl bg-slate-900 overflow-hidden flex items-center justify-center min-h-[200px] sm:min-h-[250px] ${
-                    i === 0 ? 'ring-2 ring-blue-500/50' : 'ring-1 ring-white/10'
-                  }`}
-                >
-                  {/* Avatar Placeholder */}
-                  <div className="flex flex-col items-center gap-3">
-                    <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full ${p.color} flex items-center justify-center text-xl sm:text-2xl font-bold text-white`}>
-                      {p.initials}
-                    </div>
-                  </div>
-
-                  {/* Name Overlay - Bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{p.name}</span>
-                      {p.role === 'Host' && (
-                        <Badge variant="secondary" className="text-[10px] h-4 bg-blue-500/20 text-blue-300 border-0">Host</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {p.micOn ? (
-                        <Mic size={14} className="text-green-400" />
-                      ) : (
-                        <MicOff size={14} className="text-red-400" />
-                      )}
-                      {!p.videoOn && (
-                        <VideoOff size={14} className="text-white/50" />
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+              {/* E2E badge */}
+              <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] text-emerald-400">
+                <Shield size={11} />
+                <span>E2E</span>
+              </div>
+              {/* Fullscreen toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleToggleFullscreen}
+                    className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/20 transition-all"
+                  >
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-slate-800 text-white border-slate-700 text-xs">{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
 
-        {/* Bottom Toolbar */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center pb-4 px-4">
-          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-lg rounded-2xl p-2">
-            {toolbarButtons.map((btn, i) => (
-              <Tooltip key={i}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={btn.onClick}
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
-                      btn.inactiveColor && !btn.active
-                        ? btn.inactiveColor + ' bg-white/5'
-                        : btn.activeColor || 'hover:bg-white/20'
-                    } ${btn.active ? '' : 'bg-white/5'}`}
-                  >
-                    {btn.icon}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
-                  {btn.label}
-                </TooltipContent>
-              </Tooltip>
-            ))}
+        {/* ── Video Grid ── */}
+        <div className="flex-1 relative z-10">
+          <div className={`h-full flex items-center justify-center p-2 sm:p-4 pt-16 pb-28 sm:pb-24 ${
+            gridLayout === 'speaker' && displayParticipants.length > 1
+              ? 'flex-col sm:flex-row gap-2 sm:gap-3'
+              : ''
+          }`}>
+            {gridLayout === 'speaker' && displayParticipants.length > 1 ? (
+              /* Speaker Layout */
+              <>
+                {/* Main speaker */}
+                <div className="flex-1 min-h-0 h-full sm:h-auto w-full sm:max-w-none">
+                  <ParticipantTile
+                      key={displayParticipants[0].id}
+                      participant={displayParticipants[0]}
+                      isSpeaker
+                      isPinned={pinnedParticipant === displayParticipants[0].id}
+                      isHandRaised={handRaised && displayParticipants[0].id === '1'}
+                      onPin={() => handleTogglePin(displayParticipants[0].id)}
+                    />
+                </div>
+                {/* Thumbnail strip */}
+                <div className="flex sm:flex-col gap-2 overflow-x-auto sm:overflow-y-auto sm:overflow-x-hidden max-h-40 sm:max-h-none sm:w-48 lg:w-56 shrink-0">
+                  {displayParticipants.slice(1).map((p, i) => (
+                    <div key={p.id} className="min-w-[140px] sm:min-w-0 sm:w-full h-24 sm:h-20 shrink-0">
+                      <ParticipantTile
+                        participant={p}
+                        index={i + 1}
+                        isPinned={pinnedParticipant === p.id}
+                        isHandRaised={p.handRaised === true}
+                        onPin={() => handleTogglePin(p.id)}
+                        compact
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* Grid / Gallery Layout */
+              <div className={`grid gap-2 sm:gap-3 w-full h-full ${
+                displayParticipants.length <= 1 ? 'grid-cols-1' :
+                displayParticipants.length <= 2 ? 'grid-cols-2' :
+                displayParticipants.length <= 4 ? 'grid-cols-1 sm:grid-cols-2' :
+                displayParticipants.length <= 6 ? 'grid-cols-2 sm:grid-cols-3' :
+                'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+              }`}>
+                {displayParticipants.map((p, i) => (
+                  <ParticipantTile
+                    key={p.id}
+                    participant={p}
+                    index={i}
+                    isPinned={pinnedParticipant === p.id}
+                    isHandRaised={p.handRaised === true || (handRaised && p.id === '1')}
+                    onPin={() => handleTogglePin(p.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-            {/* More Button */}
+        {/* ── Reaction Bar (floating above toolbar) ── */}
+        <AnimatePresence>
+          {showReactions && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-3 py-2 rounded-full bg-black/60 backdrop-blur-xl border border-white/10"
+            >
+              {reactionEmojis.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => handleSendReaction(emoji)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-all hover:scale-125 text-xl"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Bottom Toolbar ── */}
+        <div className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pb-4 px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 20 }}
+            className="flex items-center gap-1.5 sm:gap-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 sm:p-2"
+          >
+            {/* Mic */}
+            <ToolbarButton
+              active={micOn}
+              icon={micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              label={micOn ? 'Mute' : 'Unmute'}
+              onClick={() => setMicOn(!micOn)}
+              glowColor="emerald"
+            />
+            {/* Camera */}
+            <ToolbarButton
+              active={cameraOn}
+              icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              label={cameraOn ? 'Stop Camera' : 'Start Camera'}
+              onClick={() => setCameraOn(!cameraOn)}
+              glowColor="emerald"
+            />
+            {/* Screen Share */}
+            <ToolbarButton
+              active={screenSharing}
+              icon={screenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+              label={screenSharing ? 'Stop Sharing' : 'Share Screen'}
+              onClick={() => { setScreenSharing(!screenSharing); toast(screenSharing ? 'Screen sharing stopped' : 'Screen sharing started'); }}
+              glowColor="sky"
+            />
+            {/* Hand Raise */}
+            <ToolbarButton
+              active={handRaised}
+              icon={<Hand size={20} />}
+              label={handRaised ? 'Lower Hand' : 'Raise Hand'}
+              onClick={() => { setHandRaised(!handRaised); toast(handRaised ? 'Hand lowered' : '\u{1F64B} Hand raised'); }}
+              glowColor="amber"
+            />
+            {/* Recording */}
+            <ToolbarButton
+              active={isRecording}
+              icon={<CircleDot size={20} />}
+              label={isRecording ? 'Stop Recording' : 'Start Recording'}
+              onClick={() => { setIsRecording(!isRecording); toast(isRecording ? 'Recording stopped' : 'Recording started'); }}
+              glowColor="red"
+            />
+
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/10 mx-0.5" />
+
+            {/* Chat */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'chat' && sidebarOpen}
+              icon={<MessageSquare size={20} />}
+              label="Chat"
+              onClick={() => toggleSidebar('chat')}
+            />
+            {/* Participants */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'participants' && sidebarOpen}
+              icon={<Users size={20} />}
+              label="Participants"
+              onClick={() => toggleSidebar('participants')}
+            />
+            {/* AI */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'ai' && sidebarOpen}
+              icon={<Sparkles size={20} />}
+              label="AI Assistant"
+              onClick={() => toggleSidebar('ai')}
+            />
+            {/* Reactions */}
+            <ToolbarButton
+              active={showReactions}
+              icon={<span className="text-lg">{'👍'}</span>}
+              label="Reactions"
+              onClick={() => setShowReactions(!showReactions)}
+            />
+
+            {/* Layout toggle */}
             <div className="relative" ref={moreMenuRef}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/20 transition-all"
-                  >
-                    <MoreHorizontal size={20} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
-                  More options
-                </TooltipContent>
-              </Tooltip>
-
+              <ToolbarButton
+                icon={<LayoutGrid size={20} />}
+                label="Layout"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+              />
               <AnimatePresence>
                 {showMoreMenu && (
                   <motion.div
                     initial={{ opacity: 0, y: 8, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    className="absolute bottom-full right-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl z-50"
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
                   >
-                    {['Settings', 'Reactions', 'Whiteboard', 'Breakout Rooms', 'Polls'].map(item => (
-                      <button
-                        key={item}
-                        onClick={() => {
-                          if (item === 'Polls') toggleSidebar('polls');
-                          setShowMoreMenu(false);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
-                      >
-                        {item}
+                    {/* Layout options */}
+                    <div className="p-1.5 border-b border-white/10">
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Layout</p>
+                      {(['grid', 'speaker', 'gallery'] as const).map(layout => (
+                        <button
+                          key={layout}
+                          onClick={() => { setGridLayout(layout); setShowMoreMenu(false); toast(`Switched to ${layout} view`); }}
+                          className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${
+                            gridLayout === layout ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                          }`}
+                        >
+                          {layout === 'grid' && <LayoutGrid size={16} />}
+                          {layout === 'speaker' && <UserCircle size={16} />}
+                          {layout === 'gallery' && <LayoutDashboard size={16} />}
+                          <span className="capitalize">{layout}</span>
+                          {gridLayout === layout && <Check size={14} className="ml-auto text-violet-400" />}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Other options */}
+                    <div className="p-1.5">
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
+                      <button onClick={() => { toggleSidebar('polls'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <Plus size={16} /> Create Poll
                       </button>
-                    ))}
+                      <button onClick={() => { setShowMoreMenu(false); toast('Whiteboard coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <Pen size={16} /> Whiteboard
+                      </button>
+                      <button onClick={() => { setShowMoreMenu(false); toast('Breakout rooms coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <LayoutGrid size={16} /> Breakout Rooms
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <Separator orientation="vertical" className="h-8 bg-white/10 mx-1" />
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/10 mx-0.5" />
 
             {/* Leave Button */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={handleLeaveMeeting}
-                  className="h-11 px-5 rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center gap-2 text-sm font-medium transition-colors"
+                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-full bg-red-500 hover:bg-red-600 active:bg-red-700 text-white flex items-center gap-2 text-sm font-medium transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/40"
                 >
                   <Phone size={18} className="rotate-[135deg]" />
                   <span className="hidden sm:inline">Leave</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">
-                Leave meeting
-              </TooltipContent>
+              <TooltipContent side="top" className="bg-slate-800 text-white border-slate-700 text-xs">Leave meeting</TooltipContent>
             </Tooltip>
-          </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Right Sidebar */}
+      {/* ── Right Sidebar ── */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 384, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="h-full bg-slate-900 border-l border-white/10 flex flex-col overflow-hidden shrink-0 max-sm:w-full"
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            className="h-full w-[360px] sm:w-[384px] bg-slate-950/80 backdrop-blur-2xl border-l border-white/10 flex flex-col overflow-hidden shrink-0 max-sm:absolute max-sm:right-0 max-sm:z-40"
           >
-            {/* Sidebar Tabs */}
-            <div className="border-b border-white/10 px-2 pt-2">
+            {/* Sidebar Header */}
+            <div className="border-b border-white/10 bg-white/[0.03] backdrop-blur-xl px-2 pt-2">
               <div className="flex items-center justify-between mb-2">
                 <Tabs value={meetingSidebarTab} onValueChange={(v) => setMeetingSidebarTab(v as 'chat' | 'participants' | 'ai' | 'polls')} className="w-full">
-                  <TabsList className="bg-slate-800 w-full h-9">
-                    <TabsTrigger value="chat" className="flex-1 text-xs data-[state=active]:bg-slate-700">Chat</TabsTrigger>
-                    <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-slate-700">People</TabsTrigger>
-                    <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-slate-700">AI</TabsTrigger>
-                    <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-slate-700">Polls</TabsTrigger>
+                  <TabsList className="bg-white/5 w-full h-9 rounded-xl">
+                    <TabsTrigger value="chat" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Chat</TabsTrigger>
+                    <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">People</TabsTrigger>
+                    <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">AI</TabsTrigger>
+                    <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Polls</TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <button onClick={() => setSidebarOpen(false)} className="ml-1 w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center shrink-0">
+                <button onClick={() => setSidebarOpen(false)} className="ml-1.5 w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center shrink-0 transition-colors">
                   <X size={14} className="text-white/60" />
                 </button>
               </div>
@@ -473,47 +841,102 @@ export default function MeetingRoomPage() {
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
+
+              {/* ── Chat Tab ── */}
               {meetingSidebarTab === 'chat' && (
                 <div className="flex flex-col h-full">
-                  <ScrollArea className="flex-1 max-h-[calc(100vh-12rem)]">
+                  <ScrollArea className="flex-1">
                     <div className="p-3 space-y-3">
                       {chatMessages.map((msg) => (
                         <div key={msg.id}>
                           {msg.isSystem ? (
                             <div className="flex items-center gap-2 py-1">
                               <div className="flex-1 h-px bg-white/10" />
-                              <span className="text-[10px] text-white/40 px-2">{msg.text}</span>
+                              <span className="text-[10px] text-white/30 px-2">{msg.text}</span>
                               <div className="flex-1 h-px bg-white/10" />
                             </div>
                           ) : (
-                            <div className="flex gap-2.5">
-                              <Avatar className="w-7 h-7 shrink-0 mt-0.5">
-                                <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2">
-                                  <span className="text-xs font-semibold">{msg.sender}</span>
-                                  <span className="text-[10px] text-white/30">{msg.time}</span>
+                            <motion.div
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="group"
+                            >
+                              <div className="flex gap-2.5">
+                                <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+                                  <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-xs font-semibold text-white/90">{msg.sender}</span>
+                                    <span className="text-[10px] text-white/25">{msg.time}</span>
+                                  </div>
+                                  <div className="mt-1 bg-white/[0.06] rounded-2xl rounded-tl-sm px-3 py-2 inline-block max-w-full">
+                                    <p className="text-sm text-white/80 break-words leading-relaxed">{msg.text}</p>
+                                  </div>
+                                  {/* Reactions row */}
+                                  {msg.reactions && msg.reactions.length > 0 && (
+                                    <div className="flex gap-1 mt-1">
+                                      {msg.reactions.map((r, ri) => (
+                                        <span key={ri} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10 cursor-pointer transition-colors">
+                                          {r} <span className="text-[10px] text-white/40">{ri + 1}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="text-sm text-white/80 mt-0.5 break-words">{msg.text}</p>
                               </div>
-                            </div>
+                            </motion.div>
                           )}
                         </div>
                       ))}
                       <div ref={chatEndRef} />
                     </div>
                   </ScrollArea>
-                  <div className="p-3 border-t border-white/10">
+
+                  {/* @Mention dropdown */}
+                  <AnimatePresence>
+                    {showMentionList && filteredMentions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        className="absolute bottom-14 left-3 right-3 max-h-40 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
+                      >
+                        <ScrollArea className="max-h-40">
+                          <div className="p-1">
+                            {filteredMentions.map(p => (
+                              <button
+                                key={p.id}
+                                onClick={() => handleMentionSelect(p.name)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-left"
+                              >
+                                <Avatar className="w-6 h-6">
+                                  <AvatarFallback className={`${p.color} text-white text-[9px] font-bold`}>{p.initials}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <span className="text-xs font-medium">{p.name}</span>
+                                  <span className="text-[10px] text-white/40 ml-2">{p.role}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Chat Input */}
+                  <div className="p-3 border-t border-white/10 bg-white/[0.02]">
                     <div className="flex gap-2">
                       <Input
+                        ref={chatInputRef}
                         value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                        placeholder="Type a message..."
-                        className="bg-slate-800 border-white/10 text-sm h-9 placeholder:text-white/30"
+                        onChange={(e) => handleChatInputChange(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !showMentionList && handleSendChat()}
+                        placeholder="Type a message... (use @ to mention)"
+                        className="bg-white/5 border-white/10 text-sm h-9 placeholder:text-white/25 focus:border-violet-500/50 rounded-xl"
                       />
-                      <Button size="icon" onClick={handleSendChat} className="h-9 w-9 shrink-0 bg-blue-600 hover:bg-blue-700">
+                      <Button size="icon" onClick={handleSendChat} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700 rounded-xl">
                         <Send size={14} />
                       </Button>
                     </div>
@@ -521,35 +944,86 @@ export default function MeetingRoomPage() {
                 </div>
               )}
 
+              {/* ── Participants Tab ── */}
               {meetingSidebarTab === 'participants' && (
                 <div className="flex flex-col h-full">
-                  <div className="px-4 py-3 border-b border-white/10">
-                    <h3 className="text-sm font-semibold">{mockParticipants.length} Participants</h3>
+                  {/* Search bar */}
+                  <div className="px-3 py-2.5 border-b border-white/10 bg-white/[0.02]">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
+                      <input
+                        value={participantSearch}
+                        onChange={(e) => setParticipantSearch(e.target.value)}
+                        placeholder="Search participants..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs outline-none placeholder:text-white/25 focus:border-violet-500/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 border-b border-white/10">
+                    <h3 className="text-xs font-semibold text-white/50">{filteredParticipants.length} Participants ({onlineCount} online)</h3>
                   </div>
                   <ScrollArea className="flex-1">
-                    <div className="p-2 space-y-0.5">
-                      {mockParticipants.map((p) => (
-                        <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors">
-                          <Avatar className="w-8 h-8 shrink-0">
-                            <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
-                          </Avatar>
+                    <div className="p-1.5 space-y-0.5">
+                      {filteredParticipants.map((p) => (
+                        <div
+                          key={p.id}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all group ${
+                            p.online === false ? 'opacity-50' : ''
+                          }`}
+                        >
+                          <div className="relative">
+                            <Avatar className="w-9 h-9 shrink-0">
+                              <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
+                            </Avatar>
+                            {/* Online indicator */}
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
+                              p.online === false ? 'bg-slate-500' : 'bg-emerald-400'
+                            }`} />
+                            {/* Hand raised indicator */}
+                            {p.handRaised && (
+                              <motion.span
+                                className="absolute -top-1 -right-1 text-sm"
+                                animate={{ y: [0, -3, 0] }}
+                                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                              >
+                                {'✋'}
+                              </motion.span>
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium truncate">{p.name}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getRoleBadge(p.role)}`}>{p.role}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${getRoleBadgeClass(p.role)}`}>{p.role}</span>
                             </div>
+                            <span className={`text-[10px] ${p.online === false ? 'text-slate-500' : 'text-white/30'}`}>
+                              {p.online === false ? 'Offline' : 'In meeting'}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {p.micOn ? <Mic size={14} className="text-green-400" /> : <MicOff size={14} className="text-red-400" />}
-                            {p.videoOn ? <Video size={14} className="text-green-400" /> : <VideoOff size={14} className="text-white/30" />}
+                          <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.micOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
+                                  {p.micOn ? <Mic size={14} /> : <MicOff size={14} />}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.micOn ? 'Muted' : 'Unmuted'}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.videoOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/20 hover:bg-white/10'}`}>
+                                  {p.videoOn ? <Video size={14} /> : <VideoOff size={14} />}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.videoOn ? 'Camera on' : 'Camera off'}</TooltipContent>
+                            </Tooltip>
                             {p.role !== 'Host' && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <button className="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10">
-                                    <MicOff size={12} className="text-white/40" />
+                                  <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:bg-white/10 hover:text-white/50 opacity-0 group-hover:opacity-100 transition-all">
+                                    <MicOff size={12} />
                                   </button>
                                 </TooltipTrigger>
-                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute</TooltipContent>
+                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute participant</TooltipContent>
                               </Tooltip>
                             )}
                           </div>
@@ -560,74 +1034,86 @@ export default function MeetingRoomPage() {
                 </div>
               )}
 
+              {/* ── AI Tab ── */}
               {meetingSidebarTab === 'ai' && (
                 <div className="flex flex-col h-full">
-                  <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                    <Sparkles size={16} className="text-violet-400" />
-                    <h3 className="text-sm font-semibold">AI Meeting Assistant</h3>
+                  <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                      <Sparkles size={14} className="text-violet-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold">AI Meeting Assistant</h3>
+                      <p className="text-[10px] text-white/30">Powered by ALVISION</p>
+                    </div>
                   </div>
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-3">
                       {aiMessages.length === 0 && !aiTyping && (
-                        <div className="py-6">
-                          <div className="w-12 h-12 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-3">
-                            <Sparkles size={24} className="text-violet-400" />
-                          </div>
-                          <p className="text-center text-sm text-white/50 mb-4">Ask me anything about this meeting</p>
+                        <div className="py-8">
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/10 flex items-center justify-center mx-auto mb-4 border border-violet-500/20"
+                          >
+                            <Sparkles size={28} className="text-violet-400" />
+                          </motion.div>
+                          <p className="text-center text-sm text-white/40 mb-5">Ask me anything about this meeting</p>
                           <div className="flex flex-wrap gap-2 justify-center">
                             {aiSuggestions.map((suggestion) => (
-                              <button
+                              <motion.button
                                 key={suggestion}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={() => handleAISuggestion(suggestion)}
-                                className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors"
+                                className="px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 hover:bg-violet-500/20 hover:border-violet-500/30 transition-all"
                               >
                                 {suggestion}
-                              </button>
+                              </motion.button>
                             ))}
                           </div>
                         </div>
                       )}
 
                       {aiMessages.map((msg) => (
-                        <div key={msg.id} className={`flex gap-2.5 ${msg.isAI ? 'border-l-2 border-violet-500/50 pl-3' : ''}`}>
-                          <Avatar className="w-7 h-7 shrink-0 mt-0.5">
-                            <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-xs font-semibold">{msg.sender}</span>
-                              <span className="text-[10px] text-white/30">{msg.time}</span>
-                            </div>
-                            <div className="text-sm text-white/80 mt-1 break-words whitespace-pre-wrap leading-relaxed">
-                              {msg.text}
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`${msg.isAI ? 'border-l-2 border-violet-500/50 pl-3 ml-0.5' : ''}`}
+                        >
+                          <div className="flex gap-2.5">
+                            <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+                              <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-xs font-semibold text-white/90">{msg.sender}</span>
+                                <span className="text-[10px] text-white/25">{msg.time}</span>
+                              </div>
+                              <div className={`mt-1 text-sm text-white/75 break-words whitespace-pre-wrap leading-relaxed ${
+                                msg.isAI ? 'bg-violet-500/5 rounded-xl px-3 py-2' : 'bg-white/[0.06] rounded-2xl rounded-tl-sm px-3 py-2 inline-block'
+                              }`}>
+                                {msg.text}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
 
-                      {aiTyping && (
-                        <div className="flex gap-2.5 border-l-2 border-violet-500/50 pl-3">
-                          <Avatar className="w-7 h-7 shrink-0">
-                            <AvatarFallback className="bg-violet-500 text-white text-[10px] font-bold">AI</AvatarFallback>
-                          </Avatar>
-                          <div className="flex items-center gap-1 py-2">
-                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <div className="w-2 h-2 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '300ms' }} />
-                          </div>
-                        </div>
-                      )}
+                      {aiTyping && <AITypingIndicator />}
 
                       {aiMessages.length > 0 && (
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {aiSuggestions.map((suggestion) => (
-                            <button
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                          {aiSuggestions.slice(0, 3).map((suggestion) => (
+                            <motion.button
                               key={suggestion}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
                               onClick={() => handleAISuggestion(suggestion)}
-                              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors"
+                              className="px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 hover:bg-violet-500/20 transition-all"
                             >
                               {suggestion}
-                            </button>
+                            </motion.button>
                           ))}
                         </div>
                       )}
@@ -635,16 +1121,16 @@ export default function MeetingRoomPage() {
                       <div ref={aiEndRef} />
                     </div>
                   </ScrollArea>
-                  <div className="p-3 border-t border-white/10">
+                  <div className="p-3 border-t border-white/10 bg-white/[0.02]">
                     <div className="flex gap-2">
                       <Input
                         value={aiInput}
                         onChange={(e) => setAiInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendAI()}
                         placeholder="Ask AI something..."
-                        className="bg-slate-800 border-white/10 text-sm h-9 placeholder:text-white/30"
+                        className="bg-white/5 border-white/10 text-sm h-9 placeholder:text-white/25 focus:border-violet-500/50 rounded-xl"
                       />
-                      <Button size="icon" onClick={handleSendAI} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700">
+                      <Button size="icon" onClick={handleSendAI} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700 rounded-xl">
                         <Send size={14} />
                       </Button>
                     </div>
@@ -652,37 +1138,64 @@ export default function MeetingRoomPage() {
                 </div>
               )}
 
+              {/* ── Polls Tab ── */}
               {meetingSidebarTab === 'polls' && (
                 <div className="flex flex-col h-full">
-                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Polls</h3>
-                    <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
-                      <Plus size={12} className="mr-1" /> Create Poll
+                  <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold">Polls</h3>
+                      <p className="text-[10px] text-white/30">Vote and create polls</p>
+                    </div>
+                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg">
+                      <Plus size={12} className="mr-1" /> Create
                     </Button>
                   </div>
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-4">
                       {mockPolls.map((poll) => (
-                        <div key={poll.id} className="bg-slate-800/50 rounded-xl p-4 border border-white/5">
-                          <h4 className="text-sm font-semibold mb-3">{poll.question}</h4>
-                          <div className="space-y-2.5">
-                            {poll.options.map((opt) => (
-                              <div key={opt.label} className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span>{opt.label}</span>
-                                  <span className="text-white/50">{opt.votes} votes ({opt.percentage}%)</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-blue-500 transition-all"
-                                    style={{ width: `${opt.percentage}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
+                        <motion.div
+                          key={poll.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-white/[0.03] rounded-2xl p-4 border border-white/5 hover:border-white/10 transition-colors"
+                        >
+                          <h4 className="text-sm font-semibold mb-1">{poll.question}</h4>
+                          <p className="text-[10px] text-white/30 mb-3">{poll.totalVotes} total votes</p>
+                          <div className="space-y-2">
+                            {poll.options.map((opt) => {
+                              const hasVoted = votedPolls[poll.id] === opt.label || opt.voted;
+                              return (
+                                <motion.button
+                                  key={opt.label}
+                                  whileHover={{ scale: 1.01 }}
+                                  whileTap={{ scale: 0.99 }}
+                                  onClick={() => !votedPolls[poll.id] && handleVotePoll(poll.id, opt.label)}
+                                  className={`w-full text-left rounded-xl p-2.5 border transition-all ${
+                                    hasVoted
+                                      ? 'border-violet-500/30 bg-violet-500/5'
+                                      : 'border-white/5 hover:border-white/15 hover:bg-white/5'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between text-xs mb-1.5">
+                                    <span className={`font-medium ${hasVoted ? 'text-violet-300' : 'text-white/80'}`}>{opt.label}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-white/40 font-mono">{opt.percentage}%</span>
+                                      {hasVoted && <CheckCircle2 size={12} className="text-violet-400" />}
+                                    </div>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                    <motion.div
+                                      className={`h-full rounded-full ${hasVoted ? 'bg-violet-500' : 'bg-white/20'}`}
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${opt.percentage}%` }}
+                                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                                    />
+                                  </div>
+                                </motion.button>
+                              );
+                            })}
                           </div>
-                          <p className="text-[10px] text-white/30 mt-3">{poll.totalVotes} total votes</p>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   </ScrollArea>
@@ -694,5 +1207,179 @@ export default function MeetingRoomPage() {
       </AnimatePresence>
     </div>
     </TooltipProvider>
+  );
+}
+
+// ─── Participant Tile Component ────────────────────────────────
+function ParticipantTile({
+  participant,
+  isSpeaker = false,
+  isPinned = false,
+  isHandRaised = false,
+  onPin,
+  index = 0,
+  compact = false,
+}: {
+  participant: Participant;
+  isSpeaker?: boolean;
+  isPinned?: boolean;
+  isHandRaised?: boolean;
+  onPin?: () => void;
+  index?: number;
+  compact?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const gradient = getGradient(participant.color);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.05, type: 'spring', stiffness: 260, damping: 20 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`relative w-full h-full rounded-2xl overflow-hidden flex items-center justify-center transition-all duration-300 ${
+        isPinned ? 'ring-2 ring-violet-500/60 ring-offset-2 ring-offset-slate-950' :
+        isSpeaker ? 'ring-1 ring-white/10' : 'ring-1 ring-white/[0.06]'
+      } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'}`}
+    >
+      {/* Gradient Background */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+
+      {/* Subtle noise texture overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }} />
+
+      {/* Avatar Placeholder */}
+      <div className="relative z-10 flex flex-col items-center gap-2">
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className={`rounded-full ${participant.color} flex items-center justify-center text-white font-bold shadow-lg ${
+            compact ? 'w-10 h-10 text-sm' : 'w-16 h-16 sm:w-20 sm:h-20 text-xl sm:text-2xl'
+          }`}
+          style={{ boxShadow: `0 8px 32px ${participant.color.replace('bg-', '')}40` }}
+        >
+          {participant.initials}
+        </motion.div>
+        {participant.videoOn && !compact && (
+          <span className="text-[10px] text-white/40 font-medium">Camera active</span>
+        )}
+      </div>
+
+      {/* Audio Level Indicator (when mic on, bottom-left) */}
+      {participant.micOn && !compact && (
+        <div className="absolute bottom-3 left-3 z-20 bg-black/40 backdrop-blur-sm rounded-lg px-1.5 py-1">
+          <AudioLevelBars />
+        </div>
+      )}
+
+      {/* Hand Raised Floating Indicator */}
+      <AnimatePresence>
+        {isHandRaised && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.5 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.5 }}
+            className="absolute top-3 left-3 z-20"
+          >
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="flex items-center gap-1.5 bg-amber-500/20 backdrop-blur-sm border border-amber-500/30 rounded-full px-2.5 py-1"
+            >
+              <Hand size={12} className="text-amber-400" />
+              {!compact && <span className="text-[10px] font-medium text-amber-300">Raised</span>}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pin Button (top-right, on hover) */}
+      <AnimatePresence>
+        {hovered && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={onPin}
+            className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+              isPinned ? 'bg-violet-500 text-white' : 'bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60'
+            }`}
+          >
+            {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Name Label + Role Badge (bottom) */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/30 to-transparent pt-8 pb-2.5 px-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`font-medium truncate ${compact ? 'text-[11px]' : 'text-sm'}`}>{participant.name}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium border shrink-0 ${getRoleBadgeClass(participant.role)}`}>
+              {participant.role}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!participant.micOn && <MicOff size={compact ? 12 : 14} className="text-red-400" />}
+            {!participant.videoOn && <VideoOff size={compact ? 12 : 14} className="text-white/30" />}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Toolbar Button Component ──────────────────────────────────
+function ToolbarButton({
+  icon,
+  label,
+  onClick,
+  active = false,
+  glowColor,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  glowColor?: 'emerald' | 'sky' | 'amber' | 'red';
+}) {
+  const glowClasses: Record<string, string> = {
+    emerald: 'shadow-[0_0_12px_rgba(16,185,129,0.3)] ring-emerald-500/30',
+    sky: 'shadow-[0_0_12px_rgba(14,165,233,0.3)] ring-sky-500/30',
+    amber: 'shadow-[0_0_12px_rgba(245,158,11,0.3)] ring-amber-500/30',
+    red: 'shadow-[0_0_12px_rgba(239,68,68,0.3)] ring-red-500/30',
+  };
+
+  const inactiveStateClasses: Record<string, string> = {
+    emerald: 'text-red-400',
+    sky: 'text-sky-400',
+    amber: 'text-amber-400',
+    red: 'text-red-500',
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
+          onClick={onClick}
+          className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all ${
+            active && glowColor
+              ? `text-white bg-white/10 ring-1 ${glowClasses[glowColor]}`
+              : active
+                ? 'text-white bg-white/15'
+                : glowColor && !active
+                  ? `${inactiveStateClasses[glowColor]} bg-white/5 hover:bg-white/10`
+                  : 'text-white/80 bg-white/5 hover:bg-white/15'
+          }`}
+        >
+          {icon}
+        </motion.button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="bg-slate-800/95 backdrop-blur-xl text-white border-white/10 text-xs rounded-lg">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
