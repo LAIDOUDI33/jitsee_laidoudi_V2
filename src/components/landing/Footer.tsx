@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Github, Twitter, Linkedin, Mail, Heart, ArrowUp, Send, CheckCircle2, Youtube, Globe } from 'lucide-react';
+import { Github, Twitter, Linkedin, Mail, Heart, ArrowUp, Send, CheckCircle2, Youtube, Globe, PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -100,7 +100,10 @@ export default function Footer() {
   };
 
   return (
-    <footer className="mt-auto border-t bg-muted/30">
+    <footer className="mt-auto bg-muted/30">
+      {/* Gradient top border line */}
+      <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+      <div className="border-t border-border/50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Newsletter & Platform Status Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-8 border-b">
@@ -128,14 +131,36 @@ export default function Footer() {
               <motion.div whileTap={{ scale: 0.96 }}>
                 <Button
                   onClick={handleSubscribe}
-                  className="gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform shrink-0"
+                  className={`gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shrink-0 ${subscribed ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-600' : ''}`}
                   disabled={subscribed}
                 >
-                  {subscribed ? (
-                    <><CheckCircle2 className="h-4 w-4" /> Done</>
-                  ) : (
-                    <><Send className="h-4 w-4" /> Subscribe</>
-                  )}
+                  <AnimatePresence mode="wait">
+                    {subscribed ? (
+                      <motion.span
+                        key="success"
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 90 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                        className="flex items-center gap-2"
+                      >
+                        <PartyPopper className="h-4 w-4" />
+                        Subscribed!
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="idle"
+                        initial={{ scale: 0, rotate: 90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: -90 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                        className="flex items-center gap-2"
+                      >
+                        <Send className="h-4 w-4" />
+                        Subscribe
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </Button>
               </motion.div>
             </div>
@@ -164,10 +189,14 @@ export default function Footer() {
             <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">Platform Status</h3>
             <div className="flex items-center gap-3 flex-wrap justify-end">
               <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
+                <motion.span
+                  className="relative flex h-2.5 w-2.5"
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
+                </motion.span>
                 <span className="text-sm text-emerald-600 font-medium">All Systems Operational</span>
               </div>
               <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-500/10">
@@ -230,16 +259,16 @@ export default function Footer() {
                   href={social.href}
                   target={social.href.startsWith('http') ? '_blank' : undefined}
                   rel={social.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-all duration-200 hover:scale-110 hover:shadow-md ${social.hoverColor}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-all duration-200 hover:shadow-md ${social.hoverColor}`}
                   aria-label={social.label}
                   initial={{ opacity: 0, y: 8 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.15 + i * 0.06, duration: 0.3 }}
-                  whileHover={{ y: -2 }}
+                  whileHover={{ y: -2, scale: 1.15, rotate: [0, -8, 8, -4, 0] }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <social.icon className="h-4 w-4" />
+                  <social.icon className="h-4 w-4 transition-transform duration-200" />
                 </motion.a>
               ))}
             </div>
@@ -292,6 +321,7 @@ export default function Footer() {
             </p>
           </div>
         </motion.div>
+      </div>
       </div>
 
       {/* Back to top button */}

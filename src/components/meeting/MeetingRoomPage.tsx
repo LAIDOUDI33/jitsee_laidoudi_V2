@@ -6,7 +6,7 @@ import {
   Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
   ArrowLeft, ArrowRight, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
   Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard,
-  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen
+  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -1101,6 +1101,7 @@ export default function MeetingRoomPage() {
                     <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">People</TabsTrigger>
                     <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">AI</TabsTrigger>
                     <TabsTrigger value="breakout" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Breakout</TabsTrigger>
+                    <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg"><BarChart3 size={12} className="mr-0.5" /></TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <button onClick={() => setSidebarOpen(false)} className="ml-1.5 w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center shrink-0 transition-colors">
@@ -1540,7 +1541,7 @@ export default function MeetingRoomPage() {
                       <h3 className="text-sm font-semibold">Polls</h3>
                       <p className="text-[10px] text-white/30">Vote and create polls</p>
                     </div>
-                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg">
+                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg" onClick={() => toast.info('Poll creation coming soon')}>
                       <Plus size={12} className="mr-1" /> Create
                     </Button>
                   </div>

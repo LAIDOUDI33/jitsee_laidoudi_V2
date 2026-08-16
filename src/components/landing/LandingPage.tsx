@@ -547,11 +547,11 @@ export default function LandingPage() {
                       />
                       <div className="relative">
                         {/* Glow effect behind Start Meeting button */}
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-violet-600 rounded-lg blur-md opacity-40 -z-10" />
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 rounded-lg blur-md opacity-40 -z-10" />
                         <Button
                           onClick={handleStartMeeting}
                           disabled={starting}
-                          className="relative h-11 px-6 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-500 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          className="relative h-11 px-6 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 hover:from-primary/90 hover:to-violet-500 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                         >
                           {starting ? (
                             <span className="flex items-center gap-2">
@@ -980,7 +980,7 @@ export default function LandingPage() {
                       style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }}
                     >
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
-                      <Card className="relative h-full rounded-xl shadow-xl shadow-blue-500/10">
+                      <Card className="relative h-full rounded-xl shadow-xl shadow-blue-500/10 dark:border-border/30 dark:bg-card/50">
                         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                           <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-4 py-1">
                             Most Popular
@@ -1023,7 +1023,7 @@ export default function LandingPage() {
                       </Card>
                     </div>
                   ) : (
-                    <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50">
+                    <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50 dark:border-border/30 dark:bg-card/50">
                       <CardContent className="p-8">
                         <h3 className="text-xl font-bold">{tier.name}</h3>
                         <div className="mt-4 flex items-baseline gap-1">

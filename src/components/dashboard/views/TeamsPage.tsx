@@ -27,6 +27,9 @@ import {
   Sparkles,
   Hash,
   Zap,
+  Check,
+  User,
+  Target,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -123,10 +126,93 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
+const sparklineData = ['t1', 't2', 't3'].reduce<Record<string, number[]>>((acc, id) => {
+  acc[id] = Array.from({ length: 7 }, () => Math.floor(Math.random() * 80) + 20)
+  return acc
+}, {})
+
+const sprintProgress = ['t1', 't2', 't3'].reduce<Record<string, number>>((acc, id) => {
+  acc[id] = Math.floor(Math.random() * 50) + 40
+  return acc
+}, {})
+
+function TeamSparkline({ data, color }: { data: number[]; color: string }) {
+  const maxVal = Math.max(...data)
+  return (
+    <div className='flex items-end gap-[2px] h-6' aria-label='Team activity last 7 days'>
+      {data.map((val, i) => (
+        <motion.div
+          key={i}
+          className={`w-[4px] rounded-sm ${color}`}
+          initial={{ height: 0 }}
+          animate={{ height: `${(val / maxVal) * 100}%` }}
+          transition={{ delay: i * 0.05, duration: 0.3, ease: 'easeOut' }}
+          title={`Day ${i + 1}: ${val}%`}
+        />
+      ))}
+    </div>
+  )
+}
+
+function SprintProgressBar({ progress, color }: { progress: number; color: string }) {
+  return (
+    <div className='space-y-1'>
+      <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
+        <span className='flex items-center gap-1'><Target className='h-2.5 w-2.5' />Sprint Progress</span>
+        <span className='font-medium'>{progress}%</span>
+      </div>
+      <div className='h-1.5 rounded-full bg-muted overflow-hidden'>
+        <motion.div
+          className={`h-full rounded-full ${color}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function CreateTeamStepIndicator({ step }: { step: number }) {
+  const steps = ['Details', 'Members', 'Settings']
+  return (
+    <div className='flex items-center gap-2 mb-4'>
+      {steps.map((label, i) => (
+        <div key={label} className='flex items-center gap-2 flex-1'>
+          <motion.div
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-semibold shrink-0 transition-colors duration-300 ${
+              i < step
+                ? 'bg-primary text-primary-foreground'
+                : i === step
+                  ? 'bg-primary/15 text-primary border-2 border-primary'
+                  : 'bg-muted text-muted-foreground border-2 border-muted'
+            }`}
+            animate={i === step ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {i < step ? <Check className='h-3 w-3' /> : i + 1}
+          </motion.div>
+          <span className={`text-[11px] font-medium truncate transition-colors duration-300 ${
+            i <= step ? 'text-foreground' : 'text-muted-foreground'
+          }`}>
+            {label}
+          </span>
+          {i < steps.length - 1 && (
+            <div className={`flex-1 h-[2px] rounded-full transition-colors duration-300 ${
+              i < step ? 'bg-primary' : 'bg-muted'
+            }`} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function TeamsPage() {
   const [search, setSearch] = useState('')
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [createStep, setCreateStep] = useState(0)
   const [newTeam, setNewTeam] = useState({ name: '', description: '' })
 
   const filtered = mockTeams.filter(t =>
@@ -138,7 +224,10 @@ export default function TeamsPage() {
     toast.success(`Team "${newTeam.name}" created successfully!`)
     setCreateOpen(false)
     setNewTeam({ name: '', description: '' })
+    setCreateStep(0)
   }
+
+  const canProceedStep = createStep === 0 ? newTeam.name.trim().length > 0 : true
 
   const totalMembers = mockTeams.reduce((a, t) => a + t.members.length, 0)
   const totalOnline = mockTeams.reduce((a, t) => a + t.members.filter(m => m.status === 'online').length, 0)
@@ -169,18 +258,74 @@ export default function TeamsPage() {
                   </div>
                 </div>
               </DialogHeader>
+              {/* Animated step indicator */}
+              <CreateTeamStepIndicator step={createStep} />
               <div className='space-y-4 pt-2'>
-                <div className='space-y-2'>
-                  <Label>Team Name</Label>
-                  <Input placeholder='e.g. Marketing, DevOps' value={newTeam.name} onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))} />
-                </div>
-                <div className='space-y-2'>
-                  <Label>Description</Label>
-                  <Textarea placeholder='What is this team about?' rows={3} value={newTeam.description} onChange={e => setNewTeam(p => ({ ...p, description: e.target.value }))} />
-                </div>
-                <div className='flex justify-end gap-3 pt-2'>
-                  <Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button>
-                  <Button onClick={handleCreateTeam} disabled={!newTeam.name.trim()} className='bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'>Create Team</Button>
+                <AnimatePresence mode='wait'>
+                  {createStep === 0 && (
+                    <motion.div
+                      key='step-details'
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.2 }}
+                      className='space-y-4'
+                    >
+                      <div className='space-y-2'>
+                        <Label>Team Name</Label>
+                        <Input placeholder='e.g. Marketing, DevOps' value={newTeam.name} onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))} />
+                      </div>
+                      <div className='space-y-2'>
+                        <Label>Description</Label>
+                        <Textarea placeholder='What is this team about?' rows={3} value={newTeam.description} onChange={e => setNewTeam(p => ({ ...p, description: e.target.value }))} />
+                      </div>
+                    </motion.div>
+                  )}
+                  {createStep === 1 && (
+                    <motion.div
+                      key='step-members'
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.2 }}
+                      className='flex flex-col items-center justify-center py-6'
+                    >
+                      <div className='w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3'>
+                        <UserPlus className='h-6 w-6 text-primary' />
+                      </div>
+                      <p className='text-sm font-medium'>Invite Team Members</p>
+                      <p className='text-xs text-muted-foreground mt-1'>You can add members after creating the team</p>
+                    </motion.div>
+                  )}
+                  {createStep === 2 && (
+                    <motion.div
+                      key='step-settings'
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.2 }}
+                      className='flex flex-col items-center justify-center py-6'
+                    >
+                      <div className='w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3'>
+                        <Check className='h-6 w-6 text-emerald-600' />
+                      </div>
+                      <p className='text-sm font-medium'>Ready to Create!</p>
+                      <p className='text-xs text-muted-foreground mt-1'>Review and confirm your new team</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div className='flex justify-between gap-3 pt-2'>
+                  <div className='flex gap-2'>
+                    <Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button>
+                    {createStep > 0 && (
+                      <Button variant='outline' onClick={() => setCreateStep(s => s - 1)}>Back</Button>
+                    )}
+                  </div>
+                  {createStep < 2 ? (
+                    <Button onClick={() => setCreateStep(s => s + 1)} disabled={!canProceedStep} className='bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'>Continue</Button>
+                  ) : (
+                    <Button onClick={handleCreateTeam} disabled={!newTeam.name.trim()} className='bg-gradient-to-r from-primary to-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-transform'>Create Team</Button>
+                  )}
                 </div>
               </div>
             </DialogContent>
@@ -232,7 +377,6 @@ export default function TeamsPage() {
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(team => {
           const onlineCount = team.members.filter(m => m.status === 'online').length
-          const activeMeetings = Math.floor(Math.random() * 4)
           return (
             <motion.div key={team.id} variants={item}>
               <Card
@@ -264,15 +408,19 @@ export default function TeamsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className='pt-0'>
+                  {/* Team Activity Sparkline + Sprint Progress */}
+                  <div className='flex items-center justify-between mb-3 gap-3'>
+                    <div className='flex-1'>
+                      <SprintProgressBar progress={sprintProgress[team.id]} color={team.color} />
+                    </div>
+                    <TeamSparkline data={sparklineData[team.id]} color={team.color} />
+                  </div>
                   <div className='flex items-center justify-between text-sm text-muted-foreground mb-3'>
                     <span className='flex items-center gap-1.5 text-xs'><MessageSquare className='h-3.5 w-3.5' />{team.channels} channels</span>
                     <span className='flex items-center gap-1.5 text-xs'><Video className='h-3.5 w-3.5' />{team.meetings} meetings</span>
-                    {activeMeetings > 0 && (
-                      <Badge variant='outline' className='text-[10px] gap-1 text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5'>
-                        <span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' />
-                        {activeMeetings} active
-                      </Badge>
-                    )}
+                    <Badge variant='outline' className='text-[10px] gap-1 bg-primary/5 border-primary/20 text-primary'>
+                      <User className='h-2.5 w-2.5' />{team.members.length} members
+                    </Badge>
                   </div>
                   <div className='flex items-center justify-between'>
                     <div className='flex -space-x-2'>

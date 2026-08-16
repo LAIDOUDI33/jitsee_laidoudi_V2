@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore, AppView } from '@/store/app-store'
 import { cn } from '@/lib/utils'
@@ -47,12 +47,16 @@ import { LayoutDashboard,
   MonitorUp,
   Pen,
   BarChart3,
+  UsersRound,
+  Puzzle,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
 import QuickStartMeeting from '@/components/shared/QuickStartMeeting'
 import OnboardingModal from '@/components/shared/OnboardingModal'
 import { useOnboarding } from '@/hooks/useOnboarding'
+
+const newBadgeViews = new Set<AppView>(['whiteboard', 'analytics'])
 
 interface NavItem {
   label: string
@@ -74,6 +78,9 @@ const mainNavItems: NavItem[] = [
   { label: 'Events', icon: <CalendarHeart className='h-4 w-4' />, view: 'events' },
   { label: 'Whiteboard', icon: <Pen className='h-4 w-4' />, view: 'whiteboard' },
   { label: 'Analytics', icon: <BarChart3 className='h-4 w-4' />, view: 'analytics' },
+  { label: 'Status', icon: <Activity className='h-4 w-4' />, view: 'status' },
+  { label: 'People', icon: <UsersRound className='h-4 w-4' />, view: 'people' },
+  { label: 'Integrations', icon: <Puzzle className='h-4 w-4' />, view: 'integrations' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -107,6 +114,7 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
   const renderNavItem = (item: NavItem) => {
     const active = currentView === item.view
     if (item.adminOnly && !admin) return null
+    const isNew = newBadgeViews.has(item.view)
 
     return (
       <TooltipProvider key={item.view} delayDuration={0}>
@@ -143,6 +151,14 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
                   {item.label}
                 </span>
               )}
+              {isNew && !collapsed && (
+                <span className='ml-auto flex items-center'>
+                  <span className='flex items-center justify-center w-4 h-4 rounded-full bg-orange-500/90 text-white text-[8px] font-bold leading-none'>N</span>
+                </span>
+              )}
+              {isNew && collapsed && (
+                <span className='absolute -top-0.5 -right-0.5 flex items-center justify-center w-3 h-3 rounded-full bg-orange-500 border-2 border-card' />
+              )}
             </button>
           </TooltipTrigger>
           {collapsed && (
@@ -161,6 +177,8 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
 
   return (
     <div className='flex flex-col h-full'>
+      {/* Animated gradient top accent line */}
+      <div className='h-[2px] w-full shrink-0 bg-gradient-to-r from-primary via-violet-500 to-transparent animate-[shimmer_3s_ease-in-out_infinite]' />
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 h-16 border-b shrink-0', collapsed && 'justify-center px-2')}>
         <div className='w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0'>
@@ -203,27 +221,63 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
         </div>
       </ScrollArea>
 
-      {/* User section */}
+      {/* User section with gradient avatar ring & status dropdown */}
       <div className='border-t p-3 shrink-0'>
         {user && (
-          <div className={cn('flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-all duration-200', collapsed && 'justify-center')}
-            onClick={() => handleNav('profile')}>
-            <div className='relative shrink-0'>
-              <Avatar className='h-8 w-8'>
-                <AvatarFallback className='bg-primary/10 text-primary text-xs font-semibold'>
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
-              {/* Online status indicator */}
-              <span className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card' />
-            </div>
-            {!collapsed && (
-              <div className='flex-1 min-w-0'>
-                <p className='text-sm font-medium truncate'>{user.name}</p>
-                <p className='text-xs text-muted-foreground truncate'>{user.role}</p>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className={cn('flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-all duration-200', collapsed && 'justify-center')}>
+                <div className='relative shrink-0'>
+                  <div className='rounded-full p-[2px] bg-gradient-to-br from-primary/30 to-violet-500/30'>
+                    <Avatar className='h-8 w-8 ring-1 ring-card'>
+                      <AvatarFallback className='bg-primary/10 text-primary text-xs font-semibold'>
+                        {userInitials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  {/* Online status indicator */}
+                  <span className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card' />
+                </div>
+                {!collapsed && (
+                  <div className='flex-1 min-w-0'>
+                    <p className='text-sm font-medium truncate'>{user.name}</p>
+                    <p className='text-xs text-muted-foreground truncate'>{user.role}</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={collapsed ? 'center' : 'start'} className='w-52 rounded-lg'>
+              <DropdownMenuLabel className='font-normal'>
+                <div className='flex flex-col gap-0.5'>
+                  <p className='text-sm font-medium'>{user.name}</p>
+                  <p className='text-xs text-muted-foreground'>{user.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className='text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider py-1'>Status</DropdownMenuLabel>
+              <DropdownMenuItem className='gap-2.5 cursor-pointer transition-colors duration-150'>
+                <span className='w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0' />
+                <span>Online</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className='gap-2.5 cursor-pointer transition-colors duration-150'>
+                <span className='w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0' />
+                <span>Away</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className='gap-2.5 cursor-pointer transition-colors duration-150'>
+                <span className='w-2.5 h-2.5 rounded-full bg-red-500 shrink-0' />
+                <span>Busy</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className='gap-2.5 cursor-pointer transition-colors duration-150'>
+                <span className='w-2.5 h-2.5 rounded-full bg-zinc-400 shrink-0' />
+                <span>Do Not Disturb</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleNav('profile')} className='gap-2 cursor-pointer transition-colors duration-150'>
+                <UserCircle className='h-4 w-4' />
+                Profile & Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </div>
@@ -233,7 +287,16 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showSoundWave, setShowSoundWave] = useState(false)
   const { currentView, setCurrentView, user, setUser, setSearchOpen } = useAppStore()
+
+  // Animate sound-wave on quick start hover
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowSoundWave(prev => !prev)
+    }, 1500)
+    return () => clearInterval(interval)
+  }, [])
   const { showOnboarding, setShowOnboarding, completeOnboarding } = useOnboarding()
 
   const viewBreadcrumbs: Record<string, { label: string; view?: AppView }[]> = useMemo(() => ({
@@ -360,8 +423,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Right: actions */}
             <div className='flex items-center gap-2 shrink-0 ml-3'>
-              {/* Quick start meeting button */}
-              <QuickStartMeeting />
+              {/* Quick start meeting button with sound-wave animation */}
+              <div className='flex items-center gap-1.5'>
+                <QuickStartMeeting />
+                <div className='flex items-end gap-[2px] h-4' aria-hidden='true'>
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      className='w-[3px] rounded-full bg-primary/60'
+                      animate={{
+                        height: showSoundWave ? [4, 10, 6] : [4, 4, 4],
+                      }}
+                      transition={{
+                        duration: 0.6,
+                        repeat: Infinity,
+                        delay: i * 0.15,
+                        ease: 'easeInOut',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
 
               {/* Notification bell */}
               <NotificationDropdown />

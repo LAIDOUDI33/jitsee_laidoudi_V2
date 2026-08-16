@@ -96,6 +96,18 @@ const AnalyticsPage = dynamic(() => import('@/components/dashboard/views/Analyti
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
   ssr: false,
 })
+const StatusPage = dynamic(() => import('@/components/dashboard/views/StatusPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const PeoplePage = dynamic(() => import('@/components/dashboard/views/PeoplePage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const IntegrationsPage = dynamic(() => import('@/components/dashboard/views/IntegrationsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -158,6 +170,9 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   events: EventsPage,
   whiteboard: WhiteboardPage,
   analytics: AnalyticsPage,
+  status: StatusPage,
+  people: PeoplePage,
+  integrations: IntegrationsPage,
   admin: AdminPage,
   'admin-users': AdminUsersPage,
   'admin-orgs': AdminOrgsPage,
