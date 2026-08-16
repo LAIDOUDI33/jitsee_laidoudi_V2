@@ -237,7 +237,8 @@ export default function HelpCenterPage() {
         <h2 className='text-base font-semibold mb-3'>Frequently Asked Questions</h2>
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
           {faqCategories.map((cat) => (
-            <Card key={cat.category} className='bg-card/80 backdrop-blur border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+            <Card key={cat.category} className='bg-card/80 backdrop-blur border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 overflow-hidden relative'>
+              <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-teal-400/60' />
               <CardHeader className='pb-3 pt-4 px-5'>
                 <CardTitle className='text-sm font-semibold'>{cat.category}</CardTitle>
               </CardHeader>
@@ -269,7 +270,8 @@ export default function HelpCenterPage() {
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
           {articles.map((article, idx) => (
             <motion.div key={article.title} variants={item}>
-              <Card className='bg-card/80 backdrop-blur border border-border/50 rounded-xl hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer group h-full'>
+              <Card className='bg-card/80 backdrop-blur border border-border/50 rounded-xl hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer group h-full overflow-hidden relative'>
+                <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500/50 to-purple-400/50' />
                 <CardContent className='p-4 flex flex-col h-full'>
                   <Badge variant='outline' className={`self-start text-[10px] mb-3 ${article.categoryColor}`}>{article.category}</Badge>
                   <h3 className='text-sm font-medium group-hover:text-primary transition-colors leading-snug flex-1'>{article.title}</h3>
@@ -295,7 +297,7 @@ export default function HelpCenterPage() {
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           {supportChannels.map((ch) => (
             <motion.div key={ch.title} variants={item}>
-              <Card className={`bg-card/80 backdrop-blur border ${ch.border} rounded-xl hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full`}>
+              <Card className={`bg-card/80 backdrop-blur border ${ch.border} rounded-xl hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full overflow-hidden relative`}>
                 <CardContent className='p-5 flex flex-col items-center text-center h-full'>
                   <div className={`p-3 rounded-xl ${ch.color} mb-3`}>{ch.icon}</div>
                   <h3 className='text-sm font-semibold'>{ch.title}</h3>

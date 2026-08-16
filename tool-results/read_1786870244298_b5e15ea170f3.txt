@@ -1,0 +1,652 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Webhook,
+     7→  Plus,
+     8→  Copy,
+     9→  Check,
+    10→  Trash2,
+    11→  RefreshCw,
+    12→  Search,
+    13→  Clock,
+    14→  Zap,
+    15→  Hash,
+    16→  Eye,
+    17→  EyeOff,
+    18→  ArrowRight,
+    19→  MessageSquare,
+    20→  Mail,
+    21→  Calendar,
+    22→  Video,
+    23→  Sparkles,
+    24→  MicOff,
+    25→  UsersRound,
+    26→  FileText,
+    27→} from 'lucide-react';
+    28→import { Button } from '@/components/ui/button';
+    29→import { Card, CardContent } from '@/components/ui/card';
+    30→import { Badge } from '@/components/ui/badge';
+    31→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    32→import { Switch } from '@/components/ui/switch';
+    33→import { Input } from '@/components/ui/input';
+    34→import {
+    35→  Dialog,
+    36→  DialogContent,
+    37→  DialogHeader,
+    38→  DialogTitle,
+    39→  DialogTrigger,
+    40→} from '@/components/ui/dialog';
+    41→import { Checkbox } from '@/components/ui/checkbox';
+    42→import { Separator } from '@/components/ui/separator';
+    43→
+    44→/* -------------------------------------------------------------------------- */
+    45→/*                                   TYPES                                    */
+    46→/* -------------------------------------------------------------------------- */
+    47→
+    48→interface WebhookItem {
+    49→  id: string;
+    50→  url: string;
+    51→  events: string[];
+    52→  secret: string;
+    53→  active: boolean;
+    54→  lastTriggered: string;
+    55→  responseCode: number | null;
+    56→}
+    57→
+    58→interface AutomationTemplate {
+    59→  id: string;
+    60→  name: string;
+    61→  description: string;
+    62→  icon: React.ComponentType<{ className?: string }>;
+    63→  iconBg: string;
+    64→  enabled: boolean;
+    65→}
+    66→
+    67→interface EventLogEntry {
+    68→  id: string;
+    69→  timestamp: string;
+    70→  event: string;
+    71→  webhookUrl: string;
+    72→  status: number;
+    73→  responseTime: string;
+    74→  retryCount: number;
+    75→}
+    76→
+    77→/* -------------------------------------------------------------------------- */
+    78→/*                                  CONSTANTS                                 */
+    79→/* -------------------------------------------------------------------------- */
+    80→
+    81→const WEBHOOK_EVENTS = [
+    82→  'meeting.created',
+    83→  'meeting.ended',
+    84→  'user.joined',
+    85→  'recording.ready',
+    86→  'ai.summary',
+    87→] as const;
+    88→
+    89→const EVENT_COLORS: Record<string, string> = {
+    90→  'meeting.created': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+    91→  'meeting.ended': 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400',
+    92→  'user.joined': 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-400',
+    93→  'recording.ready': 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400',
+    94→  'ai.summary': 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400',
+    95→};
+    96→
+    97→function generateSecret(): string {
+    98→  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    99→  let result = 'whsec_';
+   100→  for (let i = 0; i < 32; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+   101→  return result;
+   102→}
+   103→
+   104→function maskSecret(secret: string): string {
+   105→  if (secret.length <= 12) return '••••••••••••';
+   106→  return secret.slice(0, 7) + '••••••••••••' + secret.slice(-4);
+   107→}
+   108→
+   109→function truncateUrl(url: string, maxLen = 40): string {
+   110→  if (url.length <= maxLen) return url;
+   111→  return url.slice(0, maxLen - 3) + '...';
+   112→}
+   113→
+   114→const INITIAL_WEBHOOKS: WebhookItem[] = [
+   115→  { id: 'wh_1', url: 'https://api.slack.com/webhooks/T03KL/event/X8bN2m', events: ['meeting.created', 'meeting.ended'], secret: 'whsec_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6', active: true, lastTriggered: '2 min ago', responseCode: 200 },
+   116→  { id: 'wh_2', url: 'https://hooks.notion.so/services/a1b2c3d4-e5f6-7890-abcd', events: ['ai.summary'], secret: 'whsec_q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2', active: true, lastTriggered: '15 min ago', responseCode: 200 },
+   117→  { id: 'wh_3', url: 'https://discord.com/api/webhooks/11223344/aBcDeFg', events: ['user.joined', 'meeting.ended'], secret: 'whsec_g3h4i5j6k7l8m9n0o1p2q3r4s5t6u7v8', active: false, lastTriggered: '3 hours ago', responseCode: 400 },
+   118→  { id: 'wh_4', url: 'https://api.github.com/repos/alvision/webhooks/push', events: ['recording.ready', 'ai.summary'], secret: 'whsec_w9x0y1z2a3b4c5d6e7f8g9h0i1j2k3l4', active: true, lastTriggered: '1 hour ago', responseCode: 200 },
+   119→  { id: 'wh_5', url: 'https://hooks.zapier.com/hooks/catch/98765/xyzabc', events: ['meeting.created', 'user.joined', 'ai.summary'], secret: 'whsec_m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0', active: true, lastTriggered: '30 sec ago', responseCode: 200 },
+   120→  { id: 'wh_6', url: 'https://automate.pipedream.com/api/v1/webhooks/abc', events: ['meeting.ended', 'recording.ready'], secret: 'whsec_c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r6', active: false, lastTriggered: '2 days ago', responseCode: 500 },
+   121→];
+   122→
+   123→const TEMPLATES: AutomationTemplate[] = [
+   124→  { id: 'tpl_1', name: 'Slack Notification on Meeting Start', description: 'Send a message to a Slack channel whenever a new meeting begins with participant info and link.', icon: MessageSquare, iconBg: 'bg-purple-500', enabled: true },
+   125→  { id: 'tpl_2', name: 'Email Digest Daily', description: 'Compile a daily summary of all meetings, recordings, and AI notes sent to your inbox every morning.', icon: Mail, iconBg: 'bg-rose-500', enabled: false },
+   126→  { id: 'tpl_3', name: 'Google Calendar Sync', description: 'Automatically create and update Google Calendar events when meetings are scheduled in ALVISION.', icon: Calendar, iconBg: 'bg-sky-500', enabled: true },
+   127→  { id: 'tpl_4', name: 'Record All Meetings', description: 'Enable cloud recording automatically for every meeting started in your organization.', icon: Video, iconBg: 'bg-emerald-500', enabled: false },
+   128→  { id: 'tpl_5', name: 'AI Summary on End', description: 'Generate and distribute AI-powered meeting summaries to all participants when a meeting ends.', icon: Sparkles, iconBg: 'bg-amber-500', enabled: true },
+   129→  { id: 'tpl_6', name: 'Auto-Mute Late Joiners', description: 'Automatically mute participants who join more than 5 minutes after the meeting starts.', icon: MicOff, iconBg: 'bg-orange-500', enabled: false },
+   130→  { id: 'tpl_7', name: 'Breakout Rooms Auto-Assign', description: 'Intelligently assign participants to breakout rooms based on team and role metadata.', icon: UsersRound, iconBg: 'bg-teal-500', enabled: false },
+   131→  { id: 'tpl_8', name: 'Meeting Notes to Notion', description: 'Export formatted meeting notes, action items, and AI summaries directly to a Notion database.', icon: FileText, iconBg: 'bg-neutral-700 dark:bg-neutral-300', enabled: true },
+   132→];
+   133→
+   134→const EVENT_LOG: EventLogEntry[] = [
+   135→  { id: 'log_1', timestamp: '2025-01-15 14:32:01', event: 'meeting.created', webhookUrl: 'https://api.slack.com/webhooks/T03KL/event/X8bN2m', status: 200, responseTime: '142ms', retryCount: 0 },
+   136→  { id: 'log_2', timestamp: '2025-01-15 14:30:15', event: 'user.joined', webhookUrl: 'https://hooks.zapier.com/hooks/catch/98765/xyzabc', status: 200, responseTime: '98ms', retryCount: 0 },
+   137→  { id: 'log_3', timestamp: '2025-01-15 14:28:44', event: 'ai.summary', webhookUrl: 'https://hooks.notion.so/services/a1b2c3d4-e5f6-7890-abcd', status: 200, responseTime: '312ms', retryCount: 0 },
+   138→  { id: 'log_4', timestamp: '2025-01-15 14:25:10', event: 'meeting.ended', webhookUrl: 'https://discord.com/api/webhooks/11223344/aBcDeFg', status: 400, responseTime: '45ms', retryCount: 1 },
+   139→  { id: 'log_5', timestamp: '2025-01-15 14:20:33', event: 'recording.ready', webhookUrl: 'https://api.github.com/repos/alvision/webhooks/push', status: 200, responseTime: '256ms', retryCount: 0 },
+   140→  { id: 'log_6', timestamp: '2025-01-15 13:55:22', event: 'meeting.created', webhookUrl: 'https://hooks.zapier.com/hooks/catch/98765/xyzabc', status: 200, responseTime: '178ms', retryCount: 0 },
+   141→  { id: 'log_7', timestamp: '2025-01-15 13:45:08', event: 'user.joined', webhookUrl: 'https://api.slack.com/webhooks/T03KL/event/X8bN2m', status: 200, responseTime: '88ms', retryCount: 0 },
+   142→  { id: 'log_8', timestamp: '2025-01-15 13:30:00', event: 'ai.summary', webhookUrl: 'https://hooks.notion.so/services/a1b2c3d4-e5f6-7890-abcd', status: 500, responseTime: '1205ms', retryCount: 3 },
+   143→  { id: 'log_9', timestamp: '2025-01-15 13:15:42', event: 'meeting.ended', webhookUrl: 'https://automate.pipedream.com/api/v1/webhooks/abc', status: 500, responseTime: '3022ms', retryCount: 3 },
+   144→  { id: 'log_10', timestamp: '2025-01-15 12:58:19', event: 'recording.ready', webhookUrl: 'https://api.github.com/repos/alvision/webhooks/push', status: 200, responseTime: '199ms', retryCount: 0 },
+   145→  { id: 'log_11', timestamp: '2025-01-15 12:40:05', event: 'meeting.created', webhookUrl: 'https://hooks.zapier.com/hooks/catch/98765/xyzabc', status: 200, responseTime: '145ms', retryCount: 0 },
+   146→  { id: 'log_12', timestamp: '2025-01-15 12:22:31', event: 'user.joined', webhookUrl: 'https://discord.com/api/webhooks/11223344/aBcDeFg', status: 400, responseTime: '52ms', retryCount: 2 },
+   147→  { id: 'log_13', timestamp: '2025-01-15 11:55:10', event: 'meeting.ended', webhookUrl: 'https://api.slack.com/webhooks/T03KL/event/X8bN2m', status: 200, responseTime: '167ms', retryCount: 0 },
+   148→  { id: 'log_14', timestamp: '2025-01-15 11:30:44', event: 'ai.summary', webhookUrl: 'https://hooks.notion.so/services/a1b2c3d4-e5f6-7890-abcd', status: 200, responseTime: '287ms', retryCount: 0 },
+   149→  { id: 'log_15', timestamp: '2025-01-15 11:05:22', event: 'recording.ready', webhookUrl: 'https://automate.pipedream.com/api/v1/webhooks/abc', status: 200, responseTime: '410ms', retryCount: 1 },
+   150→];
+   151→
+   152→/* -------------------------------------------------------------------------- */
+   153→/*                                 ANIMATION                                  */
+   154→/* -------------------------------------------------------------------------- */
+   155→
+   156→const containerVariants = {
+   157→  hidden: {},
+   158→  visible: { transition: { staggerChildren: 0.06 } },
+   159→};
+   160→
+   161→const itemVariants = {
+   162→  hidden: { opacity: 0, y: 20 },
+   163→  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+   164→};
+   165→
+   166→/* -------------------------------------------------------------------------- */
+   167→/*                           STATUS HELPERS                                   */
+   168→/* -------------------------------------------------------------------------- */
+   169→
+   170→function StatusBadge({ code }: { code: number }) {
+   171→  const color =
+   172→    code >= 200 && code < 300
+   173→      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+   174→      : code >= 400 && code < 500
+   175→        ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+   176→        : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400';
+   177→  return (
+   178→    <Badge variant="secondary" className={`text-[11px] font-mono font-medium px-2 py-0.5 ${color}`}>
+   179→      {code}
+   180→    </Badge>
+   181→  );
+   182→}
+   183→
+   184→/* -------------------------------------------------------------------------- */
+   185→/*                              MAIN COMPONENT                                */
+   186→/* -------------------------------------------------------------------------- */
+   187→
+   188→export default function WebhooksPage() {
+   189→  const [webhooks, setWebhooks] = useState<WebhookItem[]>(INITIAL_WEBHOOKS);
+   190→  const [templates, setTemplates] = useState<AutomationTemplate[]>(TEMPLATES);
+   191→  const [dialogOpen, setDialogOpen] = useState(false);
+   192→  const [newUrl, setNewUrl] = useState('');
+   193→  const [newEvents, setNewEvents] = useState<string[]>([]);
+   194→  const [newSecret, setNewSecret] = useState(() => generateSecret());
+   195→  const [secretVisible, setSecretVisible] = useState(false);
+   196→  const [copiedId, setCopiedId] = useState<string | null>(null);
+   197→  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+   198→  const [logSearch, setLogSearch] = useState('');
+   199→  const [autoRefresh, setAutoRefresh] = useState(false);
+   200→
+   201→  const activeCount = webhooks.filter((w) => w.active).length;
+   202→
+   203→  const handleCopy = useCallback((id: string, text: string) => {
+   204→    navigator.clipboard.writeText(text);
+   205→    setCopiedId(id);
+   206→    setTimeout(() => setCopiedId(null), 2000);
+   207→  }, []);
+   208→
+   209→  const toggleWebhook = useCallback((id: string) => {
+   210→    setWebhooks((prev) =>
+   211→      prev.map((w) => (w.id === id ? { ...w, active: !w.active } : w))
+   212→    );
+   213→  }, []);
+   214→
+   215→  const deleteWebhook = useCallback((id: string) => {
+   216→    setWebhooks((prev) => prev.filter((w) => w.id !== id));
+   217→    setDeleteConfirmId(null);
+   218→  }, []);
+   219→
+   220→  const toggleTemplate = useCallback((id: string) => {
+   221→    setTemplates((prev) =>
+   222→      prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t))
+   223→    );
+   224→  }, []);
+   225→
+   226→  const toggleEvent = useCallback((event: string) => {
+   227→    setNewEvents((prev) =>
+   228→      prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]
+   229→    );
+   230→  }, []);
+   231→
+   232→  const handleCreateWebhook = useCallback(() => {
+   233→    if (!newUrl.trim() || newEvents.length === 0) return;
+   234→    const webhook: WebhookItem = {
+   235→      id: `wh_${Date.now()}`,
+   236→      url: newUrl.trim(),
+   237→      events: [...newEvents],
+   238→      secret: newSecret,
+   239→      active: true,
+   240→      lastTriggered: 'Never',
+   241→      responseCode: null,
+   242→    };
+   243→    setWebhooks((prev) => [webhook, ...prev]);
+   244→    setDialogOpen(false);
+   245→    setNewUrl('');
+   246→    setNewEvents([]);
+   247→    setNewSecret(generateSecret());
+   248→    setSecretVisible(false);
+   249→  }, [newUrl, newEvents, newSecret]);
+   250→
+   251→  const filteredLogs = EVENT_LOG.filter(
+   252→    (entry) =>
+   253→      entry.event.toLowerCase().includes(logSearch.toLowerCase()) ||
+   254→      entry.webhookUrl.toLowerCase().includes(logSearch.toLowerCase())
+   255→  );
+   256→
+   257→  return (
+   258→    <div className="space-y-6">
+   259→      {/* ── Page Header ────────────────────────────────────────────────── */}
+   260→      <motion.div
+   261→        initial={{ opacity: 0, y: -12 }}
+   262→        animate={{ opacity: 1, y: 0 }}
+   263→        transition={{ duration: 0.5 }}
+   264→        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+   265→      >
+   266→        <div className="flex items-center gap-3">
+   267→          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 shadow-lg shadow-violet-500/20">
+   268→            <Webhook className="h-5 w-5 text-white" />
+   269→          </div>
+   270→          <div>
+   271→            <h2 className="text-2xl font-bold tracking-tight">Webhooks & Automation</h2>
+   272→            <p className="text-sm text-muted-foreground mt-0.5">
+   273→              Manage webhooks, automation templates, and delivery logs.
+   274→            </p>
+   275→          </div>
+   276→        </div>
+   277→        <div className="flex items-center gap-3">
+   278→          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 font-medium">
+   279→            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1.5" />
+   280→            {activeCount} Active
+   281→          </Badge>
+   282→          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   283→            <DialogTrigger asChild>
+   284→              <Button className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-md shadow-violet-500/20">
+   285→                <Plus className="h-4 w-4" />
+   286→                Create Webhook
+   287→              </Button>
+   288→            </DialogTrigger>
+   289→            <DialogContent className="sm:max-w-lg">
+   290→              <DialogHeader>
+   291→                <DialogTitle className="flex items-center gap-2">
+   292→                  <Webhook className="h-5 w-5 text-violet-500" />
+   293→                  Create New Webhook
+   294→                </DialogTitle>
+   295→              </DialogHeader>
+   296→              <div className="space-y-5 pt-2">
+   297→                {/* URL Input */}
+   298→                <div className="space-y-2">
+   299→                  <label className="text-sm font-medium">Endpoint URL</label>
+   300→                  <Input
+   301→                    placeholder="https://example.com/webhook"
+   302→                    value={newUrl}
+   303→                    onChange={(e) => setNewUrl(e.target.value)}
+   304→                    className="h-9"
+   305→                  />
+   306→                </div>
+   307→
+   308→                {/* Events Checkboxes */}
+   309→                <div className="space-y-3">
+   310→                  <label className="text-sm font-medium">Events</label>
+   311→                  <div className="grid grid-cols-1 gap-2">
+   312→                    {WEBHOOK_EVENTS.map((event) => (
+   313→                      <label
+   314→                        key={event}
+   315→                        className="flex items-center gap-3 rounded-lg border border-border/50 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+   316→                      >
+   317→                        <Checkbox
+   318→                          checked={newEvents.includes(event)}
+   319→                          onCheckedChange={() => toggleEvent(event)}
+   320→                        />
+   321→                        <Badge variant="secondary" className={`text-[11px] font-mono ${EVENT_COLORS[event]}`}>
+   322→                          {event}
+   323→                        </Badge>
+   324→                      </label>
+   325→                    ))}
+   326→                  </div>
+   327→                </div>
+   328→
+   329→                {/* Secret */}
+   330→                <div className="space-y-2">
+   331→                  <div className="flex items-center justify-between">
+   332→                    <label className="text-sm font-medium">Signing Secret</label>
+   333→                    <Button
+   334→                      variant="ghost"
+   335→                      size="sm"
+   336→                      className="h-7 text-xs gap-1"
+   337→                      onClick={() => setNewSecret(generateSecret())}
+   338→                    >
+   339→                      <RefreshCw className="h-3 w-3" />
+   340→                      Regenerate
+   341→                    </Button>
+   342→                  </div>
+   343→                  <div className="flex items-center gap-2">
+   344→                    <Input
+   345→                      readOnly
+   346→                      value={secretVisible ? newSecret : maskSecret(newSecret)}
+   347→                      className="h-9 font-mono text-xs"
+   348→                    />
+   349→                    <Button
+   350→                      variant="outline"
+   351→                      size="icon"
+   352→                      className="h-9 w-9 shrink-0"
+   353→                      onClick={() => setSecretVisible(!secretVisible)}
+   354→                    >
+   355→                      {secretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   356→                    </Button>
+   357→                    <Button
+   358→                      variant="outline"
+   359→                      size="icon"
+   360→                      className="h-9 w-9 shrink-0"
+   361→                      onClick={() => handleCopy('new', newSecret)}
+   362→                    >
+   363→                      {copiedId === 'new' ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+   364→                    </Button>
+   365→                  </div>
+   366→                </div>
+   367→
+   368→                <Separator />
+   369→
+   370→                <div className="flex justify-end gap-3">
+   371→                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+   372→                  <Button
+   373→                    onClick={handleCreateWebhook}
+   374→                    disabled={!newUrl.trim() || newEvents.length === 0}
+   375→                    className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+   376→                  >
+   377→                    Create Webhook
+   378→                  </Button>
+   379→                </div>
+   380→              </div>
+   381→            </DialogContent>
+   382→          </Dialog>
+   383→        </div>
+   384→      </motion.div>
+   385→
+   386→      {/* ── Gradient accent line ──────────────────────────────────────── */}
+   387→      <div className="h-[2px] rounded-full bg-gradient-to-r from-violet-500 to-purple-500 opacity-60" />
+   388→
+   389→      {/* ── Tabs ──────────────────────────────────────────────────────── */}
+   390→      <Tabs defaultValue="webhooks" className="space-y-6">
+   391→        <TabsList className="bg-muted/50 p-1">
+   392→          <TabsTrigger value="webhooks" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+   393→            <Webhook className="h-3.5 w-3.5" />
+   394→            Webhooks
+   395→            <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+   396→              {webhooks.length}
+   397→            </Badge>
+   398→          </TabsTrigger>
+   399→          <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+   400→            <Zap className="h-3.5 w-3.5" />
+   401→            Templates
+   402→          </TabsTrigger>
+   403→          <TabsTrigger value="event-log" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+   404→            <Clock className="h-3.5 w-3.5" />
+   405→            Event Log
+   406→          </TabsTrigger>
+   407→        </TabsList>
+   408→
+   409→        {/* ── Webhooks Tab ─────────────────────────────────────────────── */}
+   410→        <TabsContent value="webhooks">
+   411→          <motion.div
+   412→            key="webhooks-grid"
+   413→            variants={containerVariants}
+   414→            initial="hidden"
+   415→            animate="visible"
+   416→            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+   417→          >
+   418→            <AnimatePresence>
+   419→              {webhooks.map((wh) => (
+   420→                <motion.div key={wh.id} variants={itemVariants} exit={{ opacity: 0, scale: 0.95 }} layout>
+   421→                  <Card className="group hover:shadow-lg hover:shadow-violet-500/5 hover:-translate-y-0.5 transition-all duration-300 border-border/50 overflow-hidden">
+   422→                    {/* Top accent line */}
+   423→                    <div className={`h-[2px] w-full ${wh.active ? 'bg-gradient-to-r from-violet-500 to-purple-500' : 'bg-muted'}`} />
+   424→                    <CardContent className="p-5 space-y-4">
+   425→                      {/* URL + Status row */}
+   426→                      <div className="flex items-start justify-between gap-3">
+   427→                        <div className="min-w-0 flex-1">
+   428→                          <p className="text-sm font-mono truncate text-foreground/80" title={wh.url}>
+   429→                            {truncateUrl(wh.url, 48)}
+   430→                          </p>
+   431→                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+   432→                            {wh.events.map((ev) => (
+   433→                              <Badge key={ev} variant="secondary" className={`text-[10px] font-mono px-2 py-0.5 ${EVENT_COLORS[ev]}`}>
+   434→                                {ev}
+   435→                              </Badge>
+   436→                            ))}
+   437→                          </div>
+   438→                        </div>
+   439→                        <Switch
+   440→                          checked={wh.active}
+   441→                          onCheckedChange={() => toggleWebhook(wh.id)}
+   442→                        />
+   443→                      </div>
+   444→
+   445→                      <Separator className="opacity-50" />
+   446→
+   447→                      {/* Secret row */}
+   448→                      <div className="flex items-center justify-between">
+   449→                        <div className="flex items-center gap-2 min-w-0">
+   450→                          <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   451→                          <span className="text-xs font-mono text-muted-foreground truncate">
+   452→                            {maskSecret(wh.secret)}
+   453→                          </span>
+   454→                        </div>
+   455→                        <Button
+   456→                          variant="ghost"
+   457→                          size="icon"
+   458→                          className="h-7 w-7 shrink-0"
+   459→                          onClick={() => handleCopy(wh.id, wh.secret)}
+   460→                        >
+   461→                          {copiedId === wh.id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+   462→                        </Button>
+   463→                      </div>
+   464→
+   465→                      {/* Meta row */}
+   466→                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+   467→                        <div className="flex items-center gap-3">
+   468→                          <span className="flex items-center gap-1">
+   469→                            <Clock className="h-3 w-3" />
+   470→                            {wh.lastTriggered}
+   471→                          </span>
+   472→                          {wh.responseCode && <StatusBadge code={wh.responseCode} />}
+   473→                        </div>
+   474→
+   475→                        {deleteConfirmId === wh.id ? (
+   476→                          <div className="flex items-center gap-1">
+   477→                            <Button
+   478→                              variant="destructive"
+   479→                              size="sm"
+   480→                              className="h-7 text-[11px] px-2"
+   481→                              onClick={() => deleteWebhook(wh.id)}
+   482→                            >
+   483→                              Confirm
+   484→                            </Button>
+   485→                            <Button
+   486→                              variant="outline"
+   487→                              size="sm"
+   488→                              className="h-7 text-[11px] px-2"
+   489→                              onClick={() => setDeleteConfirmId(null)}
+   490→                            >
+   491→                              Cancel
+   492→                            </Button>
+   493→                          </div>
+   494→                        ) : (
+   495→                          <Button
+   496→                            variant="ghost"
+   497→                            size="icon"
+   498→                            className="h-7 w-7 text-muted-foreground hover:text-destructive transition-colors"
+   499→                            onClick={() => setDeleteConfirmId(wh.id)}
+   500→                          >
+   501→                            <Trash2 className="h-3.5 w-3.5" />
+   502→                          </Button>
+   503→                        )}
+   504→                      </div>
+   505→                    </CardContent>
+   506→                  </Card>
+   507→                </motion.div>
+   508→              ))}
+   509→            </AnimatePresence>
+   510→          </motion.div>
+   511→        </TabsContent>
+   512→
+   513→        {/* ── Templates Tab ────────────────────────────────────────────── */}
+   514→        <TabsContent value="templates">
+   515→          <motion.div
+   516→            key="templates-grid"
+   517→            variants={containerVariants}
+   518→            initial="hidden"
+   519→            animate="visible"
+   520→            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+   521→          >
+   522→            {templates.map((tpl) => {
+   523→              const Icon = tpl.icon;
+   524→              return (
+   525→                <motion.div key={tpl.id} variants={itemVariants}>
+   526→                  <Card className="group hover:shadow-lg hover:shadow-violet-500/5 hover:-translate-y-0.5 transition-all duration-300 border-border/50 overflow-hidden">
+   527→                    <div className={`h-[2px] w-full ${tpl.enabled ? 'bg-gradient-to-r from-violet-500 to-purple-500' : 'bg-muted'}`} />
+   528→                    <CardContent className="p-5">
+   529→                      <div className="flex items-start gap-4">
+   530→                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tpl.iconBg} text-white shadow-sm`}>
+   531→                          <Icon className="h-5 w-5" />
+   532→                        </div>
+   533→                        <div className="flex-1 min-w-0 space-y-2">
+   534→                          <div className="flex items-start justify-between gap-2">
+   535→                            <h4 className="font-semibold text-sm leading-snug">{tpl.name}</h4>
+   536→                            <Switch
+   537→                              checked={tpl.enabled}
+   538→                              onCheckedChange={() => toggleTemplate(tpl.id)}
+   539→                            />
+   540→                          </div>
+   541→                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+   542→                            {tpl.description}
+   543→                          </p>
+   544→                          <Button
+   545→                            variant="outline"
+   546→                            size="sm"
+   547→                            className="h-8 text-xs gap-1.5 mt-1 group-hover:bg-gradient-to-r group-hover:from-violet-600 group-hover:to-purple-600 group-hover:text-white group-hover:border-transparent transition-all duration-300"
+   548→                          >
+   549→                            Use Template
+   550→                            <ArrowRight className="h-3 w-3" />
+   551→                          </Button>
+   552→                        </div>
+   553→                      </div>
+   554→                    </CardContent>
+   555→                  </Card>
+   556→                </motion.div>
+   557→              );
+   558→            })}
+   559→          </motion.div>
+   560→        </TabsContent>
+   561→
+   562→        {/* ── Event Log Tab ────────────────────────────────────────────── */}
+   563→        <TabsContent value="event-log">
+   564→          <div className="space-y-4">
+   565→            {/* Search & Auto-refresh bar */}
+   566→            <div className="flex items-center gap-3 flex-wrap">
+   567→              <div className="relative flex-1 min-w-[200px] max-w-sm">
+   568→                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   569→                <Input
+   570→                  placeholder="Search events or URLs..."
+   571→                  value={logSearch}
+   572→                  onChange={(e) => setLogSearch(e.target.value)}
+   573→                  className="pl-9 h-9"
+   574→                />
+   575→              </div>
+   576→              <div className="flex items-center gap-2 text-sm">
+   577→                <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+   578→                <span className="text-muted-foreground flex items-center gap-1.5">
+   579→                  <RefreshCw className={`h-3.5 w-3.5 ${autoRefresh ? 'animate-spin text-violet-500' : ''}`} />
+   580→                  Auto-refresh
+   581→                </span>
+   582→              </div>
+   583→            </div>
+   584→
+   585→            {/* Log entries */}
+   586→            <motion.div
+   587→              key="event-log-list"
+   588→              variants={containerVariants}
+   589→              initial="hidden"
+   590→              animate="visible"
+   591→              className="space-y-2 max-h-[600px] overflow-y-auto pr-1"
+   592→              style={{ scrollbarWidth: 'thin' }}
+   593→            >
+   594→              {filteredLogs.length > 0 ? (
+   595→                filteredLogs.map((entry) => (
+   596→                  <motion.div key={entry.id} variants={itemVariants}>
+   597→                    <Card className="border-border/50 hover:bg-muted/30 transition-colors duration-200">
+   598→                      <CardContent className="p-4">
+   599→                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+   600→                          {/* Timestamp */}
+   601→                          <span className="text-[11px] font-mono text-muted-foreground shrink-0 sm:w-36">
+   602→                            {entry.timestamp}
+   603→                          </span>
+   604→                          {/* Event badge */}
+   605→                          <Badge
+   606→                            variant="secondary"
+   607→                            className={`text-[11px] font-mono font-medium px-2.5 py-0.5 shrink-0 w-fit ${EVENT_COLORS[entry.event] ?? 'bg-muted text-muted-foreground'}`}
+   608→                          >
+   609→                            {entry.event}
+   610→                          </Badge>
+   611→                          {/* URL */}
+   612→                          <span className="text-xs font-mono text-muted-foreground truncate flex-1 min-w-0" title={entry.webhookUrl}>
+   613→                            {truncateUrl(entry.webhookUrl, 44)}
+   614→                          </span>
+   615→                          {/* Status & meta */}
+   616→                          <div className="flex items-center gap-3 shrink-0">
+   617→                            <StatusBadge code={entry.status} />
+   618→                            <span className="text-[11px] text-muted-foreground font-mono w-14 text-right">
+   619→                              {entry.responseTime}
+   620→                            </span>
+   621→                            {entry.retryCount > 0 && (
+   622→                              <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+   623→                                retry ×{entry.retryCount}
+   624→                              </Badge>
+   625→                            )}
+   626→                          </div>
+   627→                        </div>
+   628→                      </CardContent>
+   629→                    </Card>
+   630→                  </motion.div>
+   631→                ))
+   632→              ) : (
+   633→                <motion.div
+   634→                  initial={{ opacity: 0 }}
+   635→                  animate={{ opacity: 1 }}
+   636→                  className="flex flex-col items-center justify-center py-16 text-center"
+   637→                >
+   638→                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-3">
+   639→                    <Search className="h-7 w-7 text-muted-foreground" />
+   640→                  </div>
+   641→                  <h3 className="font-semibold">No matching events</h3>
+   642→                  <p className="text-sm text-muted-foreground mt-1">Try adjusting your search query.</p>
+   643→                </motion.div>
+   644→              )}
+   645→            </motion.div>
+   646→          </div>
+   647→        </TabsContent>
+   648→      </Tabs>
+   649→    </div>
+   650→  );
+   651→}
+   652→

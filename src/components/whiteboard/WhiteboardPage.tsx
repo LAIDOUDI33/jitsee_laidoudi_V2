@@ -438,7 +438,7 @@ export default function WhiteboardPage() {
           initial={{ y: -56, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className='z-50 flex items-center gap-1 px-3 py-2 bg-white/80 dark:bg-card/80 backdrop-blur-xl border-b border-border/50 shadow-sm'
+          className='z-50 flex items-center gap-1 px-3 py-2 bg-white/80 dark:bg-card/80 backdrop-blur-xl border-b border-border/50 shadow-sm relative before:content-[\"\"] before:absolute before:bottom-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/40 before:via-emerald-500/40 before:to-primary/0'
         >
           {/* Drawing tools */}
           <div className='flex items-center gap-0.5'>
@@ -664,7 +664,7 @@ export default function WhiteboardPage() {
               className='gap-1.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-xs py-0.5 px-2'
             >
               <span className='relative flex h-2 w-2'>
-                <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75' />
+                <span className='animate-breathe absolute inline-flex h-full w-full rounded-full bg-emerald-400' />
                 <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500' />
               </span>
               Live
@@ -787,7 +787,7 @@ export default function WhiteboardPage() {
               </svg>
               {/* Name label */}
               <span
-                className='absolute left-4 top-4 text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white whitespace-nowrap shadow-sm'
+                className='absolute left-4 top-4 text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white whitespace-nowrap shadow-lg'
                 style={{ backgroundColor: c.color }}
               >
                 {c.name.split(' ')[0]}
@@ -800,7 +800,7 @@ export default function WhiteboardPage() {
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
-            className='absolute bottom-4 right-4 z-40 rounded-lg border border-border/50 bg-white/90 dark:bg-card/90 backdrop-blur-sm shadow-lg overflow-hidden'
+            className='absolute bottom-4 right-4 z-40 rounded-lg border border-border/50 bg-white/90 dark:bg-card/90 backdrop-blur-sm shadow-lg shadow-primary/5 overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/40 before:to-primary/0'
           >
             <canvas ref={minimapRef} className='block' />
           </motion.div>
@@ -810,7 +810,7 @@ export default function WhiteboardPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4, type: 'spring', stiffness: 200, damping: 20 }}
-            className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2 shadow-lg'
+            className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2 shadow-lg shadow-primary/5 relative before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/40 before:to-emerald-500/0'
           >
             {React.cloneElement(
               TOOL_ITEMS.find((t) => t.tool === activeTool)!.icon,

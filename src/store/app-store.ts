@@ -33,6 +33,8 @@ export type AppView =
   | 'help-center'
   | 'webhooks'
   | 'templates'
+  | 'notifications'
+  | 'breakout-rooms'
 
 export interface NotificationItem {
   id: string

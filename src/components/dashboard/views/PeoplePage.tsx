@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -116,6 +116,25 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
 }
 
+function AnimatedCounter({ target }: { target: number }) {
+  const [count, setCount] = useState(0)
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    const duration = 1200
+    const startTime = performance.now()
+    const step = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [target])
+  return <span>{count}</span>
+}
+
 // ── Main Component ────────────────────────────────────────────────────
 
 export default function PeoplePage() {
@@ -201,20 +220,20 @@ export default function PeoplePage() {
 
       {/* ── Stats Row ── */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-card border border-border/50 rounded-xl">
+        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
           <CardContent className="flex items-center gap-3 py-4 px-5">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-violet-500/10 text-primary">
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalCount}</p>
+              <p className="text-2xl font-bold"><AnimatedCounter target={totalCount} /></p>
               <p className="text-xs text-muted-foreground">Total People</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border border-border/50 rounded-xl">
+        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300">
           <CardContent className="flex items-center gap-3 py-4 px-5">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600">
               <Circle className="h-5 w-5 fill-emerald-500" />
             </div>
             <div>
@@ -223,9 +242,9 @@ export default function PeoplePage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border border-border/50 rounded-xl">
+        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-sky-500/10 hover:-translate-y-0.5 transition-all duration-300">
           <CardContent className="flex items-center gap-3 py-4 px-5">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-sky-500/20 to-blue-500/10 text-blue-600">
               <UserPlus className="h-5 w-5" />
             </div>
             <div>
@@ -267,7 +286,7 @@ export default function PeoplePage() {
                       <Badge variant="outline" className="text-[10px] h-5 px-1.5 rounded-full">
                         {person.department}
                       </Badge>
-                      <span className={`h-2 w-2 rounded-full ${person.online ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
+                      <span className={`h-2 w-2 rounded-full ${person.online ? 'bg-emerald-500 animate-breathe' : 'bg-muted-foreground/30'}`} />
                     </div>
                   </CardContent>
                 </Card>
@@ -294,13 +313,14 @@ export default function PeoplePage() {
           {regular.map((person) => (
             <motion.div key={person.id} variants={item}>
               <Card
-                className={`bg-card border rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer ${
+                className={`bg-card border rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden relative ${
                   selectedId === person.id
                     ? 'border-primary ring-1 ring-primary/30'
                     : 'border-border/50'
                 }`}
                 onClick={() => setSelectedId(selectedId === person.id ? null : person.id)}
               >
+                <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${person.gradient}`} />
                 <CardContent className="p-5">
                   <div className="flex items-start gap-3">
                     <div className="relative">
@@ -311,7 +331,7 @@ export default function PeoplePage() {
                       </Avatar>
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${
-                          person.online ? 'bg-emerald-500' : 'bg-muted-foreground/30'
+                          person.online ? 'bg-emerald-500 animate-breathe' : 'bg-muted-foreground/30'
                         }`}
                       />
                     </div>

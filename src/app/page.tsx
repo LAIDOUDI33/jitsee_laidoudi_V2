@@ -120,6 +120,14 @@ const TemplatesPage = dynamic(() => import('@/components/dashboard/views/Templat
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
   ssr: false,
 })
+const NotificationsPage = dynamic(() => import('@/components/dashboard/views/NotificationsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
+const BreakoutRoomsPage = dynamic(() => import('@/components/dashboard/views/BreakoutRoomsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -197,6 +205,8 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'help-center': HelpCenterPage,
   webhooks: WebhooksPage,
   templates: TemplatesPage,
+  notifications: NotificationsPage,
+  'breakout-rooms': BreakoutRoomsPage,
 }
 
 function ForgotPasswordPage() {

@@ -43,7 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Progress } from '@/components/ui/progress'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Recording {
@@ -88,6 +87,23 @@ const sparkline = (bars: number[], color: string) => (
   </div>
 )
 
+function useCountUp(target: number, duration = 1200, delay = 0) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    const startTime = performance.now() + delay
+    function step(now: number) {
+      if (now < startTime) { requestAnimationFrame(step); return }
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [target, duration, delay])
+  return count
+}
+
 export default function RecordingsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
@@ -95,6 +111,10 @@ export default function RecordingsPage() {
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesTitle, setNotesTitle] = useState('')
+
+  const animatedRecordings = useCountUp(mockRecordings.length)
+  const animatedAiSummarized = useCountUp(mockRecordings.filter(r => r.hasAiSummary).length)
+  const animatedStorage = useCountUp(Math.round(totalSize))
 
   useEffect(() => {
     if (!playing) return
@@ -140,14 +160,14 @@ export default function RecordingsPage() {
       </div>
 
       {/* Stats */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        <motion.div variants={item} initial='hidden' animate='show'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+      <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+        <motion.div variants={item}>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-red-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-red-500/50 before:to-red-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
-              <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5'><FileVideo className='h-5 w-5 text-red-600' /></div>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/20 to-red-500/5'><FileVideo className='h-5 w-5 text-red-600' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>{mockRecordings.length}</p>
+                  <p className='text-2xl font-bold tabular-nums'>{animatedRecordings}</p>
                   <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+2</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>Recordings</p>
@@ -156,10 +176,10 @@ export default function RecordingsPage() {
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div variants={item} initial='hidden' animate='show'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        <motion.div variants={item}>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-500/50 before:to-sky-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
-              <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/10 to-sky-500/5'><Clock className='h-5 w-5 text-sky-600' /></div>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/20 to-sky-500/5'><Clock className='h-5 w-5 text-sky-600' /></div>
               <div className='flex-1'>
                 <p className='text-2xl font-bold'>7h 48m</p>
                 <p className='text-xs text-muted-foreground'>Total Duration</p>
@@ -168,25 +188,25 @@ export default function RecordingsPage() {
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div variants={item} initial='hidden' animate='show'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        <motion.div variants={item}>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-violet-500/50 before:to-violet-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
-              <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-500/5'><HardDrive className='h-5 w-5 text-violet-600' /></div>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5'><HardDrive className='h-5 w-5 text-violet-600' /></div>
               <div className='flex-1'>
-                <p className='text-2xl font-bold'>{totalSize.toFixed(0)} MB</p>
+                <p className='text-2xl font-bold tabular-nums'>{animatedStorage} MB</p>
                 <p className='text-xs text-muted-foreground'>Storage Used</p>
                 {sparkline([50, 55, 52, 58, 60, 63, 67], 'bg-violet-500/40')}
               </div>
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div variants={item} initial='hidden' animate='show'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        <motion.div variants={item}>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/50 before:to-emerald-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
-              <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><Brain className='h-5 w-5 text-emerald-600' /></div>
+              <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5'><Brain className='h-5 w-5 text-emerald-600' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>{mockRecordings.filter(r => r.hasAiSummary).length}</p>
+                  <p className='text-2xl font-bold tabular-nums'>{animatedAiSummarized}</p>
                   <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />AI</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>AI Summarized</p>
@@ -195,7 +215,7 @@ export default function RecordingsPage() {
             </CardContent>
           </Card>
         </motion.div>
-      </div>
+      </motion.div>
 
       {/* Toolbar */}
       <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
@@ -221,7 +241,8 @@ export default function RecordingsPage() {
           <motion.div key={rec.id} variants={item}>
             <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
               {/* Video preview area */}
-              <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center'>
+              <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center overflow-hidden'>
+                <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer pointer-events-none' />
                 <Film className='h-12 w-12 text-zinc-600' />
                 <Button
                   size='icon'
@@ -241,7 +262,12 @@ export default function RecordingsPage() {
                 {/* Playback progress */}
                 {(playing === rec.id || progress[rec.id]) && (
                   <div className='absolute bottom-0 left-0 right-0'>
-                    <Progress value={progress[rec.id] || 0} className='h-1' />
+                    <div className='h-1 bg-white/10 overflow-hidden'>
+                      <motion.div
+                        className='h-full bg-gradient-to-r from-emerald-500 to-teal-400'
+                        style={{ width: `${progress[rec.id] || 0}%` }}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -283,9 +309,14 @@ export default function RecordingsPage() {
                 {/* Playback indicator */}
                 {playing === rec.id && (
                   <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className='mt-3 flex items-center gap-2'>
-                    <div className='w-2 h-2 rounded-full bg-emerald-500 animate-pulse' />
+                    <div className='w-2 h-2 rounded-full bg-emerald-500 animate-breathe' />
                     <span className='text-[11px] text-emerald-600 font-medium'>Playing — {rec.duration}</span>
-                    <Progress value={progress[rec.id] || 0} className='h-1.5 flex-1' />
+                    <div className='h-1.5 rounded-full bg-emerald-500/10 overflow-hidden flex-1'>
+                      <motion.div
+                        className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
+                        style={{ width: `${progress[rec.id] || 0}%` }}
+                      />
+                    </div>
                     <span className='text-[10px] text-muted-foreground'>{Math.round(progress[rec.id] || 0)}%</span>
                   </motion.div>
                 )}

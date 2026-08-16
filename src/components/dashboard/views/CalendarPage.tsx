@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useAppStore } from '@/store/app-store'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +52,15 @@ const typeIcons: Record<string, React.ReactNode> = {
   event: <CalendarDays className='h-3 w-3' />,
   deadline: <AlertCircle className='h-3 w-3' />,
   reminder: <Bell className='h-3 w-3' />,
+}
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -210,7 +219,8 @@ export default function CalendarPage() {
 
       <div className='flex flex-col lg:flex-row gap-6'>
         <div className='flex-1'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden'>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
             <CardHeader className='pb-2'>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-lg'>{MONTHS[currentMonth]} {currentYear}</CardTitle>
@@ -232,10 +242,11 @@ export default function CalendarPage() {
               {viewMode === 'month' ? renderCalendarGrid() : renderWeekView()}
             </CardContent>
           </Card>
+          </motion.div>
         </div>
 
         <div className='w-full lg:w-80 space-y-4'>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/50 before:to-emerald-500/0'>
             <CardHeader className='pb-2'>
               <CardTitle className='text-sm'>{MONTHS[currentMonth]} {currentYear}</CardTitle>
             </CardHeader>
@@ -256,7 +267,7 @@ export default function CalendarPage() {
                       className={`text-xs relative w-6 h-6 flex items-center justify-center rounded-full mx-auto transition-colors ${d.isCurrent ? 'bg-primary text-primary-foreground font-bold' : 'hover:bg-muted'}`}
                     >
                       {d.day}
-                      {hasEvents && !d.isCurrent && <span className='absolute bottom-0 w-1 h-1 rounded-full bg-primary' />}
+                      {hasEvents && !d.isCurrent && <span className='absolute bottom-0 w-1 h-1 rounded-full bg-primary animate-breathe' />}
                     </button>
                   )
                 })}
@@ -264,15 +275,15 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
 
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-500/50 before:to-sky-500/0'>
             <CardHeader className='pb-3'>
               <CardTitle className='text-sm'>{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Select a date'}</CardTitle>
             </CardHeader>
             <CardContent>
               {selectedEvents.length > 0 ? (
-                <div className='space-y-2 divide-y divide-border/50'>
+                <motion.div variants={container} initial='hidden' animate='show' className='space-y-2 divide-y divide-border/50'>
                   {selectedEvents.map(e => (
-                    <div key={e.id} onClick={() => handleEventClick(e)} className='w-full text-left p-3 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer'>
+                    <motion.div key={e.id} variants={item} onClick={() => handleEventClick(e)} className='w-full text-left p-3 rounded-lg hover:bg-muted/50 hover:shadow-sm hover:shadow-primary/5 transition-all duration-200 group cursor-pointer'>
                       <div className='flex items-start gap-2.5'>
                         <div className={`w-1 h-full min-h-[40px] rounded-full ${e.color} shrink-0`} />
                         <div className='flex-1 min-w-0'>
@@ -297,9 +308,9 @@ export default function CalendarPage() {
                         </div>
                         {e.type === 'meeting' && <Video className='h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0' />}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               ) : (
                 <div className='flex flex-col items-center justify-center py-10'>
                   <div className='relative'>
@@ -314,20 +325,20 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
 
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
             <CardHeader className='pb-3'>
               <CardTitle className='text-sm flex items-center gap-2'><Zap className='h-4 w-4 text-primary' /> Upcoming This Week</CardTitle>
             </CardHeader>
             <CardContent className='space-y-1 divide-y divide-border/50'>
               {thisWeekEvents.length > 0 ? thisWeekEvents.map(e => (
-                <button key={e.id} onClick={() => { setSelectedDate(e.date); handleEventClick(e) }} className='w-full text-left flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors'>
-                  <div className={`w-2 h-2 rounded-full ${e.color} shrink-0`} />
+                <motion.button key={e.id} variants={item} initial='hidden' animate='show' whileHover={{ x: 2 }} transition={{ duration: 0.15 }} onClick={() => { setSelectedDate(e.date); handleEventClick(e) }} className='w-full text-left flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors'>
+                  <div className={`w-2 h-2 rounded-full ${e.color} shrink-0 ${e.type === 'meeting' ? 'animate-breathe' : ''}`} />
                   <div className='flex-1 min-w-0'>
                     <p className='text-sm font-medium truncate'>{e.title}</p>
                     <p className='text-xs text-muted-foreground'>{e.date} · {e.time}</p>
                   </div>
                   {e.type === 'meeting' && <Video className='h-3.5 w-3.5 text-muted-foreground shrink-0' />}
-                </button>
+                </motion.button>
               )) : (
                 <p className='text-sm text-muted-foreground text-center py-4'>No upcoming events this week</p>
               )}

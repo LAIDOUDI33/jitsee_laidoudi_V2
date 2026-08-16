@@ -244,7 +244,8 @@ export default function AdminPage() {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* Quick Actions Grid */}
         <motion.div variants={item}>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+            <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500' />
             <CardHeader className='pb-3'>
               <CardTitle className='text-sm flex items-center gap-2'><Zap className='h-4 w-4 text-amber-500' /> Quick Actions</CardTitle>
             </CardHeader>
@@ -272,7 +273,8 @@ export default function AdminPage() {
 
         {/* System Health with dynamic status */}
         <motion.div variants={item}>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+            <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-400' />
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-sm flex items-center gap-2'><Activity className='h-4 w-4 text-emerald-500' /> System Health</CardTitle>
@@ -314,7 +316,8 @@ export default function AdminPage() {
 
         {/* Recent Activity Timeline with avatars */}
         <motion.div variants={item} className='lg:col-span-2'>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+            <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500/80 to-orange-400/80' />
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-sm flex items-center gap-2'><Clock className='h-4 w-4 text-amber-500' /> Recent Activity</CardTitle>

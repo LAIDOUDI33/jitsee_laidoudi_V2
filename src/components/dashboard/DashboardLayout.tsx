@@ -51,6 +51,8 @@ import { LayoutDashboard,
   Puzzle,
   Webhook as WebhookIcon,
   LayoutTemplate,
+  Bell,
+  LayoutGrid,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
@@ -86,6 +88,8 @@ const mainNavItems: NavItem[] = [
   { label: 'Help Center', icon: <HelpCircle className='h-4 w-4' />, view: 'help-center' },
   { label: 'Webhooks', icon: <WebhookIcon className='h-4 w-4' />, view: 'webhooks' },
   { label: 'Templates', icon: <LayoutTemplate className='h-4 w-4' />, view: 'templates' },
+  { label: 'Notifications', icon: <Bell className='h-4 w-4' />, view: 'notifications' },
+  { label: 'Breakout Rooms', icon: <LayoutGrid className='h-4 w-4' />, view: 'breakout-rooms' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -318,6 +322,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'help-center': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Help Center' }],
     webhooks: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Webhooks & Automation' }],
     templates: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Templates' }],
+    notifications: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Notifications' }],
+    'breakout-rooms': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Breakout Rooms' }],
     admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
     'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
     'admin-orgs': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Organizations' }],
@@ -352,6 +358,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'help-center': 'Help Center',
     webhooks: 'Webhooks & Automation',
     templates: 'Meeting Templates',
+    notifications: 'Notifications',
+    'breakout-rooms': 'Breakout Rooms',
   }
 
   const handleSignOut = () => {

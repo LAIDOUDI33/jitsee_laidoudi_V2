@@ -66,10 +66,10 @@ const categoryConfig: Record<string, { icon: React.ReactNode; color: string; bg:
 const categories = ['All', ...Object.keys(categoryConfig)]
 
 const typeIcons: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  article: { icon: <FileText className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-sky-500/10' },
-  video: { icon: <Video className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-red-500/10' },
-  guide: { icon: <BookOpen className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-  faq: { icon: <Sparkles className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+  article: { icon: <FileText className='h-4 w-4' />, color: 'text-sky-600', bg: 'bg-gradient-to-br from-sky-500/20 to-sky-500/5' },
+  video: { icon: <Video className='h-4 w-4' />, color: 'text-red-600', bg: 'bg-gradient-to-br from-red-500/20 to-red-500/5' },
+  guide: { icon: <BookOpen className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5' },
+  faq: { icon: <Sparkles className='h-4 w-4' />, color: 'text-amber-600', bg: 'bg-gradient-to-br from-amber-500/20 to-amber-500/5' },
 }
 
 const container = {
@@ -133,13 +133,14 @@ export default function KnowledgePage() {
       </div>
 
       {/* Hero search */}
-      <Card className='bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border-primary/10 overflow-hidden'>
+      <Card className='bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border-primary/10 overflow-hidden relative'>
         <CardContent className='p-8 text-center relative'>
           <div className='w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-4 shadow-lg'>
             <BookOpen className='h-7 w-7 text-primary-foreground' />
           </div>
           <h3 className='text-xl font-bold mb-2'>Find answers fast</h3>
           <p className='text-muted-foreground mb-6 max-w-lg mx-auto text-sm'>Search across {articles.length} articles, guides, and FAQs</p>
+          <div className='absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer pointer-events-none' />
           <div className='relative max-w-lg mx-auto'>
             <Search className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground' />
             <Input placeholder='Search articles, guides, FAQs...' className='pl-12 h-12 text-base border-primary/20 focus-visible:border-primary/40 transition-colors' value={search} onChange={e => setSearch(e.target.value)} />
@@ -194,7 +195,7 @@ export default function KnowledgePage() {
               const catCfg = categoryConfig[article.category]
               return (
                 <motion.div key={article.id} variants={item}>
-                  <Card className='group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer'>
+                  <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 cursor-pointer overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
                     <CardContent className='p-5'>
                       <div className='flex items-start gap-4'>
                         <div className={`p-2.5 rounded-xl ${typeCfg.bg} ${typeCfg.color} shrink-0 mt-0.5 group-hover:scale-110 transition-transform`}>
@@ -282,7 +283,7 @@ export default function KnowledgePage() {
           </Card>
 
           {/* Trending */}
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
             <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><TrendingUp className='h-4 w-4 text-primary' /> Trending</CardTitle></CardHeader>
             <CardContent className='space-y-3 divide-y divide-border/50'>
               {trending.map((a, i) => (
@@ -300,7 +301,7 @@ export default function KnowledgePage() {
           </Card>
 
           {/* Quick Links */}
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300'>
             <CardHeader className='pb-3'><CardTitle className='text-sm'>Quick Links</CardTitle></CardHeader>
             <CardContent className='space-y-1 divide-y divide-border/50'>
               {['API Documentation', 'Release Notes', 'Community Forum', 'Feature Requests'].map(link => (

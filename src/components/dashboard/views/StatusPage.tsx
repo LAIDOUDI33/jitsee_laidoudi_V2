@@ -169,11 +169,11 @@ function generateUptimeGrid(seed: number): ('green' | 'amber' | 'red' | 'gray')[
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-const statusConfig: Record<ServiceStatus, { label: string; color: string; dotClass: string }> = {
-  operational: { label: 'Operational', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', dotClass: 'bg-emerald-500' },
-  degraded: { label: 'Degraded', color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', dotClass: 'bg-amber-500' },
-  outage: { label: 'Outage', color: 'bg-red-500/10 text-red-600 border-red-500/20', dotClass: 'bg-red-500' },
-  maintenance: { label: 'Maintenance', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', dotClass: 'bg-blue-500' },
+const statusConfig: Record<ServiceStatus, { label: string; color: string; dotClass: string; hoverShadow: string; iconGrad: string; accentLine: string }> = {
+  operational: { label: 'Operational', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', dotClass: 'bg-emerald-500', hoverShadow: 'hover:shadow-emerald-500/10', iconGrad: 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600', accentLine: 'from-emerald-500 to-teal-400' },
+  degraded: { label: 'Degraded', color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', dotClass: 'bg-amber-500', hoverShadow: 'hover:shadow-amber-500/10', iconGrad: 'bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-600', accentLine: 'from-amber-500 to-orange-400' },
+  outage: { label: 'Outage', color: 'bg-red-500/10 text-red-600 border-red-500/20', dotClass: 'bg-red-500', hoverShadow: 'hover:shadow-red-500/10', iconGrad: 'bg-gradient-to-br from-red-500/20 to-rose-500/10 text-red-600', accentLine: 'from-red-500 to-rose-400' },
+  maintenance: { label: 'Maintenance', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', dotClass: 'bg-blue-500', hoverShadow: 'hover:shadow-blue-500/10', iconGrad: 'bg-gradient-to-br from-blue-500/20 to-sky-500/10 text-blue-600', accentLine: 'from-blue-500 to-sky-400' },
 }
 
 const incidentSeverityConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -315,7 +315,7 @@ export default function StatusPage() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
               ) : (
                 <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="animate-breathe absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </>
               )}
@@ -338,11 +338,13 @@ export default function StatusPage() {
 
           return (
             <motion.div key={service.name} variants={item}>
-              <Card className="bg-card border border-border/50 rounded-xl p-0 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+              <Card className={`bg-card border border-border/50 rounded-xl p-0 hover:shadow-lg ${cfg.hoverShadow} hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative`}
+              >
+                <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${cfg.accentLine}`} />
                 <CardHeader className="pb-3 pt-5 px-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${service.status === 'operational' ? 'bg-emerald-500/10 text-emerald-600' : service.status === 'degraded' ? 'bg-amber-500/10 text-amber-600' : service.status === 'outage' ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                      <div className={`p-2 rounded-lg ${cfg.iconGrad}`}>
                         {service.icon}
                       </div>
                       <div>
@@ -355,7 +357,7 @@ export default function StatusPage() {
                 <CardContent className="px-5 pb-5 pt-0">
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="outline" className={`text-[11px] ${cfg.color}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotClass} mr-1.5`} />
+                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotClass} mr-1.5 animate-breathe`} />
                       {cfg.label}
                     </Badge>
                     <span className="text-xs font-mono text-muted-foreground">{service.uptime} uptime</span>
@@ -466,10 +468,11 @@ export default function StatusPage() {
 
       {/* ── Subscribe to Updates ── */}
       <motion.div variants={item}>
-        <Card className="bg-card border border-border/50 rounded-xl">
+        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-violet-500" />
           <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 py-5 px-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-violet-500/10 text-primary">
                 <RefreshCw className="h-5 w-5" />
               </div>
               <div>

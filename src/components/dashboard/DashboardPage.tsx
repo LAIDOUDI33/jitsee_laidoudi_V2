@@ -116,16 +116,17 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const { data: meetings } = useQuery<Meeting[]>({
+  const { data: meetingsData } = useQuery<{ success: boolean; meetings: Meeting[] }>({
     queryKey: ['meetings'],
     queryFn: async () => {
       try {
         const res = await fetch('/api/v1/meetings');
         if (res.ok) return res.json();
       } catch { /* fallback */ }
-      return mockMeetings;
+      return { success: true, meetings: mockMeetings };
     },
   });
+  const meetings = meetingsData?.meetings || mockMeetings;
 
   useEffect(() => {
     if (!user) {
@@ -456,7 +457,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(meetings || mockMeetings).map((meeting) => (
+                        {meetings.map((meeting) => (
                           <tr key={meeting.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                             <td className="px-4 lg:px-6 py-3.5">
                               <div className="flex items-center gap-3">

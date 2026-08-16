@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import {
   CalendarHeart,
@@ -103,10 +102,40 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
+function useCountUp(target: number, duration = 1200, delay = 0) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    let start = 0
+    const startTime = performance.now() + delay
+    function step(now: number) {
+      if (now < startTime) { requestAnimationFrame(step); return }
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [target, duration, delay])
+  return count
+}
+
 export default function EventsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
+
+  const stats = useMemo(() => ({
+    total: mockEvents.length,
+    registrants: mockEvents.reduce((a, e) => a + e.registrants, 0),
+    live: mockEvents.filter(e => e.status === 'live').length,
+    upcoming: mockEvents.filter(e => e.status === 'upcoming').length,
+  }), [])
+
+  const animatedTotal = useCountUp(stats.total)
+  const animatedRegistrants = useCountUp(stats.registrants)
+  const animatedLive = useCountUp(stats.live)
+  const animatedUpcoming = useCountUp(stats.upcoming)
 
   const filtered = mockEvents.filter(e => {
     const matchesSearch = e.title.toLowerCase().includes(search.toLowerCase()) || e.tags.some(t => t.includes(search.toLowerCase()))
@@ -115,13 +144,6 @@ export default function EventsPage() {
   })
 
   const featuredEvent = mockEvents.find(e => e.featured && (e.status === 'upcoming' || e.status === 'live'))
-
-  const stats = useMemo(() => ({
-    total: mockEvents.length,
-    registrants: mockEvents.reduce((a, e) => a + e.registrants, 0),
-    live: mockEvents.filter(e => e.status === 'live').length,
-    upcoming: mockEvents.filter(e => e.status === 'upcoming').length,
-  }), [])
 
   return (
     <div className='space-y-6'>
@@ -176,32 +198,40 @@ export default function EventsPage() {
       </div>
 
       {/* Stats row */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+      <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+        <motion.div variants={item}>
+        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
           <CardContent className='p-4 flex items-center gap-3'>
-            <div className='p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5'><CalendarHeart className='h-5 w-5 text-primary' /></div>
-            <div><p className='text-2xl font-bold'>{stats.total}</p><p className='text-xs text-muted-foreground'>Total Events</p></div>
+            <div className='p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5'><CalendarHeart className='h-5 w-5 text-primary' /></div>
+            <div><p className='text-2xl font-bold tabular-nums'>{animatedTotal}</p><p className='text-xs text-muted-foreground'>Total Events</p></div>
           </CardContent>
         </Card>
-        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        </motion.div>
+        <motion.div variants={item}>
+        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-red-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-red-500/50 before:to-red-500/0'>
           <CardContent className='p-4 flex items-center gap-3'>
-            <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5'><Radio className='h-5 w-5 text-red-600' /></div>
-            <div><p className='text-2xl font-bold'>{stats.live}</p><p className='text-xs text-muted-foreground'>Live Now</p></div>
+            <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/20 to-red-500/5'><Radio className='h-5 w-5 text-red-600' /></div>
+            <div><p className='text-2xl font-bold tabular-nums'>{animatedLive}</p><p className='text-xs text-muted-foreground'>Live Now</p></div>
           </CardContent>
         </Card>
-        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        </motion.div>
+        <motion.div variants={item}>
+        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-500/50 before:to-sky-500/0'>
           <CardContent className='p-4 flex items-center gap-3'>
-            <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/10 to-sky-500/5'><Zap className='h-5 w-5 text-sky-600' /></div>
-            <div><p className='text-2xl font-bold'>{stats.upcoming}</p><p className='text-xs text-muted-foreground'>Upcoming</p></div>
+            <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/20 to-sky-500/5'><Zap className='h-5 w-5 text-sky-600' /></div>
+            <div><p className='text-2xl font-bold tabular-nums'>{animatedUpcoming}</p><p className='text-xs text-muted-foreground'>Upcoming</p></div>
           </CardContent>
         </Card>
-        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+        </motion.div>
+        <motion.div variants={item}>
+        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/50 before:to-emerald-500/0'>
           <CardContent className='p-4 flex items-center gap-3'>
-            <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><Users className='h-5 w-5 text-emerald-600' /></div>
-            <div><p className='text-2xl font-bold'>{stats.registrants.toLocaleString()}</p><p className='text-xs text-muted-foreground'>Registrations</p></div>
+            <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5'><Users className='h-5 w-5 text-emerald-600' /></div>
+            <div><p className='text-2xl font-bold tabular-nums'>{animatedRegistrants.toLocaleString()}</p><p className='text-xs text-muted-foreground'>Registrations</p></div>
           </CardContent>
         </Card>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Featured event banner */}
       {featuredEvent && (
@@ -215,7 +245,7 @@ export default function EventsPage() {
                   <div className='flex items-center gap-2 mb-3'>
                     <Badge variant='outline' className='gap-1 border-amber-200 dark:border-amber-800 text-amber-600 bg-amber-500/5'><Star className='h-3 w-3 fill-amber-500' /> Featured</Badge>
                     <Badge variant='outline' className={`gap-1 ${statusConfig[featuredEvent.status]?.color}`}>
-                      {statusConfig[featuredEvent.status]?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse' />}
+                      {statusConfig[featuredEvent.status]?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-breathe' />}
                       {statusConfig[featuredEvent.status]?.label}
                     </Badge>
                     <Badge variant='outline' className={`gap-1 ${typeConfig[featuredEvent.type]?.gradient} ${typeConfig[featuredEvent.type]?.color}`}>
@@ -235,7 +265,14 @@ export default function EventsPage() {
                       <span>{Math.round((featuredEvent.registrants / featuredEvent.maxRegistrants) * 100)}% capacity</span>
                       <span>{featuredEvent.maxRegistrants - featuredEvent.registrants} spots left</span>
                     </div>
-                    <Progress value={(featuredEvent.registrants / featuredEvent.maxRegistrants) * 100} className='h-2' />
+                    <div className='h-2 rounded-full bg-emerald-500/10 overflow-hidden'>
+                      <motion.div
+                        className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(featuredEvent.registrants / featuredEvent.maxRegistrants) * 100}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                      />
+                    </div>
                   </div>
                   {/* Countdown */}
                   {featuredEvent.status === 'upcoming' && getCountdown(featuredEvent.date, featuredEvent.time) && (
@@ -288,12 +325,12 @@ export default function EventsPage() {
           const countdown = event.status === 'upcoming' ? getCountdown(event.date, event.time) : null
           return (
             <motion.div key={event.id} variants={item}>
-              <Card className='group border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5'>
+              <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
                 <CardContent className='p-5'>
                   <div className='flex items-start justify-between mb-3'>
                     <div className='flex items-center gap-2'>
                       <Badge variant='outline' className={`gap-1 ${sc?.color}`}>
-                        {sc?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse' />}
+                        {sc?.pulse && <span className='w-1.5 h-1.5 rounded-full bg-red-500 animate-breathe' />}
                         {sc?.label}
                       </Badge>
                       <Badge variant='outline' className={`gap-1 ${tc?.gradient} ${tc?.color}`}>
@@ -315,7 +352,14 @@ export default function EventsPage() {
                   </div>
                   {/* Registration progress bar */}
                   <div className='space-y-1 mb-3'>
-                    <Progress value={regPct} className='h-1.5' />
+                    <div className='h-1.5 rounded-full bg-emerald-500/10 overflow-hidden'>
+                      <motion.div
+                        className='h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400'
+                        initial={{ width: 0 }}
+                        animate={{ width: `${regPct}%` }}
+                        transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+                      />
+                    </div>
                     <div className='flex justify-between text-[10px] text-muted-foreground'>
                       <span>{regPct}% filled</span>
                       <span>{event.maxRegistrants - event.registrants} spots left</span>

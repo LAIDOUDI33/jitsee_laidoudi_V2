@@ -134,7 +134,8 @@ function KPICard({ label, value, suffix, trend, icon: Icon, iconGradient, iconBg
   const animatedValue = useCountUp(value, 1400, 200)
   return (
     <motion.div variants={itemVariants}>
-      <Card className="bg-card border border-border/50 rounded-xl p-6 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+      <Card className="bg-card border border-border/50 rounded-xl p-6 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden">
+        <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${iconGradient}`} />
         <CardContent className="p-0">
           <div className="flex items-start justify-between">
             <div className="space-y-2">
@@ -253,7 +254,8 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Meeting Activity Chart */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
-          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-teal-400/60" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Calendar className="size-4 text-muted-foreground" />
@@ -288,7 +290,8 @@ export default function AnalyticsPage() {
 
         {/* Meeting Type Distribution */}
         <motion.div variants={itemVariants}>
-          <Card className="bg-card border border-border/50 rounded-xl h-full hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+          <Card className="bg-card border border-border/50 rounded-xl h-full hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500/60 to-purple-400/60" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold">Meeting Types</CardTitle>
             </CardHeader>
@@ -330,7 +333,8 @@ export default function AnalyticsPage() {
 
       {/* ── Department Bar Chart ──────────────────────────────────────────── */}
       <motion.div variants={itemVariants}>
-        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+        <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-500/60 to-blue-400/60" />
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <BarChart3 className="size-4 text-muted-foreground" />
@@ -360,7 +364,8 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Collaborators */}
         <motion.div variants={itemVariants}>
-          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-cyan-400/60" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Users className="size-4 text-muted-foreground" />
@@ -403,7 +408,8 @@ export default function AnalyticsPage() {
 
         {/* AI Feature Adoption */}
         <motion.div variants={itemVariants}>
-          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300">
+          <Card className="bg-card border border-border/50 rounded-xl hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500/60 to-orange-400/60" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Brain className="size-4 text-muted-foreground" />

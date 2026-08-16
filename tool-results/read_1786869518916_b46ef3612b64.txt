@@ -1,0 +1,834 @@
+     1→'use client'
+     2→
+     3→import React, { useRef, useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import {
+     6→  Pen,
+     7→  Eraser,
+     8→  Type,
+     9→  MousePointer2,
+    10→  Square,
+    11→  Circle,
+    12→  Minus,
+    13→  MoveRight,
+    14→  Undo2,
+    15→  Redo2,
+    16→  Trash2,
+    17→  ZoomIn,
+    18→  ZoomOut,
+    19→  Maximize2,
+    20→  Grid3X3,
+    21→  Users,
+    22→  Download,
+    23→} from 'lucide-react'
+    24→import { Button } from '@/components/ui/button'
+    25→import {
+    26→  Tooltip,
+    27→  TooltipContent,
+    28→  TooltipProvider,
+    29→  TooltipTrigger,
+    30→} from '@/components/ui/tooltip'
+    31→import { Separator } from '@/components/ui/separator'
+    32→import { Badge } from '@/components/ui/badge'
+    33→import { useAppStore } from '@/store/app-store'
+    34→
+    35→// ─── Types ───────────────────────────────────────────────────────────────────
+    36→
+    37→type ToolType =
+    38→  | 'select'
+    39→  | 'pen'
+    40→  | 'eraser'
+    41→  | 'rectangle'
+    42→  | 'circle'
+    43→  | 'line'
+    44→  | 'arrow'
+    45→  | 'text'
+    46→
+    47→interface DrawAction {
+    48→  type: ToolType
+    49→  points: { x: number; y: number }[]
+    50→  color: string
+    51→  width: number
+    52→  text?: string
+    53→}
+    54→
+    55→interface Collaborator {
+    56→  id: string
+    57→  name: string
+    58→  color: string
+    59→  x: number
+    60→  y: number
+    61→}
+    62→
+    63→const COLORS = [
+    64→  '#000000',
+    65→  '#EF4444',
+    66→  '#3B82F6',
+    67→  '#22C55E',
+    68→  '#F97316',
+    69→  '#A855F7',
+    70→  '#EC4899',
+    71→  '#6B7280',
+    72→]
+    73→
+    74→const STROKE_WIDTHS = [2, 4, 6, 8]
+    75→
+    76→const TOOL_ITEMS: { tool: ToolType; icon: React.ReactNode; label: string }[] = [
+    77→  { tool: 'select', icon: <MousePointer2 className='h-4 w-4' />, label: 'Select' },
+    78→  { tool: 'pen', icon: <Pen className='h-4 w-4' />, label: 'Pen' },
+    79→  { tool: 'eraser', icon: <Eraser className='h-4 w-4' />, label: 'Eraser' },
+    80→  { tool: 'rectangle', icon: <Square className='h-4 w-4' />, label: 'Rectangle' },
+    81→  { tool: 'circle', icon: <Circle className='h-4 w-4' />, label: 'Circle' },
+    82→  { tool: 'line', icon: <Minus className='h-4 w-4' />, label: 'Line' },
+    83→  { tool: 'arrow', icon: <MoveRight className='h-4 w-4' />, label: 'Arrow' },
+    84→  { tool: 'text', icon: <Type className='h-4 w-4' />, label: 'Text' },
+    85→]
+    86→
+    87→const MOCK_COLLABORATORS: Collaborator[] = [
+    88→  { id: 'c1', name: 'Sarah Chen', color: '#3B82F6', x: 320, y: 200 },
+    89→  { id: 'c2', name: 'Alex Rivera', color: '#EF4444', x: 600, y: 350 },
+    90→  { id: 'c3', name: 'Priya Sharma', color: '#22C55E', x: 450, y: 150 },
+    91→]
+    92→
+    93→// ─── Component ───────────────────────────────────────────────────────────────
+    94→
+    95→export default function WhiteboardPage() {
+    96→  const { user } = useAppStore()
+    97→
+    98→  // Canvas refs
+    99→  const canvasRef = useRef<HTMLCanvasElement>(null)
+   100→  const minimapRef = useRef<HTMLCanvasElement>(null)
+   101→
+   102→  // Tool state
+   103→  const [activeTool, setActiveTool] = useState<ToolType>('pen')
+   104→  const [activeColor, setActiveColor] = useState(COLORS[0])
+   105→  const [activeWidth, setActiveWidth] = useState(STROKE_WIDTHS[1])
+   106→  const [showGrid, setShowGrid] = useState(true)
+   107→  const [zoom, setZoom] = useState(1)
+   108→  const [isDrawing, setIsDrawing] = useState(false)
+   109→
+   110→  // History state
+   111→  const [history, setHistory] = useState<DrawAction[][]>([[]])
+   112→  const [historyIndex, setHistoryIndex] = useState(0)
+   113→  const [currentAction, setCurrentAction] = useState<DrawAction | null>(null)
+   114→
+   115→  // Canvas dimensions
+   116→  const [canvasSize, setCanvasSize] = useState({ width: 1920, height: 1080 })
+   117→  const containerRef = useRef<HTMLDivElement>(null)
+   118→
+   119→  // Text input state
+   120→  const [textInput, setTextInput] = useState<{ x: number; y: number } | null>(null)
+   121→  const [textValue, setTextValue] = useState('')
+   122→
+   123→  // Collaborator cursor animation
+   124→  const [collaborators, setCollaborators] = useState<Collaborator[]>(MOCK_COLLABORATORS)
+   125→
+   126→  // ─── Resize handler ──────────────────────────────────────────────────────
+   127→  useEffect(() => {
+   128→    const handleResize = () => {
+   129→      if (containerRef.current) {
+   130→        setCanvasSize({
+   131→          width: containerRef.current.clientWidth,
+   132→          height: containerRef.current.clientHeight,
+   133→        })
+   134→      }
+   135→    }
+   136→    handleResize()
+   137→    window.addEventListener('resize', handleResize)
+   138→    return () => window.removeEventListener('resize', handleResize)
+   139→  }, [])
+   140→
+   141→  // ─── Draw single action ──────────────────────────────────────────────────
+   142→  const drawAction = useCallback(
+   143→    (ctx: CanvasRenderingContext2D, action: DrawAction) => {
+   144→      if (!action || action.points.length === 0) return
+   145→
+   146→      ctx.save()
+   147→      ctx.strokeStyle = action.color
+   148→      ctx.lineWidth = action.width * zoom
+   149→      ctx.lineCap = 'round'
+   150→      ctx.lineJoin = 'round'
+   151→
+   152→      if (action.type === 'eraser') {
+   153→        ctx.globalCompositeOperation = 'destination-out'
+   154→        ctx.strokeStyle = 'rgba(0,0,0,1)'
+   155→      }
+   156→
+   157→      if (action.type === 'pen' || action.type === 'eraser' || action.type === 'select') {
+   158→        ctx.beginPath()
+   159→        ctx.moveTo(action.points[0].x * zoom, action.points[0].y * zoom)
+   160→        for (let i = 1; i < action.points.length; i++) {
+   161→          const prev = action.points[i - 1]
+   162→          const curr = action.points[i]
+   163→          const mx = ((prev.x + curr.x) / 2) * zoom
+   164→          const my = ((prev.y + curr.y) / 2) * zoom
+   165→          ctx.quadraticCurveTo(prev.x * zoom, prev.y * zoom, mx, my)
+   166→        }
+   167→        ctx.stroke()
+   168→      } else if (action.type === 'rectangle') {
+   169→        const start = action.points[0]
+   170→        const end = action.points[action.points.length - 1]
+   171→        ctx.strokeRect(
+   172→          start.x * zoom,
+   173→          start.y * zoom,
+   174→          (end.x - start.x) * zoom,
+   175→          (end.y - start.y) * zoom
+   176→        )
+   177→      } else if (action.type === 'circle') {
+   178→        const start = action.points[0]
+   179→        const end = action.points[action.points.length - 1]
+   180→        const rx = Math.abs((end.x - start.x) / 2) * zoom
+   181→        const ry = Math.abs((end.y - start.y) / 2) * zoom
+   182→        const cx = ((start.x + end.x) / 2) * zoom
+   183→        const cy = ((start.y + end.y) / 2) * zoom
+   184→        ctx.beginPath()
+   185→        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+   186→        ctx.stroke()
+   187→      } else if (action.type === 'line') {
+   188→        const start = action.points[0]
+   189→        const end = action.points[action.points.length - 1]
+   190→        ctx.beginPath()
+   191→        ctx.moveTo(start.x * zoom, start.y * zoom)
+   192→        ctx.lineTo(end.x * zoom, end.y * zoom)
+   193→        ctx.stroke()
+   194→      } else if (action.type === 'arrow') {
+   195→        const start = action.points[0]
+   196→        const end = action.points[action.points.length - 1]
+   197→        const sx = start.x * zoom
+   198→        const sy = start.y * zoom
+   199→        const ex = end.x * zoom
+   200→        const ey = end.y * zoom
+   201→        const angle = Math.atan2(ey - sy, ex - sx)
+   202→        const headLen = 14 * zoom
+   203→        ctx.beginPath()
+   204→        ctx.moveTo(sx, sy)
+   205→        ctx.lineTo(ex, ey)
+   206→        ctx.stroke()
+   207→        ctx.beginPath()
+   208→        ctx.moveTo(ex, ey)
+   209→        ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI / 6), ey - headLen * Math.sin(angle - Math.PI / 6))
+   210→        ctx.moveTo(ex, ey)
+   211→        ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI / 6), ey - headLen * Math.sin(angle + Math.PI / 6))
+   212→        ctx.stroke()
+   213→      } else if (action.type === 'text' && action.text) {
+   214→        ctx.fillStyle = action.color
+   215→        ctx.font = `${action.width * 4 * zoom}px Inter, system-ui, sans-serif`
+   216→        ctx.fillText(action.text, action.points[0].x * zoom, action.points[0].y * zoom)
+   217→      }
+   218→      ctx.restore()
+   219→    },
+   220→    [zoom]
+   221→  )
+   222→
+   223→  // ─── Redraw canvas ──────────────────────────────────────────────────────
+   224→  const redrawCanvas = useCallback(
+   225→    (ctx: CanvasRenderingContext2D, actions: DrawAction[][]) => {
+   226→      const w = canvasSize.width
+   227→      const h = canvasSize.height
+   228→      ctx.clearRect(0, 0, w, h)
+   229→
+   230→      // Draw grid
+   231→      if (showGrid) {
+   232→        ctx.save()
+   233→        ctx.fillStyle = '#94a3b8'
+   234→        const spacing = 24 * zoom
+   235→        for (let x = 0; x < w; x += spacing) {
+   236→          for (let y = 0; y < h; y += spacing) {
+   237→            ctx.beginPath()
+   238→            ctx.arc(x, y, 1 * zoom, 0, Math.PI * 2)
+   239→            ctx.fill()
+   240→          }
+   241→        }
+   242→        ctx.restore()
+   243→      }
+   244→
+   245→      // Draw all actions
+   246→      for (const action of actions.flat()) {
+   247→        drawAction(ctx, action)
+   248→      }
+   249→    },
+   250→    [canvasSize, showGrid, zoom, drawAction]
+   251→  )
+   252→
+   253→  // ─── Canvas effect ───────────────────────────────────────────────────────
+   254→  useEffect(() => {
+   255→    const canvas = canvasRef.current
+   256→    if (!canvas) return
+   257→    const ctx = canvas.getContext('2d')
+   258→    if (!ctx) return
+   259→
+   260→    canvas.width = canvasSize.width
+   261→    canvas.height = canvasSize.height
+   262→
+   263→    const snapshot = [...history.slice(0, historyIndex + 1)]
+   264→    redrawCanvas(ctx, snapshot)
+   265→
+   266→    // Draw current action being drawn
+   267→    if (currentAction) {
+   268→      drawAction(ctx, currentAction)
+   269→    }
+   270→  }, [canvasSize, history, historyIndex, currentAction, redrawCanvas])
+   271→
+   272→  // ─── Minimap effect ──────────────────────────────────────────────────────
+   273→  useEffect(() => {
+   274→    const minimap = minimapRef.current
+   275→    const canvas = canvasRef.current
+   276→    if (!minimap || !canvas) return
+   277→    const mctx = minimap.getContext('2d')
+   278→    if (!mctx) return
+   279→
+   280→    const mw = 180
+   281→    const mh = Math.round((mw / canvasSize.width) * canvasSize.height)
+   282→    minimap.width = mw
+   283→    minimap.height = mh
+   284→    minimap.style.height = `${mh}px`
+   285→
+   286→    mctx.fillStyle = '#ffffff'
+   287→    mctx.fillRect(0, 0, mw, mh)
+   288→    mctx.drawImage(canvas, 0, 0, mw, mh)
+   289→    mctx.strokeStyle = '#94a3b8'
+   290→    mctx.lineWidth = 1
+   291→    mctx.strokeRect(0, 0, mw, mh)
+   292→  }, [canvasSize, history, historyIndex, currentAction])
+   293→
+   294→  // ─── Get position from mouse/touch event ─────────────────────────────────
+   295→  function getPosition(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+   296→    const canvas = canvasRef.current
+   297→    if (!canvas) return { x: 0, y: 0 }
+   298→    const rect = canvas.getBoundingClientRect()
+   299→    let clientX: number, clientY: number
+   300→    if ('touches' in e) {
+   301→      clientX = e.touches[0].clientX
+   302→      clientY = e.touches[0].clientY
+   303→    } else {
+   304→      clientX = e.clientX
+   305→      clientY = e.clientY
+   306→    }
+   307→    return {
+   308→      x: (clientX - rect.left) / zoom,
+   309→      y: (clientY - rect.top) / zoom,
+   310→    }
+   311→  }
+   312→
+   313→  // ─── Mouse / Touch handlers ─────────────────────────────────────────────
+   314→  function handlePointerDown(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+   315→    const pos = getPosition(e)
+   316→
+   317→    if (activeTool === 'text') {
+   318→      setTextInput({ x: pos.x, y: pos.y })
+   319→      setTextValue('')
+   320→      return
+   321→    }
+   322→
+   323→    setIsDrawing(true)
+   324→    const action: DrawAction = {
+   325→      type: activeTool,
+   326→      points: [pos],
+   327→      color: activeColor,
+   328→      width: activeWidth,
+   329→    }
+   330→    setCurrentAction(action)
+   331→  }
+   332→
+   333→  function handlePointerMove(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+   334→    if (!isDrawing || !currentAction) return
+   335→    const pos = getPosition(e)
+   336→    setCurrentAction({ ...currentAction, points: [...currentAction.points, pos] })
+   337→  }
+   338→
+   339→  function handlePointerUp() {
+   340→    if (!isDrawing || !currentAction) {
+   341→      setIsDrawing(false)
+   342→      return
+   343→    }
+   344→    setIsDrawing(false)
+   345→
+   346→    if (currentAction.points.length > 0) {
+   347→      const newHistory = [...history.slice(0, historyIndex + 1), [...history[historyIndex], currentAction]]
+   348→      setHistory(newHistory)
+   349→      setHistoryIndex(newHistory.length - 1)
+   350→    }
+   351→    setCurrentAction(null)
+   352→  }
+   353→
+   354→  // ─── Text submit handler ──────────────────────────────────────────────────
+   355→  function handleTextSubmit() {
+   356→    if (!textInput || !textValue.trim()) {
+   357→      setTextInput(null)
+   358→      return
+   359→    }
+   360→    const action: DrawAction = {
+   361→      type: 'text',
+   362→      points: [{ x: textInput.x, y: textInput.y }],
+   363→      color: activeColor,
+   364→      width: activeWidth,
+   365→      text: textValue,
+   366→    }
+   367→    const newHistory = [...history.slice(0, historyIndex + 1), [...history[historyIndex], action]]
+   368→    setHistory(newHistory)
+   369→    setHistoryIndex(newHistory.length - 1)
+   370→    setTextInput(null)
+   371→    setTextValue('')
+   372→  }
+   373→
+   374→  // ─── Undo / Redo ─────────────────────────────────────────────────────────
+   375→  function handleUndo() {
+   376→    if (historyIndex > 0) {
+   377→      setHistoryIndex(historyIndex - 1)
+   378→    }
+   379→  }
+   380→
+   381→  function handleRedo() {
+   382→    if (historyIndex < history.length - 1) {
+   383→      setHistoryIndex(historyIndex + 1)
+   384→    }
+   385→  }
+   386→
+   387→  // ─── Clear canvas ─────────────────────────────────────────────────────────
+   388→  function handleClear() {
+   389→    setHistory([[]])
+   390→    setHistoryIndex(0)
+   391→    setCurrentAction(null)
+   392→  }
+   393→
+   394→  // ─── Zoom controls ───────────────────────────────────────────────────────
+   395→  function handleZoomIn() {
+   396→    setZoom((z) => Math.min(z + 0.1, 3))
+   397→  }
+   398→
+   399→  function handleZoomOut() {
+   400→    setZoom((z) => Math.max(z - 0.1, 0.3))
+   401→  }
+   402→
+   403→  function handleZoomFit() {
+   404→    setZoom(1)
+   405→  }
+   406→
+   407→  // ─── Collaborator cursor animation ────────────────────────────────────────
+   408→  useEffect(() => {
+   409→    const interval = setInterval(() => {
+   410→      setCollaborators((prev) =>
+   411→        prev.map((c) => ({
+   412→          ...c,
+   413→          x: c.x + (Math.random() - 0.5) * 30,
+   414→          y: c.y + (Math.random() - 0.5) * 30,
+   415→        }))
+   416→      )
+   417→    }, 2000)
+   418→    return () => clearInterval(interval)
+   419→  }, [])
+   420→
+   421→  // ─── Export canvas ───────────────────────────────────────────────────────
+   422→  function handleExport() {
+   423→    const canvas = canvasRef.current
+   424→    if (!canvas) return
+   425→    const link = document.createElement('a')
+   426→    link.download = 'alvision-whiteboard.png'
+   427→    link.href = canvas.toDataURL()
+   428→    link.click()
+   429→  }
+   430→
+   431→  // ─── Render ──────────────────────────────────────────────────────────────
+   432→
+   433→  return (
+   434→    <TooltipProvider delayDuration={200}>
+   435→      <div className='relative h-screen w-screen overflow-hidden bg-background flex flex-col'>
+   436→        {/* ─── Top Toolbar ──────────────────────────────────────────────── */}
+   437→        <motion.div
+   438→          initial={{ y: -56, opacity: 0 }}
+   439→          animate={{ y: 0, opacity: 1 }}
+   440→          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   441→          className='z-50 flex items-center gap-1 px-3 py-2 bg-white/80 dark:bg-card/80 backdrop-blur-xl border-b border-border/50 shadow-sm'
+   442→        >
+   443→          {/* Drawing tools */}
+   444→          <div className='flex items-center gap-0.5'>
+   445→            {TOOL_ITEMS.map((item) => (
+   446→              <Tooltip key={item.tool}>
+   447→                <TooltipTrigger asChild>
+   448→                  <Button
+   449→                    variant={activeTool === item.tool ? 'default' : 'ghost'}
+   450→                    size='icon'
+   451→                    className={`h-8 w-8 ${
+   452→                      activeTool === item.tool
+   453→                        ? 'shadow-md shadow-primary/20'
+   454→                        : 'hover:bg-muted/80'
+   455→                    }`}
+   456→                    onClick={() => setActiveTool(item.tool)}
+   457→                  >
+   458→                    {item.icon}
+   459→                    <span className='sr-only'>{item.label}</span>
+   460→                  </Button>
+   461→                </TooltipTrigger>
+   462→                <TooltipContent side='bottom' className='text-xs'>
+   463→                  {item.label}
+   464→                </TooltipContent>
+   465→              </Tooltip>
+   466→            ))}
+   467→          </div>
+   468→
+   469→          <Separator orientation='vertical' className='mx-2 h-6' />
+   470→
+   471→          {/* Color picker */}
+   472→          <div className='flex items-center gap-1'>
+   473→            {COLORS.map((color) => (
+   474→              <button
+   475→                key={color}
+   476→                className={`h-6 w-6 rounded-full border-2 transition-all duration-150 hover:scale-110 ${
+   477→                  activeColor === color
+   478→                    ? 'border-foreground ring-2 ring-primary/30 scale-110'
+   479→                    : 'border-transparent hover:border-muted-foreground/50'
+   480→                }`}
+   481→                style={{ backgroundColor: color }}
+   482→                onClick={() => setActiveColor(color)}
+   483→                aria-label={`Color ${color}`}
+   484→              />
+   485→            ))}
+   486→          </div>
+   487→
+   488→          <Separator orientation='vertical' className='mx-2 h-6' />
+   489→
+   490→          {/* Stroke width */}
+   491→          <div className='flex items-center gap-1'>
+   492→            {STROKE_WIDTHS.map((w) => (
+   493→              <Tooltip key={w}>
+   494→                <TooltipTrigger asChild>
+   495→                  <Button
+   496→                    variant={activeWidth === w ? 'default' : 'ghost'}
+   497→                    size='icon'
+   498→                    className={`h-8 w-8 ${
+   499→                      activeWidth === w
+   500→                        ? 'shadow-md shadow-primary/20'
+   501→                        : 'hover:bg-muted/80'
+   502→                    }`}
+   503→                    onClick={() => setActiveWidth(w)}
+   504→                  >
+   505→                    <span
+   506→                      className='rounded-full bg-current'
+   507→                      style={{
+   508→                        width: `${Math.min(w * 2, 14)}px`,
+   509→                        height: `${Math.min(w * 2, 14)}px`,
+   510→                      }}
+   511→                    />
+   512→                    <span className='sr-only'>{w}px stroke</span>
+   513→                  </Button>
+   514→                </TooltipTrigger>
+   515→                <TooltipContent side='bottom' className='text-xs'>
+   516→                  {w}px
+   517→                </TooltipContent>
+   518→              </Tooltip>
+   519→            ))}
+   520→          </div>
+   521→
+   522→          <Separator orientation='vertical' className='mx-2 h-6' />
+   523→
+   524→          {/* Undo / Redo / Clear */}
+   525→          <div className='flex items-center gap-0.5'>
+   526→            <Tooltip>
+   527→              <TooltipTrigger asChild>
+   528→                <Button
+   529→                  variant='ghost'
+   530→                  size='icon'
+   531→                  className='h-8 w-8 hover:bg-muted/80'
+   532→                  onClick={handleUndo}
+   533→                  disabled={historyIndex === 0}
+   534→                >
+   535→                  <Undo2 className='h-4 w-4' />
+   536→                  <span className='sr-only'>Undo</span>
+   537→                </Button>
+   538→              </TooltipTrigger>
+   539→              <TooltipContent side='bottom' className='text-xs'>Undo</TooltipContent>
+   540→            </Tooltip>
+   541→            <Tooltip>
+   542→              <TooltipTrigger asChild>
+   543→                <Button
+   544→                  variant='ghost'
+   545→                  size='icon'
+   546→                  className='h-8 w-8 hover:bg-muted/80'
+   547→                  onClick={handleRedo}
+   548→                  disabled={historyIndex >= history.length - 1}
+   549→                >
+   550→                  <Redo2 className='h-4 w-4' />
+   551→                  <span className='sr-only'>Redo</span>
+   552→                </Button>
+   553→              </TooltipTrigger>
+   554→              <TooltipContent side='bottom' className='text-xs'>Redo</TooltipContent>
+   555→            </Tooltip>
+   556→            <Tooltip>
+   557→              <TooltipTrigger asChild>
+   558→                <Button
+   559→                  variant='ghost'
+   560→                  size='icon'
+   561→                  className='h-8 w-8 hover:bg-destructive/10 hover:text-destructive'
+   562→                  onClick={handleClear}
+   563→                >
+   564→                  <Trash2 className='h-4 w-4' />
+   565→                  <span className='sr-only'>Clear</span>
+   566→                </Button>
+   567→              </TooltipTrigger>
+   568→              <TooltipContent side='bottom' className='text-xs'>Clear canvas</TooltipContent>
+   569→            </Tooltip>
+   570→          </div>
+   571→
+   572→          <Separator orientation='vertical' className='mx-2 h-6' />
+   573→
+   574→          {/* Zoom controls */}
+   575→          <div className='flex items-center gap-0.5'>
+   576→            <Tooltip>
+   577→              <TooltipTrigger asChild>
+   578→                <Button
+   579→                  variant='ghost'
+   580→                  size='icon'
+   581→                  className='h-8 w-8 hover:bg-muted/80'
+   582→                  onClick={handleZoomOut}
+   583→                >
+   584→                  <ZoomOut className='h-4 w-4' />
+   585→                </Button>
+   586→              </TooltipTrigger>
+   587→              <TooltipContent side='bottom' className='text-xs'>Zoom out</TooltipContent>
+   588→            </Tooltip>
+   589→            <span className='text-xs text-muted-foreground w-12 text-center font-mono'>
+   590→              {Math.round(zoom * 100)}%
+   591→            </span>
+   592→            <Tooltip>
+   593→              <TooltipTrigger asChild>
+   594→                <Button
+   595→                  variant='ghost'
+   596→                  size='icon'
+   597→                  className='h-8 w-8 hover:bg-muted/80'
+   598→                  onClick={handleZoomIn}
+   599→                >
+   600→                  <ZoomIn className='h-4 w-4' />
+   601→                </Button>
+   602→              </TooltipTrigger>
+   603→              <TooltipContent side='bottom' className='text-xs'>Zoom in</TooltipContent>
+   604→            </Tooltip>
+   605→            <Tooltip>
+   606→              <TooltipTrigger asChild>
+   607→                <Button
+   608→                  variant='ghost'
+   609→                  size='icon'
+   610→                  className='h-8 w-8 hover:bg-muted/80'
+   611→                  onClick={handleZoomFit}
+   612→                >
+   613→                  <Maximize2 className='h-4 w-4' />
+   614→                </Button>
+   615→              </TooltipTrigger>
+   616→              <TooltipContent side='bottom' className='text-xs'>Fit to screen</TooltipContent>
+   617→            </Tooltip>
+   618→          </div>
+   619→
+   620→          <Separator orientation='vertical' className='mx-2 h-6' />
+   621→
+   622→          {/* Grid toggle */}
+   623→          <Tooltip>
+   624→            <TooltipTrigger asChild>
+   625→              <Button
+   626→                variant={showGrid ? 'default' : 'ghost'}
+   627→                size='icon'
+   628→                className={`h-8 w-8 ${showGrid ? 'shadow-md shadow-primary/20' : 'hover:bg-muted/80'}`}
+   629→                onClick={() => setShowGrid(!showGrid)}
+   630→              >
+   631→                <Grid3X3 className='h-4 w-4' />
+   632→                <span className='sr-only'>Toggle grid</span>
+   633→              </Button>
+   634→            </TooltipTrigger>
+   635→            <TooltipContent side='bottom' className='text-xs'>
+   636→              Toggle grid
+   637→            </TooltipContent>
+   638→          </Tooltip>
+   639→
+   640→          {/* Export */}
+   641→          <Tooltip>
+   642→            <TooltipTrigger asChild>
+   643→              <Button
+   644→                variant='ghost'
+   645→                size='icon'
+   646→                className='h-8 w-8 hover:bg-muted/80'
+   647→                onClick={handleExport}
+   648→              >
+   649→                <Download className='h-4 w-4' />
+   650→                <span className='sr-only'>Export</span>
+   651→              </Button>
+   652→            </TooltipTrigger>
+   653→            <TooltipContent side='bottom' className='text-xs'>Export as PNG</TooltipContent>
+   654→          </Tooltip>
+   655→
+   656→          {/* Spacer */}
+   657→          <div className='flex-1' />
+   658→
+   659→          {/* Collaboration indicators */}
+   660→          <div className='flex items-center gap-3'>
+   661→            {/* Live indicator */}
+   662→            <Badge
+   663→              variant='outline'
+   664→              className='gap-1.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-xs py-0.5 px-2'
+   665→            >
+   666→              <span className='relative flex h-2 w-2'>
+   667→                <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75' />
+   668→                <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500' />
+   669→              </span>
+   670→              Live
+   671→            </Badge>
+   672→
+   673→            {/* Participants */}
+   674→            <div className='flex items-center gap-1'>
+   675→              <Users className='h-4 w-4 text-muted-foreground' />
+   676→              <span className='text-xs text-muted-foreground font-medium'>
+   677→                {collaborators.length + 1}
+   678→              </span>
+   679→              <div className='flex -space-x-2 ml-1'>
+   680→                {collaborators.map((c) => (
+   681→                  <div
+   682→                    key={c.id}
+   683→                    className='h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white'
+   684→                    style={{ backgroundColor: c.color }}
+   685→                    title={c.name}
+   686→                  >
+   687→                    {c.name.charAt(0)}
+   688→                  </div>
+   689→                ))}
+   690→                <div className='h-6 w-6 rounded-full border-2 border-background bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground'>
+   691→                  {user?.name?.charAt(0) || 'Y'}
+   692→                </div>
+   693→              </div>
+   694→            </div>
+   695→          </div>
+   696→        </motion.div>
+   697→
+   698→        {/* ─── Canvas Area ──────────────────────────────────────────────── */}
+   699→        <div ref={containerRef} className='flex-1 relative overflow-hidden'>
+   700→          <canvas
+   701→            ref={canvasRef}
+   702→            className='absolute inset-0 cursor-crosshair'
+   703→            style={{
+   704→              width: canvasSize.width,
+   705→              height: canvasSize.height,
+   706→              touchAction: 'none',
+   707→            }}
+   708→            onMouseDown={handlePointerDown}
+   709→            onMouseMove={handlePointerMove}
+   710→            onMouseUp={handlePointerUp}
+   711→            onMouseLeave={handlePointerUp}
+   712→            onTouchStart={handlePointerDown}
+   713→            onTouchMove={handlePointerMove}
+   714→            onTouchEnd={handlePointerUp}
+   715→          />
+   716→
+   717→          {/* Custom cursor styles for tools */}
+   718→          <style jsx>{`
+   719→            canvas.tool-eraser { cursor: cell !important; }
+   720→            canvas.tool-select { cursor: default !important; }
+   721→            canvas.tool-text { cursor: text !important; }
+   722→          `}</style>
+   723→
+   724→          {/* ─── Text Input Overlay ──────────────────────────────────────── */}
+   725→          <AnimatePresence>
+   726→            {textInput && (
+   727→              <motion.div
+   728→                initial={{ opacity: 0, scale: 0.9 }}
+   729→                animate={{ opacity: 1, scale: 1 }}
+   730→                exit={{ opacity: 0, scale: 0.9 }}
+   731→                transition={{ duration: 0.15 }}
+   732→                className='absolute z-40'
+   733→                style={{
+   734→                  left: textInput.x * zoom,
+   735→                  top: textInput.y * zoom,
+   736→                }}
+   737→              >
+   738→                <input
+   739→                  type='text'
+   740→                  autoFocus
+   741→                  className='bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-primary/40 rounded-md px-2 py-1 text-sm shadow-lg outline-none ring-2 ring-primary/20 min-w-[120px]'
+   742→                  placeholder='Type here...'
+   743→                  value={textValue}
+   744→                  onChange={(e) => setTextValue(e.target.value)}
+   745→                  onKeyDown={(e) => {
+   746→                    if (e.key === 'Enter') handleTextSubmit()
+   747→                    if (e.key === 'Escape') {
+   748→                      setTextInput(null)
+   749→                      setTextValue('')
+   750→                    }
+   751→                  }}
+   752→                  onBlur={handleTextSubmit}
+   753→                />
+   754→              </motion.div>
+   755→            )}
+   756→          </AnimatePresence>
+   757→
+   758→          {/* ─── Mock Collaborator Cursors ────────────────────────────────── */}
+   759→          {collaborators.map((c) => (
+   760→            <motion.div
+   761→              key={c.id}
+   762→              initial={{ opacity: 0, scale: 0.5 }}
+   763→              animate={{
+   764→                opacity: 1,
+   765→                scale: 1,
+   766→                x: c.x * zoom,
+   767→                y: c.y * zoom,
+   768→              }}
+   769→              transition={{ type: 'spring', stiffness: 120, damping: 14, duration: 0.8 }}
+   770→              className='absolute z-30 pointer-events-none'
+   771→            >
+   772→              {/* Cursor SVG */}
+   773→              <svg
+   774→                width='16'
+   775→                height='20'
+   776→                viewBox='0 0 16 20'
+   777→                fill='none'
+   778→                className='drop-shadow-sm'
+   779→              >
+   780→                <path
+   781→                  d='M1 1L6 18L8.5 11L15 9.5L1 1Z'
+   782→                  fill={c.color}
+   783→                  stroke='white'
+   784→                  strokeWidth='1.5'
+   785→                  strokeLinejoin='round'
+   786→                />
+   787→              </svg>
+   788→              {/* Name label */}
+   789→              <span
+   790→                className='absolute left-4 top-4 text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white whitespace-nowrap shadow-sm'
+   791→                style={{ backgroundColor: c.color }}
+   792→              >
+   793→                {c.name.split(' ')[0]}
+   794→              </span>
+   795→            </motion.div>
+   796→          ))}
+   797→
+   798→          {/* ─── Mini-map ─────────────────────────────────────────────────── */}
+   799→          <motion.div
+   800→            initial={{ opacity: 0, scale: 0.8, x: 20 }}
+   801→            animate={{ opacity: 1, scale: 1, x: 0 }}
+   802→            transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
+   803→            className='absolute bottom-4 right-4 z-40 rounded-lg border border-border/50 bg-white/90 dark:bg-card/90 backdrop-blur-sm shadow-lg overflow-hidden'
+   804→          >
+   805→            <canvas ref={minimapRef} className='block' />
+   806→          </motion.div>
+   807→
+   808→          {/* ─── Tool label indicator (bottom-left) ──────────────────────── */}
+   809→          <motion.div
+   810→            initial={{ opacity: 0, x: -20 }}
+   811→            animate={{ opacity: 1, x: 0 }}
+   812→            transition={{ delay: 0.4, type: 'spring', stiffness: 200, damping: 20 }}
+   813→            className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2 shadow-lg'
+   814→          >
+   815→            {React.cloneElement(
+   816→              TOOL_ITEMS.find((t) => t.tool === activeTool)!.icon,
+   817→              { className: 'h-3.5 w-3.5 text-muted-foreground' }
+   818→            )}
+   819→            <span className='text-xs text-muted-foreground font-medium'>
+   820→              {TOOL_ITEMS.find((t) => t.tool === activeTool)?.label}
+   821→            </span>
+   822→            <Separator orientation='vertical' className='h-4 mx-1' />
+   823→            <div
+   824→              className='h-3.5 w-3.5 rounded-full border'
+   825→              style={{ borderColor: activeColor, backgroundColor: activeColor }}
+   826→            />
+   827→            <span className='text-xs text-muted-foreground'>{activeWidth}px</span>
+   828→          </motion.div>
+   829→        </div>
+   830→      </div>
+   831→    </TooltipProvider>
+   832→  )
+   833→}
+   834→

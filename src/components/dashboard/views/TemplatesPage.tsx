@@ -309,7 +309,8 @@ export default function TemplatesPage() {
         <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
           {templates.map(t => (
             <motion.div key={t.id} variants={item}>
-              <Card className='group border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 h-full flex flex-col'>
+              <Card className='group border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 h-full flex flex-col overflow-hidden relative'>
+                <div className={`h-0.5 w-full bg-gradient-to-r ${t.gradient}`} />
                 <CardContent className='p-4 flex flex-col flex-1'>
                   <div className='flex items-start justify-between mb-3'>
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.iconBg} flex items-center justify-center shadow-sm`}>{t.icon}</div>

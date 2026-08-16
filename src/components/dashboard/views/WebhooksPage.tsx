@@ -594,7 +594,7 @@ export default function WebhooksPage() {
               {filteredLogs.length > 0 ? (
                 filteredLogs.map((entry) => (
                   <motion.div key={entry.id} variants={itemVariants}>
-                    <Card className="border-border/50 hover:bg-muted/30 transition-colors duration-200">
+                    <Card className="border-border/50 hover:bg-muted/30 hover:shadow-sm hover:shadow-violet-500/5 transition-all duration-200">
                       <CardContent className="p-4">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                           {/* Timestamp */}

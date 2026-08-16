@@ -222,7 +222,7 @@ export default function IntegrationsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <motion.div className="space-y-6" variants={containerVariants} initial="hidden" animate="visible">
       {/* ── Featured Banner ─────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
@@ -344,7 +344,8 @@ export default function IntegrationsPage() {
 
             return (
               <motion.div key={app.id} variants={itemVariants}>
-                <Card className="group hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-300 border-border/50">
+                <Card className="group hover:shadow-lg hover:shadow-violet-500/5 hover:-translate-y-0.5 transition-all duration-300 border-border/50 overflow-hidden relative">
+                  <div className="h-0.5 w-full bg-gradient-to-r from-violet-500/60 to-purple-400/60" />
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-3">
                       {/* App icon + info */}
@@ -422,6 +423,6 @@ export default function IntegrationsPage() {
           </p>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
