@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
 import {
   Shield,
   Globe,
@@ -24,6 +24,7 @@ import {
   Cloud,
   Activity,
   ArrowRight,
+  ArrowUp,
   Check,
   Zap,
   ChevronRight,
@@ -390,6 +391,13 @@ export default function LandingPage() {
   const navigate = useAppStore((s) => s.setView);
   const [roomName, setRoomName] = useState('');
   const [starting, setStarting] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > window.innerHeight * 0.8);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleStartMeeting = useCallback(async () => {
     const roomId = generateRoomId();
@@ -429,6 +437,14 @@ export default function LandingPage() {
           {/* Animated gradient mesh background with floating orbs */}
           <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30" />
+            {/* Subtle grid/mesh pattern */}
+            <div
+              className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(0deg, currentColor 0px, transparent 1px, transparent 60px), repeating-linear-gradient(90deg, currentColor 0px, transparent 1px, transparent 60px)',
+              }}
+            />
             {/* Floating orbs */}
             <div className="absolute top-[10%] left-[15%] h-72 w-72 rounded-full bg-blue-400/20 dark:bg-blue-500/10 blur-3xl animate-pulse" />
             <div
@@ -476,14 +492,34 @@ export default function LandingPage() {
                 enterprise-grade security — all in one platform.
               </motion.p>
 
+              {/* Trusted By Section */}
+              <motion.div
+                className="mt-10 mb-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' }}
+              >
+                <p className="text-xs text-muted-foreground/60 font-medium tracking-wider uppercase mb-4">Trusted by leading enterprises</p>
+                <div className="flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto px-4 scrollbar-hide">
+                  {['Accenture', 'Deloitte', 'Siemens', 'Bosch', 'Airbus'].map((company, i) => (
+                    <span key={company} className="flex items-center gap-3 sm:gap-6">
+                      <span className="text-muted-foreground font-medium tracking-wider uppercase text-xs whitespace-nowrap">
+                        {company}
+                      </span>
+                      {i < 4 && <span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+
               {/* Center Card with Meeting Controls */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' }}
-                className="mt-10 w-full max-w-xl"
+                className="mt-2 w-full max-w-xl"
               >
-                <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80">
+                <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300">
                   <CardContent className="p-6">
                     <div className="flex flex-col sm:flex-row gap-3">
                       <input
@@ -558,6 +594,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 2. PLATFORM OVERVIEW                                         */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section id="platform" className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -586,7 +623,7 @@ export default function LandingPage() {
             >
               {PLATFORM_FEATURES.map((feature) => (
                 <motion.div key={feature.title} variants={staggerItem}>
-                  <Card className="h-full group hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 hover:scale-[1.02] border-border/50">
+                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
                     <CardContent className="p-8">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
                         <feature.icon className="w-7 h-7 text-white" />
@@ -608,6 +645,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 3. AI PLATFORM SECTION                                       */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section id="ai" className="py-24 bg-foreground/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -641,7 +679,7 @@ export default function LandingPage() {
             >
               {AI_FEATURES.map((feature) => (
                 <motion.div key={feature.title} variants={staggerItem}>
-                  <Card className="h-full group hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
+                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
                     <CardContent className="p-6">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-5 shadow-lg shadow-violet-500/20">
                         <feature.icon className="w-6 h-6 text-white" />
@@ -663,6 +701,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 4. ARCHITECTURE SECTION                                      */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section id="architecture" className="py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -690,7 +729,7 @@ export default function LandingPage() {
             >
               {ARCHITECTURE_PILLARS.map((pillar) => (
                 <motion.div key={pillar.title} variants={staggerItem}>
-                  <Card className="h-full group hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
+                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
                         <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center shrink-0">
@@ -716,6 +755,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 5. INTEGRATIONS SECTION                                      */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -743,7 +783,7 @@ export default function LandingPage() {
             >
               {INTEGRATIONS.map((integration) => (
                 <motion.div key={integration.name} variants={staggerItem}>
-                  <Card className="h-full hover:shadow-md transition-all duration-300 border-border/50">
+                  <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50">
                     <CardContent className="p-5 text-center">
                       <div className="w-10 h-10 mx-auto rounded-lg bg-muted flex items-center justify-center mb-3">
                         <Plug className="w-5 h-5 text-muted-foreground" />
@@ -788,6 +828,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 7. PRICING SECTION                                           */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section id="pricing" className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -815,59 +856,91 @@ export default function LandingPage() {
             >
               {PRICING_TIERS.map((tier) => (
                 <motion.div key={tier.name} variants={staggerItem}>
-                  <Card
-                    className={`relative h-full ${
-                      tier.highlighted
-                        ? 'ring-2 ring-blue-500 shadow-xl shadow-blue-500/10'
-                        : 'border-border/50'
-                    }`}
-                  >
-                    {tier.highlighted && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                        <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-4 py-1">
-                          Most Popular
-                        </Badge>
-                      </div>
-                    )}
-                    <CardContent className="p-8">
-                      <h3 className="text-xl font-bold">{tier.name}</h3>
-                      <div className="mt-4 flex items-baseline gap-1">
-                        <span className="text-4xl font-extrabold tracking-tight">
-                          {tier.price}
-                        </span>
-                        {tier.period && (
-                          <span className="text-muted-foreground text-sm">
-                            {tier.period}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {tier.description}
-                      </p>
-                      <div className="mt-6 mb-8 space-y-3">
-                        {tier.features.map((feature) => (
-                          <div
-                            key={feature}
-                            className="flex items-start gap-3 text-sm"
-                          >
-                            <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                            <span>{feature}</span>
+                  {tier.highlighted ? (
+                    <div className="relative rounded-xl p-[2px] bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite]"
+                      style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }}
+                    >
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
+                      <Card className="relative h-full rounded-xl shadow-xl shadow-blue-500/10">
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                          <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-4 py-1">
+                            Most Popular
+                          </Badge>
+                        </div>
+                        <CardContent className="p-8">
+                          <h3 className="text-xl font-bold">{tier.name}</h3>
+                          <div className="mt-4 flex items-baseline gap-1">
+                            <span className="text-4xl font-extrabold tracking-tight">
+                              {tier.price}
+                            </span>
+                            {tier.period && (
+                              <span className="text-muted-foreground text-sm">
+                                {tier.period}
+                              </span>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                      <Button
-                        variant={tier.ctaVariant}
-                        className={`w-full h-11 font-semibold ${
-                          tier.highlighted
-                            ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25'
-                            : ''
-                        }`}
-                      >
-                        {tier.cta}
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </CardContent>
-                  </Card>
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {tier.description}
+                          </p>
+                          <div className="mt-6 mb-8 space-y-3">
+                            {tier.features.map((feature) => (
+                              <div
+                                key={feature}
+                                className="flex items-start gap-3 text-sm"
+                              >
+                                <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                                <span>{feature}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            variant={tier.ctaVariant}
+                            className="w-full h-11 font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25"
+                          >
+                            {tier.cta}
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ) : (
+                    <Card className="h-full hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 border-border/50">
+                      <CardContent className="p-8">
+                        <h3 className="text-xl font-bold">{tier.name}</h3>
+                        <div className="mt-4 flex items-baseline gap-1">
+                          <span className="text-4xl font-extrabold tracking-tight">
+                            {tier.price}
+                          </span>
+                          {tier.period && (
+                            <span className="text-muted-foreground text-sm">
+                              {tier.period}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {tier.description}
+                        </p>
+                        <div className="mt-6 mb-8 space-y-3">
+                          {tier.features.map((feature) => (
+                            <div
+                              key={feature}
+                              className="flex items-start gap-3 text-sm"
+                            >
+                              <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          variant={tier.ctaVariant}
+                          className="w-full h-11 font-semibold"
+                        >
+                          {tier.cta}
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 </motion.div>
               ))}
             </motion.div>
@@ -877,6 +950,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 8. FAQ SECTION                                               */}
         {/* ============================================================== */}
+        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
         <section id="faq" className="py-24">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -969,6 +1043,30 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      {/* Scroll to top button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-8 right-8 z-40 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:bg-primary/90 hover:shadow-xl transition-all"
+          >
+            <ArrowUp className="w-5 h-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Animated pricing border keyframes */}
+      <style jsx global>{`
+        @keyframes pricing-border-rotate {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
 
       {/* ------------------------------------------------------------------ */}
       {/*  FOOTER                                                           */}

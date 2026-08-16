@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash, randomBytes, scryptSync } from 'crypto';
 import { db } from '@/lib/db';
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = createHash('sha256').update(salt + password).digest('hex');
+  return `${salt}:${hash}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password
-    const passwordHash = await Bun.password.hash(password);
+    const passwordHash = hashPassword(password);
 
     // Create user
     const user = await db.user.create({
@@ -69,9 +76,8 @@ export async function POST(request: NextRequest) {
     await db.auditLog.create({
       data: {
         action: 'USER_REGISTERED',
-        entityType: 'User',
-        entityId: user.id,
-        details: { name: user.name, email: user.email, role },
+        resource: 'User',
+        resourceId: user.id,
       },
     });
 

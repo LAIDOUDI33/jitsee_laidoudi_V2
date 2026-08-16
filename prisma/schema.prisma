@@ -105,7 +105,7 @@ model Meeting {
   title             String
   meetingId         String   @unique // public meeting ID like "abc-def-ghi"
   password          String?
-  hostId            String
+  hostId            String?
   organizationId    String?
   type              String   @default("instant") // instant, scheduled, recurring, personal
   status            String   @default("active") // scheduled, active, ended, expired
@@ -119,7 +119,7 @@ model Meeting {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  host        User                @relation(fields: [hostId], references: [id])
+  host        User?               @relation(fields: [hostId], references: [id])
   organization Organization?       @relation(fields: [organizationId], references: [id])
   participants MeetingParticipant[]
   messages    Message[]

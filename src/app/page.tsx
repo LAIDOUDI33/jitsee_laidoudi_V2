@@ -6,46 +6,31 @@ import LoginPage from '@/components/auth/LoginPage'
 import RegisterPage from '@/components/auth/RegisterPage'
 import DashboardPage from '@/components/dashboard/DashboardPage'
 import MeetingRoomPage from '@/components/meeting/MeetingRoomPage'
+import DashboardLayout from '@/components/dashboard/DashboardLayout'
 
-export default function Home() {
-  const { currentView, isAuthenticated } = useAppStore()
+// Dashboard sub-views
+import MeetingsPage from '@/components/dashboard/views/MeetingsPage'
+import TeamsPage from '@/components/dashboard/views/TeamsPage'
+import ChatPage from '@/components/chat/ChatPage'
+import FilesPage from '@/components/dashboard/views/FilesPage'
+import RecordingsPage from '@/components/dashboard/views/RecordingsPage'
+import AIAssistantPage from '@/components/dashboard/views/AIAssistantPage'
+import KnowledgePage from '@/components/dashboard/views/KnowledgePage'
+import CalendarPage from '@/components/dashboard/views/CalendarPage'
+import EventsPage from '@/components/dashboard/views/EventsPage'
 
-  // Public views
-  if (!isAuthenticated) {
-    switch (currentView) {
-      case 'login':
-        return (
-          <div className='min-h-screen flex flex-col bg-background'>
-            <LoginPage />
-          </div>
-        )
-      case 'register':
-        return (
-          <div className='min-h-screen flex flex-col bg-background'>
-            <RegisterPage />
-          </div>
-        )
-      case 'forgot-password':
-        return (
-          <div className='min-h-screen flex flex-col bg-background'>
-            <ForgotPasswordPage />
-          </div>
-        )
-      default:
-        return <LandingPage />
-    }
-  }
+// Admin views
+import AdminPage from '@/components/admin/AdminPage'
+import AdminUsersPage from '@/components/admin/AdminUsersPage'
+import AdminOrgsPage from '@/components/admin/AdminOrgsPage'
+import AdminSecurityPage from '@/components/admin/AdminSecurityPage'
+import AdminAuditPage from '@/components/admin/AdminAuditPage'
+import AdminSystemPage from '@/components/admin/AdminSystemPage'
 
-  // Authenticated views
-  switch (currentView) {
-    case 'meeting-room':
-      return <MeetingRoomPage />
-    default:
-      return <DashboardPage />
-  }
-}
+// Settings & Profile
+import SettingsPage from '@/components/settings/SettingsPage'
+import ProfilePage from '@/components/settings/ProfilePage'
 
-// Minimal forgot password page
 function ForgotPasswordPage() {
   return (
     <div className='min-h-screen flex items-center justify-center p-4'>
@@ -82,4 +67,63 @@ function ForgotPasswordPage() {
       </div>
     </div>
   )
+}
+
+const dashboardSubViews: Record<string, React.ReactNode> = {
+  meetings: <MeetingsPage />,
+  teams: <TeamsPage />,
+  chat: <ChatPage />,
+  files: <FilesPage />,
+  recordings: <RecordingsPage />,
+  'ai-assistant': <AIAssistantPage />,
+  knowledge: <KnowledgePage />,
+  calendar: <CalendarPage />,
+  events: <EventsPage />,
+  admin: <AdminPage />,
+  'admin-users': <AdminUsersPage />,
+  'admin-orgs': <AdminOrgsPage />,
+  'admin-security': <AdminSecurityPage />,
+  'admin-audit': <AdminAuditPage />,
+  'admin-system': <AdminSystemPage />,
+  settings: <SettingsPage />,
+  profile: <ProfilePage />,
+}
+
+export default function Home() {
+  const { currentView, isAuthenticated } = useAppStore()
+
+  // Public views
+  if (!isAuthenticated) {
+    switch (currentView) {
+      case 'login':
+        return (
+          <div className='min-h-screen flex flex-col bg-background'>
+            <LoginPage />
+          </div>
+        )
+      case 'register':
+        return (
+          <div className='min-h-screen flex flex-col bg-background'>
+            <RegisterPage />
+          </div>
+        )
+      case 'forgot-password':
+        return <ForgotPasswordPage />
+      default:
+        return <LandingPage />
+    }
+  }
+
+  // Authenticated views
+  switch (currentView) {
+    case 'meeting-room':
+      return <MeetingRoomPage />
+    case 'dashboard':
+      return <DashboardPage />
+    default:
+      if (dashboardSubViews[currentView]) {
+        return <DashboardLayout>{dashboardSubViews[currentView]}</DashboardLayout>
+      }
+      return <DashboardPage />
+  }
 }

@@ -62,10 +62,22 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
       {/* Left panel - hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
-        {/* Floating orbs */}
-        <div className="absolute top-20 left-16 w-64 h-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-32 right-20 w-48 h-48 rounded-full bg-blue-300/20 blur-3xl" />
-        <div className="absolute top-1/2 left-1/3 w-32 h-32 rounded-full bg-indigo-300/15 blur-2xl" />
+        {/* Floating orbs with animation */}
+        <motion.div
+          className="absolute top-20 left-16 w-64 h-64 rounded-full bg-white/10 blur-3xl"
+          animate={{ y: [0, -20, 0], x: [0, 10, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-32 right-20 w-48 h-48 rounded-full bg-blue-300/20 blur-3xl"
+          animate={{ y: [0, 15, 0], x: [0, -12, 0] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+        />
+        <motion.div
+          className="absolute top-1/2 left-1/3 w-32 h-32 rounded-full bg-indigo-300/15 blur-2xl"
+          animate={{ y: [0, -12, 0], x: [0, 8, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+        />
 
         <div className="relative z-10 flex flex-col justify-center items-center p-12 w-full">
           <motion.div
@@ -153,7 +165,7 @@ export default function LoginPage() {
                       id="email"
                       type="email"
                       placeholder="you@company.com"
-                      className="pl-10"
+                      className="pl-10 focus:ring-2 focus:ring-primary/20"
                       {...register('email')}
                     />
                   </div>
@@ -180,7 +192,7 @@ export default function LoginPage() {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-10 focus:ring-2 focus:ring-primary/20"
                       {...register('password')}
                     />
                     <button
@@ -274,6 +286,18 @@ export default function LoginPage() {
                   onClick={() => setCurrentView('register')}
                 >
                   Sign up
+                </button>
+              </p>
+
+              {/* Create account prompt */}
+              <p className="mt-3 text-center text-sm text-muted-foreground">
+                New to ALVISION?{' '}
+                <button
+                  type="button"
+                  className="text-primary font-medium hover:underline"
+                  onClick={() => setCurrentView('register')}
+                >
+                  Create an account
                 </button>
               </p>
             </CardContent>

@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
       data: {
         title: meetingTitle,
         meetingId,
-        password: password || null,
-        maxParticipants: maxParticipants || null,
+        password: password || undefined,
+        maxParticipants: maxParticipants || 100,
         status: 'active',
-        hostId: hostId || null,
+        host: hostId ? { connect: { id: hostId } } : undefined,
       },
     });
 
@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
     await db.auditLog.create({
       data: {
         action: 'MEETING_CREATED',
-        entityType: 'Meeting',
-        entityId: meeting.id,
-        details: { meetingId: meeting.meetingId, title: meeting.title },
+        resource: 'Meeting',
+        resourceId: meeting.id,
+        details: JSON.stringify({ meetingId: meeting.meetingId, title: meeting.title }),
       },
     });
 

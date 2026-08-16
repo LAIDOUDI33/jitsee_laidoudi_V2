@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { db } from '@/lib/db';
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const computed = createHash('sha256').update(salt + password).digest('hex');
+  return computed === hash;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValid = await Bun.password.verify(password, user.passwordHash);
+    const isValid = verifyPassword(password, user.passwordHash);
     if (!isValid) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } },
@@ -55,9 +63,9 @@ export async function POST(request: NextRequest) {
     await db.auditLog.create({
       data: {
         action: 'USER_LOGIN',
-        entityType: 'User',
-        entityId: user.id,
-        details: { email: user.email },
+        resource: 'User',
+        resourceId: user.id,
+        details: JSON.stringify({ email: user.email }),
       },
     });
 

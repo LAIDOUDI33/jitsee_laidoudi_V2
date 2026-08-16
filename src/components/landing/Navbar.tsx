@@ -25,6 +25,7 @@ function useIsHydrated() {
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [scrollOpacity, setScrollOpacity] = useState(0);
   const [activeSection, setActiveSection] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -32,7 +33,11 @@ export default function Navbar() {
   const { setCurrentView } = useAppStore();
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 10);
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 10;
+      setScrolled(isScrolled);
+      setScrollOpacity(isScrolled ? 1 : 0);
+    };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -64,11 +69,15 @@ export default function Navbar() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? 'border-b bg-background/80 backdrop-blur-md'
+          ? 'border-b backdrop-blur-md'
           : 'bg-transparent'
       }`}
+      style={{
+        backgroundColor: `rgba(var(--background-rgb, 255,255,255), ${scrollOpacity * 0.8})`,
+        borderColor: `rgba(var(--border-rgb, 0,0,0), ${scrollOpacity * 0.1})`,
+      }}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
@@ -151,7 +160,8 @@ export default function Navbar() {
           <Button variant="outline" size="sm" onClick={() => setCurrentView('login')}>
             Sign In
           </Button>
-          <Button size="sm" onClick={() => setCurrentView('register')}>
+          <Button size="sm" onClick={() => setCurrentView('register')} className="relative">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5" />
             Get Started
           </Button>
         </div>
@@ -204,6 +214,7 @@ export default function Navbar() {
                   Sign In
                 </Button>
                 <Button className="w-full" onClick={() => { setCurrentView('register'); setMobileOpen(false); }}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5" />
                   Get Started
                 </Button>
               </div>

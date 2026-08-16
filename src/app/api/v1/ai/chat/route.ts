@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,43 +12,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build user prompt with optional context and meetingId
-    let userPrompt = message.trim();
-    if (context && typeof context === 'string' && context.trim().length > 0) {
-      userPrompt = `Context: ${context.trim()}
+    // Dynamic import to avoid module-level config issues
+    const ZAI = (await import('z-ai-web-dev-sdk')).default;
+    const zai = await ZAI.create();
 
-Question: ${userPrompt}`;
-    }
-    if (meetingId) {
-      userPrompt = `[Meeting ID: ${meetingId}]
-${userPrompt}`;
-    }
+    const systemPrompt = `You are ALVISION AI Assistant, an intelligent meeting companion for an enterprise video conferencing platform. Help users with meeting-related questions, provide insights, and assist with collaboration. Be concise and professional. Keep responses under 200 words unless asked for more detail.${context ? `\n\nMeeting context: ${context}` : ''}`;
 
-    // Use z-ai-web-dev-sdk for AI chat
-    const zai = new ZAI();
-    const completion = await zai.chat.completions.create({
-      model: 'default',
+    const response = await zai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are ALVISION AI Assistant, an intelligent meeting companion. Help users with meeting-related questions, provide insights, and assist with collaboration. Be concise and professional.',
-        },
-        { role: 'user', content: userPrompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message.trim() },
       ],
+      max_tokens: 500,
     });
 
-    const aiMessage = completion.choices?.[0]?.message?.content || 'I was unable to generate a response. Please try again.';
+    const aiMessage = response.choices?.[0]?.message?.content || 'I apologize, I was unable to process your request. Please try again.';
 
     return NextResponse.json({
       success: true,
       response: aiMessage,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to process chat request';
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'AI service temporarily unavailable';
+    console.error('AI chat error:', msg);
     return NextResponse.json(
-      { success: false, error: { code: 'AI_ERROR', message } },
-      { status: 500 }
+      { success: false, error: { code: 'AI_ERROR', message: msg } },
+      { status: 503 }
     );
   }
 }

@@ -1,0 +1,355 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAppStore, AppView } from '@/store/app-store'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { LayoutDashboard,
+  Video,
+  Users,
+  MessageSquare,
+  FolderOpen,
+  Film,
+  Bot,
+  BookOpen,
+  CalendarDays,
+  CalendarHeart,
+  Settings,
+  UserCircle,
+  Shield,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  Building2,
+  Lock,
+  FileText,
+  Server,
+  Activity,
+  X,
+  Bell,
+} from 'lucide-react'
+
+interface NavItem {
+  label: string
+  icon: React.ReactNode
+  view: AppView
+  adminOnly?: boolean
+}
+
+const mainNavItems: NavItem[] = [
+  { label: 'Dashboard', icon: <LayoutDashboard className='h-4 w-4' />, view: 'dashboard' },
+  { label: 'Meetings', icon: <Video className='h-4 w-4' />, view: 'meetings' },
+  { label: 'Teams', icon: <Users className='h-4 w-4' />, view: 'teams' },
+  { label: 'Chat', icon: <MessageSquare className='h-4 w-4' />, view: 'chat' },
+  { label: 'Files', icon: <FolderOpen className='h-4 w-4' />, view: 'files' },
+  { label: 'Recordings', icon: <Film className='h-4 w-4' />, view: 'recordings' },
+  { label: 'AI Assistant', icon: <Bot className='h-4 w-4' />, view: 'ai-assistant' },
+  { label: 'Knowledge Base', icon: <BookOpen className='h-4 w-4' />, view: 'knowledge' },
+  { label: 'Calendar', icon: <CalendarDays className='h-4 w-4' />, view: 'calendar' },
+  { label: 'Events', icon: <CalendarHeart className='h-4 w-4' />, view: 'events' },
+]
+
+const adminNavItems: NavItem[] = [
+  { label: 'Admin Overview', icon: <Shield className='h-4 w-4' />, view: 'admin', adminOnly: true },
+  { label: 'Users', icon: <Users className='h-4 w-4' />, view: 'admin-users', adminOnly: true },
+  { label: 'Organizations', icon: <Building2 className='h-4 w-4' />, view: 'admin-orgs', adminOnly: true },
+  { label: 'Security', icon: <Lock className='h-4 w-4' />, view: 'admin-security', adminOnly: true },
+  { label: 'Audit Log', icon: <FileText className='h-4 w-4' />, view: 'admin-audit', adminOnly: true },
+  { label: 'System', icon: <Server className='h-4 w-4' />, view: 'admin-system', adminOnly: true },
+]
+
+const personalNavItems: NavItem[] = [
+  { label: 'Settings', icon: <Settings className='h-4 w-4' />, view: 'settings' },
+  { label: 'Profile', icon: <UserCircle className='h-4 w-4' />, view: 'profile' },
+]
+
+function isAdmin(role: string) {
+  return ['superadmin', 'orgadmin'].includes(role)
+}
+
+function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClick?: () => void }) {
+  const { currentView, setCurrentView, user, setNotificationCount, notificationCount } = useAppStore()
+  const admin = user ? isAdmin(user.role) : false
+
+  const handleNav = (view: AppView) => {
+    setCurrentView(view)
+    if (notificationCount > 0) setNotificationCount(0)
+    onItemClick?.()
+  }
+
+  const renderNavItem = (item: NavItem) => {
+    const active = currentView === item.view
+    if (item.adminOnly && !admin) return null
+
+    return (
+      <TooltipProvider key={item.view} delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => handleNav(item.view)}
+              className={cn(
+                'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors relative group',
+                active
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                collapsed && 'justify-center px-2'
+              )}
+            >
+              {active && (
+                <div className='absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full' />
+              )}
+              <span className={cn('shrink-0', active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}>
+                {item.icon}
+              </span>
+              {!collapsed && <span className='truncate'>{item.label}</span>}
+            </button>
+          </TooltipTrigger>
+          {collapsed && (
+            <TooltipContent side='right' className='font-medium'>
+              {item.label}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  return (
+    <div className='flex flex-col h-full'>
+      {/* Logo */}
+      <div className={cn('flex items-center gap-3 px-4 h-16 border-b shrink-0', collapsed && 'justify-center px-2')}>
+        <div className='w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0'>
+          <Activity className='h-4 w-4 text-white' />
+        </div>
+        {!collapsed && (
+          <span className='text-lg font-bold gradient-text tracking-tight'>ALVISION</span>
+        )}
+      </div>
+
+      {/* Nav sections */}
+      <ScrollArea className='flex-1 py-4'>
+        <div className={cn('px-3 space-y-1', collapsed && 'px-2')}>
+          {!collapsed && (
+            <p className='px-3 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-2'>
+              Main
+            </p>
+          )}
+          {mainNavItems.map(renderNavItem)}
+
+          {admin && (
+            <>
+              {!collapsed && (
+                <p className='px-3 pt-6 pb-2 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider'>
+                  Administration
+                </p>
+              )}
+              {collapsed && <div className='my-3 border-t' />}
+              {adminNavItems.map(renderNavItem)}
+            </>
+          )}
+
+          {!collapsed && (
+            <p className='px-3 pt-6 pb-2 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider'>
+              Personal
+            </p>
+          )}
+          {collapsed && <div className='my-3 border-t' />}
+          {personalNavItems.map(renderNavItem)}
+        </div>
+      </ScrollArea>
+
+      {/* User section */}
+      <div className='border-t p-3 shrink-0'>
+        {user && (
+          <>
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors',
+                collapsed && 'justify-center'
+              )}
+              onClick={() => handleNav('profile')}
+            >
+              <Avatar className='h-8 w-8 shrink-0'>
+                <AvatarFallback className='bg-primary/10 text-primary text-xs font-semibold'>
+                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {!collapsed && (
+                <div className='flex-1 min-w-0'>
+                  <p className='text-sm font-medium truncate'>{user.name}</p>
+                  <p className='text-xs text-muted-foreground truncate'>{user.role}</p>
+                </div>
+              )}
+            </div>
+            {!collapsed && (
+              <button
+                onClick={() => {
+                  useAppStore.getState().setUser(null)
+                  setCurrentView('landing')
+                }}
+                className='w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors mt-1'
+              >
+                <LogOut className='h-4 w-4' />
+                <span>Sign Out</span>
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const { currentView, setCurrentView } = useAppStore()
+
+  const viewBreadcrumbs: Record<string, { label: string; view?: AppView }[]> = useMemo(() => ({
+    dashboard: [],
+    meetings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meetings' }],
+    teams: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Teams' }],
+    chat: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Chat' }],
+    files: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Files' }],
+    recordings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Recordings' }],
+    'ai-assistant': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'AI Assistant' }],
+    knowledge: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Knowledge Base' }],
+    calendar: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Calendar' }],
+    events: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Events' }],
+    admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
+    'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
+    'admin-orgs': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Organizations' }],
+    'admin-security': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Security' }],
+    'admin-audit': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Audit Log' }],
+    'admin-system': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'System' }],
+    settings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Settings' }],
+    profile: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Profile' }],
+  }), [])
+
+  const viewLabels: Record<string, string> = {
+    dashboard: 'Dashboard',
+    meetings: 'Meetings',
+    teams: 'Teams',
+    chat: 'Chat',
+    files: 'Files',
+    recordings: 'Recordings',
+    'ai-assistant': 'AI Assistant',
+    knowledge: 'Knowledge Base',
+    calendar: 'Calendar',
+    events: 'Events',
+    admin: 'Admin Overview',
+    'admin-users': 'User Management',
+    'admin-orgs': 'Organizations',
+    'admin-security': 'Security',
+    'admin-audit': 'Audit Log',
+    'admin-system': 'System',
+    settings: 'Settings',
+    profile: 'Profile',
+  }
+
+  return (
+    <div className='h-screen flex bg-background overflow-hidden'>
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          'hidden lg:flex flex-col border-r bg-card transition-all duration-300 shrink-0',
+          collapsed ? 'w-[68px]' : 'w-[260px]'
+        )}
+      >
+        <NavContent collapsed={collapsed} />
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className='absolute top-20 -right-3 z-10 w-6 h-6 rounded-full border bg-card flex items-center justify-center shadow-sm hover:bg-muted transition-colors'
+          style={{ left: collapsed ? '52px' : '244px' }}
+        >
+          {collapsed ? <ChevronRight className='h-3 w-3' /> : <ChevronLeft className='h-3 w-3' />}
+        </button>
+      </aside>
+
+      {/* Mobile sidebar */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side='left' className='w-[280px] p-0'>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className='absolute top-4 right-4 z-10 rounded-sm opacity-70 hover:opacity-100 transition-opacity'
+          >
+            <X className='h-4 w-4' />
+          </button>
+          <NavContent collapsed={false} onItemClick={() => setMobileOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main content */}
+      <main className='flex-1 flex flex-col min-w-0'>
+        {/* Top bar */}
+        <header className='h-16 border-b flex items-center justify-between px-4 lg:px-6 shrink-0 bg-card'>
+          <div className='flex items-center gap-3'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='lg:hidden'
+              onClick={() => setMobileOpen(true)}
+            >
+              <Menu className='h-5 w-5' />
+            </Button>
+            <h1 className='text-lg font-semibold'>{viewLabels[currentView] || 'Dashboard'}</h1>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Button variant='ghost' size='icon' className='relative'>
+              <Bell className='h-4 w-4' />
+              <span className='absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center font-bold'>
+                3
+              </span>
+            </Button>
+          </div>
+        </header>
+
+        {/* Gradient accent line at top of content */}
+        <div className='h-0.5 bg-gradient-to-r from-primary/50 to-transparent shrink-0' />
+
+        {/* Breadcrumb navigation */}
+        <div className='px-4 lg:px-6 py-3 flex items-center gap-1.5 text-sm text-muted-foreground shrink-0'>
+          {(viewBreadcrumbs[currentView] || []).map((crumb, i) => (
+            <span key={i} className='flex items-center gap-1.5'>
+              {i > 0 && <ChevronRight className='w-3.5 h-3.5' />}
+              {crumb.view ? (
+                <button
+                  onClick={() => setCurrentView(crumb.view!)}
+                  className='hover:text-foreground transition-colors'
+                >
+                  {crumb.label}
+                </button>
+              ) : (
+                <span className='text-foreground font-medium'>{crumb.label}</span>
+              )}
+            </span>
+          ))}
+          {(!viewBreadcrumbs[currentView] || viewBreadcrumbs[currentView].length === 0) && (
+            <span className='text-foreground font-medium'>{viewLabels[currentView] || 'Dashboard'}</span>
+          )}
+        </div>
+
+        {/* Page content with view transition */}
+        <div className='flex-1 overflow-y-auto p-4 lg:p-6'>
+          <AnimatePresence mode='wait'>
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </main>
+    </div>
+  )
+}

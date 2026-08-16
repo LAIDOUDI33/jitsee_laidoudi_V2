@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import ZAI from 'z-ai-web-dev-sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,32 +20,34 @@ export async function POST(request: NextRequest) {
         where: { meetingId },
         orderBy: { createdAt: 'desc' },
       });
-      transcriptText = transcriptRecord?.content || undefined;
+      transcriptText = transcriptRecord?.text || undefined;
     }
 
     const userPrompt = transcriptText
       ? `Please summarize the following meeting transcript:\n\n${transcriptText}`
-      : 'Generate a sample meeting summary for a project kickoff meeting about data center deployment.';
+      : 'Generate a sample meeting summary for a project kickoff meeting about data center deployment. Include executive summary, 3 key topics, 2 decisions, 3 action items with owners, and 2 risks.';
 
-    // Use z-ai-web-dev-sdk for AI summarization
-    const zai = new ZAI();
+    // Dynamic import to avoid module-level config issues
+    const ZAI = (await import('z-ai-web-dev-sdk')).default;
+    const zai = await ZAI.create();
+
     const completion = await zai.chat.completions.create({
-      model: 'default',
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
           content:
-            'You are ALVISION AI Meeting Assistant. Generate a professional meeting summary with: Executive Summary, Key Topics (array), Decisions (array), Action Items (array with owner, dueDate, priority), Risks (array). Respond in JSON format.',
+            'You are ALVISION AI Meeting Assistant. Generate a professional meeting summary with: Executive Summary, Key Topics, Decisions, Action Items (with owner and dueDate), Risks. Respond in valid JSON format.',
         },
         { role: 'user', content: userPrompt },
       ],
+      max_tokens: 1000,
     });
 
     const aiMessage = completion.choices?.[0]?.message?.content || '';
 
-    let summary: Record<string, unknown>;
+    let summary: { [key: string]: unknown };
     try {
-      // Try to parse as JSON, fallback to wrapping in structure
       const jsonMatch = aiMessage.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         summary = JSON.parse(jsonMatch[0]);
@@ -74,7 +75,12 @@ export async function POST(request: NextRequest) {
       await db.meetingSummary.create({
         data: {
           meetingId,
-          content: summary,
+          summary: JSON.stringify(summary),
+          keyTopics: JSON.stringify(summary.keyTopics || []),
+          decisions: JSON.stringify(summary.decisions || []),
+          risks: JSON.stringify(summary.risks || []),
+          participantCount: 0,
+          duration: 0,
         },
       });
     }
@@ -83,11 +89,12 @@ export async function POST(request: NextRequest) {
       success: true,
       summary,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate summary';
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to generate summary';
+    console.error('AI summarize error:', msg);
     return NextResponse.json(
-      { success: false, error: { code: 'AI_ERROR', message } },
-      { status: 500 }
+      { success: false, error: { code: 'AI_ERROR', message: msg } },
+      { status: 503 }
     );
   }
 }
