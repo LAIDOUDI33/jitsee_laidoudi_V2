@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
+import MeetingNotesEditor from '@/components/shared/MeetingNotesEditor'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Film,
   Search,
@@ -25,6 +27,7 @@ import {
   TrendingUp,
   Eye,
   Users,
+  FileText,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -90,6 +93,8 @@ export default function RecordingsPage() {
   const [sortBy, setSortBy] = useState('date')
   const [playing, setPlaying] = useState<string | null>(null)
   const [progress, setProgress] = useState<Record<string, number>>({})
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [notesTitle, setNotesTitle] = useState('')
 
   useEffect(() => {
     if (!playing) return
@@ -255,6 +260,8 @@ export default function RecordingsPage() {
                       <DropdownMenuItem className='gap-2' onClick={() => handleDownload(rec.title)}><Download className='h-4 w-4' /> Download</DropdownMenuItem>
                       <DropdownMenuItem className='gap-2' onClick={() => handleShare(rec.title)}><Share2 className='h-4 w-4' /> Share</DropdownMenuItem>
                       <DropdownMenuSeparator />
+                        <DropdownMenuItem className='gap-2' onClick={() => { setNotesTitle(rec.title); setNotesOpen(true) }}><FileText className='h-4 w-4' /> View Notes</DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem className='gap-2 text-red-600' onClick={() => handleDelete(rec.title)}><Trash2 className='h-4 w-4' /> Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -300,6 +307,18 @@ export default function RecordingsPage() {
           <p className='text-sm text-muted-foreground mt-1'>Recordings from your meetings will appear here</p>
         </div>
       )}
+
+      {/* Meeting Notes Dialog */}
+      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+        <DialogContent className='max-w-3xl max-h-[85vh] overflow-hidden p-0'>
+          <DialogHeader className='p-6 pb-0'>
+            <DialogTitle>Meeting Notes — {notesTitle}</DialogTitle>
+          </DialogHeader>
+          <div className='px-6 pb-6'>
+            <MeetingNotesEditor />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

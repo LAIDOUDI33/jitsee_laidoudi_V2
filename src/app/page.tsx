@@ -92,6 +92,10 @@ const WhiteboardPage = dynamic(() => import('@/components/whiteboard/WhiteboardP
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
   ssr: false,
 })
+const AnalyticsPage = dynamic(() => import('@/components/dashboard/views/AnalyticsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>,
+  ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -153,6 +157,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   calendar: CalendarPage,
   events: EventsPage,
   whiteboard: WhiteboardPage,
+  analytics: AnalyticsPage,
   admin: AdminPage,
   'admin-users': AdminUsersPage,
   'admin-orgs': AdminOrgsPage,

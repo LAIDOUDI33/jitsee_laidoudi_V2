@@ -2,17 +2,25 @@
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Github, Menu, X, Bell, Video } from 'lucide-react';
+import { Moon, Sun, Github, Menu, X, Bell, Video, Monitor, Brain, Cpu, CreditCard, HelpCircle, MessageSquare, UserCheck, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
 
 const navLinks = [
-  { label: 'Platform', href: '#platform' },
-  { label: 'AI', href: '#ai' },
-  { label: 'Architecture', href: '#architecture' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'FAQ', href: '#faq' },
+  { label: 'Platform', href: '#platform', icon: Monitor },
+  { label: 'AI', href: '#ai', icon: Brain },
+  { label: 'Architecture', href: '#architecture', icon: Cpu },
+  { label: 'Pricing', href: '#pricing', icon: CreditCard },
+  { label: 'FAQ', href: '#faq', icon: HelpCircle },
+];
+
+const notifications = [
+  { icon: MessageSquare, title: 'New message from team', time: '2 min ago', unread: true, color: 'text-blue-500' },
+  { icon: UserCheck, title: 'Sarah joined your meeting', time: '15 min ago', unread: true, color: 'text-emerald-500' },
+  { icon: ShieldCheck, title: 'Security audit completed', time: '1 hour ago', unread: false, color: 'text-amber-500' },
 ];
 
 function useIsHydrated() {
@@ -82,7 +90,7 @@ export default function Navbar() {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 shadow-[0_1px_0_0_hsl(var(--primary)/0.1)] ${
           scrolled
             ? 'backdrop-blur-md'
             : 'bg-transparent'
@@ -104,18 +112,20 @@ export default function Navbar() {
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2.5" onClick={(e) => e.preventDefault()}>
-            <svg
+            <motion.svg
               width="36"
               height="36"
               viewBox="0 0 36 36"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
               className="shrink-0"
+              animate={{ scale: [1, 1.04, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             >
               <defs>
                 <linearGradient id="logo-grad" x1="0" y1="0" x2="36" y2="36">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="100%" stopColor="#6366F1" />
+                  <stop offset="0%" stopColor="var(--primary)" />
+                  <stop offset="100%" stopColor="#7C3AED" />
                 </linearGradient>
               </defs>
               <rect width="36" height="36" rx="8" fill="url(#logo-grad)" />
@@ -126,8 +136,8 @@ export default function Navbar() {
               />
               <circle cx="17" cy="16" r="1.2" fill="#4F46E5" />
               <circle cx="20" cy="16" r="1.2" fill="#4F46E5" />
-            </svg>
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+            </motion.svg>
+            <span className="font-bold text-xl bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">
               ALVISION
             </span>
           </a>
@@ -147,11 +157,18 @@ export default function Navbar() {
               >
                 {link.label}
                 {activeSection === link.href.slice(1) && (
-                  <motion.span
-                    layoutId="navbar-active"
-                    className="absolute inset-0 rounded-md bg-primary/10"
-                    transition={{ type: 'spring', bounce: 0.25, duration: 0.4 }}
-                  />
+                  <>
+                    <motion.span
+                      layoutId="navbar-active-bg"
+                      className="absolute inset-0 rounded-md bg-primary/10"
+                      transition={{ type: 'spring', bounce: 0.25, duration: 0.4 }}
+                    />
+                    <motion.span
+                      layoutId="navbar-active-line"
+                      className="absolute bottom-0.5 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-primary to-violet-600"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                    />
+                  </>
                 )}
               </a>
             ))}
@@ -171,18 +188,50 @@ export default function Navbar() {
               </Button>
             )}
 
-            {/* Notification bell with red dot badge */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative hover:scale-[1.1] active:scale-[0.95] transition-transform"
-              aria-label="Notifications"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-background">
-                <span className="absolute inset-0 rounded-full bg-red-500 animate-ping" />
-              </span>
-            </Button>
+            {/* Notification bell with dropdown */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative hover:scale-[1.1] active:scale-[0.95] transition-transform"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-background">
+                    <span className="absolute inset-0 rounded-full bg-red-500 animate-ping" />
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="px-4 py-3 border-b">
+                  <h4 className="text-sm font-semibold">Notifications</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">You have 2 unread</p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.map((notif, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer">
+                      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                        <notif.icon className={`w-4 h-4 ${notif.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{notif.title}</p>
+                          {notif.unread && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{notif.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t px-4 py-2.5">
+                  <button className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors w-full justify-center">
+                    View All Notifications
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Start Meeting CTA */}
             <Button
@@ -257,13 +306,13 @@ export default function Navbar() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-[280px] bg-background border-l shadow-2xl md:hidden overflow-y-auto"
+              transition={{ type: 'spring', damping: 28, stiffness: 320, bounce: 0.1 }}
+              className="fixed top-0 right-0 bottom-0 z-50 w-[280px] border-l shadow-2xl md:hidden overflow-y-auto bg-gradient-to-b from-background via-background to-muted/30"
             >
               <div className="flex flex-col h-full">
                 {/* Mobile menu header */}
                 <div className="flex items-center justify-between p-4 border-b">
-                  <span className="font-bold text-lg bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+                  <span className="font-bold text-lg bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent">
                     ALVISION
                   </span>
                   <Button variant="ghost" size="icon" onClick={closeMobile} className="hover:scale-[1.1] active:scale-[0.95] transition-transform">
@@ -271,8 +320,9 @@ export default function Navbar() {
                   </Button>
                 </div>
 
-                {/* Nav links */}
+                {/* Nav links with icons and section divider */}
                 <div className="flex flex-col gap-1 p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold mb-1 px-3">Navigation</p>
                   {navLinks.map((link, i) => (
                     <motion.a
                       key={link.href}
@@ -281,16 +331,26 @@ export default function Navbar() {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.05 + i * 0.05, duration: 0.2 }}
-                      className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-colors flex items-center gap-3 ${
                         activeSection === link.href.slice(1)
                           ? 'bg-primary/10 text-foreground'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
+                      <link.icon className="w-4 h-4 shrink-0" />
                       {link.label}
+                      {activeSection === link.href.slice(1) && (
+                        <motion.span
+                          layoutId="mobile-nav-dot"
+                          className="ml-auto w-1.5 h-1.5 rounded-full bg-primary"
+                          transition={{ type: 'spring', bounce: 0.3, duration: 0.4 }}
+                        />
+                      )}
                     </motion.a>
                   ))}
                 </div>
+
+                <Separator className="mx-4" />
 
                 {/* Action buttons */}
                 <div className="mt-auto flex flex-col gap-2 p-4 border-t">

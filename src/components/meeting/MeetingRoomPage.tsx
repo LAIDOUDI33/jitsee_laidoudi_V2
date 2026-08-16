@@ -4,9 +4,9 @@ import { useAppStore } from '@/store/app-store';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
   Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
-  ArrowLeft, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
+  ArrowLeft, ArrowRight, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
   Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard,
-  Wifi, Signal, Subtitles, SmilePlus
+  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -37,11 +37,26 @@ interface Participant {
   name: string;
   initials: string;
   color: string;
-  role: 'Host' | 'Co-host' | 'Participant';
+  role: 'Host' | 'Co-host' | 'Presenter' | 'Participant';
   micOn: boolean;
   videoOn: boolean;
   online?: boolean;
   handRaised?: boolean;
+}
+
+interface BreakoutRoom {
+  id: string;
+  name: string;
+  participantIds: string[];
+  timerSeconds: number;
+}
+
+interface WaitingParticipant {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  joinTime: string;
 }
 
 interface PollData {
@@ -126,6 +141,17 @@ const mockCaptions = [
   { speaker: 'Maya Patel', text: 'The API redesign is almost complete, just need to finalize the endpoints.' },
   { speaker: 'James Wilson', text: 'Can we schedule a follow-up for the technical review?' },
   { speaker: 'Emily Zhang', text: "I'll take the action item for the documentation update." },
+];
+
+const initialBreakoutRooms: BreakoutRoom[] = [
+  { id: 'br-1', name: 'Backend Architecture', participantIds: ['2', '3', '4'], timerSeconds: 600 },
+  { id: 'br-2', name: 'Frontend UI Review', participantIds: ['5', '7', '8'], timerSeconds: 600 },
+  { id: 'br-3', name: 'DevOps & Infra', participantIds: ['1'], timerSeconds: 600 },
+];
+
+const mockWaitingParticipants: WaitingParticipant[] = [
+  { id: 'w-1', name: 'Ryan Foster', initials: 'RF', color: 'bg-teal-500', joinTime: '2m ago' },
+  { id: 'w-2', name: 'Nina Rossi', initials: 'NR', color: 'bg-fuchsia-500', joinTime: '5m ago' },
 ];
 
 type NetworkQuality = 'excellent' | 'good' | 'fair' | 'poor';
@@ -319,6 +345,17 @@ export default function MeetingRoomPage() {
   const [enhancedReactionsOpen, setEnhancedReactionsOpen] = useState(false);
   const enhancedReactionsRef = useRef<HTMLDivElement>(null);
 
+  // --- Breakout Rooms state ---
+  const [breakoutRooms, setBreakoutRooms] = useState<BreakoutRoom[]>(initialBreakoutRooms);
+  const [breakoutTimerActive, setBreakoutTimerActive] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editingRoomName, setEditingRoomName] = useState('');
+  const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>(mockWaitingParticipants);
+  const [participantRoles, setParticipantRoles] = useState<Record<string, Participant['role']>>(
+    Object.fromEntries(mockParticipants.map(p => [p.id, p.role]))
+  );
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState<string | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -361,6 +398,27 @@ export default function MeetingRoomPage() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // --- Breakout Rooms countdown timer ---
+  useEffect(() => {
+    if (!breakoutTimerActive) return;
+    const interval = setInterval(() => {
+      setBreakoutRooms(prev => {
+        const allDone = prev.every(r => r.timerSeconds <= 0);
+        if (allDone) { setBreakoutTimerActive(false); return prev; }
+        return prev.map(r => r.timerSeconds > 0 ? { ...r, timerSeconds: r.timerSeconds - 1 } : r);
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [breakoutTimerActive]);
+
+  // --- Close role dropdown on outside click ---
+  useEffect(() => {
+    if (!roleDropdownOpen) return;
+    const handleClick = () => setRoleDropdownOpen(null);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [roleDropdownOpen]);
 
   // --- Cycle mock captions every 3-4 seconds ---
   useEffect(() => {
@@ -502,7 +560,7 @@ export default function MeetingRoomPage() {
     setCurrentView('dashboard');
   };
 
-  const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls') => {
+  const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => {
     if (tab && sidebarOpen && meetingSidebarTab === tab) setSidebarOpen(false);
     else if (tab) { setMeetingSidebarTab(tab); setSidebarOpen(true); }
     else setSidebarOpen(prev => !prev);
@@ -524,6 +582,77 @@ export default function MeetingRoomPage() {
   const handleTogglePin = (id: string) => {
     setPinnedParticipant(prev => prev === id ? null : id);
     toast(pinnedParticipant === id ? 'Unpinned participant' : 'Pinned participant');
+  };
+
+  // --- Breakout Rooms Handlers ---
+  const handleCreateBreakoutRoom = () => {
+    if (breakoutRooms.length >= 8) { toast.error('Maximum 8 breakout rooms allowed'); return; }
+    const newRoom: BreakoutRoom = {
+      id: `br-${Date.now()}`,
+      name: `Room ${breakoutRooms.length + 1}`,
+      participantIds: [],
+      timerSeconds: 600,
+    };
+    setBreakoutRooms(prev => [...prev, newRoom]);
+    toast.success(`Created ${newRoom.name}`);
+  };
+
+  const handleDeleteBreakoutRoom = (roomId: string) => {
+    setBreakoutRooms(prev => prev.filter(r => r.id !== roomId));
+    toast.success('Room removed');
+  };
+
+  const handleRenameBreakoutRoom = (roomId: string) => {
+    if (!editingRoomName.trim()) { setEditingRoomId(null); return; }
+    setBreakoutRooms(prev => prev.map(r => r.id === roomId ? { ...r, name: editingRoomName.trim() } : r));
+    setEditingRoomId(null);
+    toast.success('Room renamed');
+  };
+
+  const handleAutoAssign = () => {
+    const assignableIds = mockParticipants.filter(p => p.online !== false).map(p => p.id);
+    const shuffled = [...assignableIds].sort(() => Math.random() - 0.5);
+    const newRooms = breakoutRooms.map((room, i) => ({
+      ...room,
+      participantIds: shuffled.slice(
+        Math.floor(i * shuffled.length / breakoutRooms.length),
+        Math.floor((i + 1) * shuffled.length / breakoutRooms.length)
+      ),
+    }));
+    setBreakoutRooms(newRooms);
+    setBreakoutTimerActive(true);
+    toast.success('Participants auto-assigned to rooms');
+  };
+
+  const handleCloseAllRooms = () => {
+    setBreakoutRooms([]);
+    setBreakoutTimerActive(false);
+    toast.success('All breakout rooms closed');
+  };
+
+  const handleJoinBreakoutRoom = (roomName: string) => {
+    toast.success(`Joining ${roomName}...`);
+  };
+
+  // --- Role change handler ---
+  const handleChangeRole = (participantId: string, newRole: Participant['role']) => {
+    setParticipantRoles(prev => ({ ...prev, [participantId]: newRole }));
+    setRoleDropdownOpen(null);
+    const p = mockParticipants.find(pp => pp.id === participantId);
+    toast.success(`Changed ${p?.name || 'participant'} role to ${newRole}`);
+  };
+
+  // --- Waiting room handlers ---
+  const handleAdmitParticipant = (id: string) => {
+    const wp = waitingParticipants.find(w => w.id === id);
+    setWaitingParticipants(prev => prev.filter(w => w.id !== id));
+    toast.success(`${wp?.name} admitted to the meeting`);
+  };
+
+  const handleDenyParticipant = (id: string) => {
+    const wp = waitingParticipants.find(w => w.id === id);
+    setWaitingParticipants(prev => prev.filter(w => w.id !== id));
+    toast.success(`${wp?.name} was denied entry`);
   };
 
   // --- Filtered participants ---
@@ -924,7 +1053,7 @@ export default function MeetingRoomPage() {
                       <button onClick={() => { setShowMoreMenu(false); toast('Whiteboard coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
                         <Pen size={16} /> Whiteboard
                       </button>
-                      <button onClick={() => { setShowMoreMenu(false); toast('Breakout rooms coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                      <button onClick={() => { toggleSidebar('breakout'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
                         <LayoutGrid size={16} /> Breakout Rooms
                       </button>
                     </div>
@@ -966,12 +1095,12 @@ export default function MeetingRoomPage() {
             {/* Sidebar Header */}
             <div className="border-b border-white/10 bg-white/[0.03] backdrop-blur-xl px-2 pt-2">
               <div className="flex items-center justify-between mb-2">
-                <Tabs value={meetingSidebarTab} onValueChange={(v) => setMeetingSidebarTab(v as 'chat' | 'participants' | 'ai' | 'polls')} className="w-full">
+                <Tabs value={meetingSidebarTab} onValueChange={(v) => setMeetingSidebarTab(v as 'chat' | 'participants' | 'ai' | 'polls' | 'breakout')} className="w-full">
                   <TabsList className="bg-white/5 w-full h-9 rounded-xl">
                     <TabsTrigger value="chat" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Chat</TabsTrigger>
                     <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">People</TabsTrigger>
                     <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">AI</TabsTrigger>
-                    <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Polls</TabsTrigger>
+                    <TabsTrigger value="breakout" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Breakout</TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <button onClick={() => setSidebarOpen(false)} className="ml-1.5 w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center shrink-0 transition-colors">
@@ -1088,9 +1217,9 @@ export default function MeetingRoomPage() {
               {/* ── Participants Tab ── */}
               {meetingSidebarTab === 'participants' && (
                 <div className="flex flex-col h-full">
-                  {/* Search bar */}
+                  {/* Search bar + action buttons */}
                   <div className="px-3 py-2.5 border-b border-white/10 bg-white/[0.02]">
-                    <div className="relative">
+                    <div className="relative mb-2">
                       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
                       <input
                         value={participantSearch}
@@ -1099,79 +1228,203 @@ export default function MeetingRoomPage() {
                         className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs outline-none placeholder:text-white/25 focus:border-violet-500/50 transition-colors"
                       />
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toast.success('All participants muted')}
+                        className="h-6 text-[10px] border-white/10 hover:bg-white/10 text-white/60 hover:text-white rounded-md px-2"
+                      >
+                        <MicOff size={11} className="mr-1" /> Mute All
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toast.success('All cameras turned off')}
+                        className="h-6 text-[10px] border-white/10 hover:bg-white/10 text-white/60 hover:text-white rounded-md px-2"
+                      >
+                        <VideoOff size={11} className="mr-1" /> Video Off All
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Hand Raised Queue */}
+                  {mockParticipants.filter(p => p.handRaised).length > 0 && (
+                    <div className="px-3 py-2 border-b border-amber-500/20 bg-amber-500/5">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Hand size={11} className="text-amber-400" />
+                        <span className="text-[10px] font-semibold text-amber-300">Raised Hands ({mockParticipants.filter(p => p.handRaised).length})</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {mockParticipants.filter(p => p.handRaised).map(p => (
+                          <div key={`hr-${p.id}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-amber-500/10">
+                            <Avatar className="w-6 h-6 shrink-0">
+                              <AvatarFallback className={`${p.color} text-white text-[8px] font-bold`}>{p.initials}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-amber-200 flex-1 truncate">{p.name}</span>
+                            <Button
+                              size="sm"
+                              onClick={() => toast.success(`Lowered ${p.name}'s hand`)}
+                              className="h-5 text-[9px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-md px-1.5"
+                            >
+                              Lower
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="px-4 py-2 border-b border-white/10">
                     <h3 className="text-xs font-semibold text-white/50">{filteredParticipants.length} Participants ({onlineCount} online)</h3>
                   </div>
-                  <ScrollArea className="flex-1">
+                  <ScrollArea className="flex-1 max-h-96 overflow-y-auto">
                     <div className="p-1.5 space-y-0.5">
-                      {filteredParticipants.map((p) => (
-                        <div
-                          key={p.id}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all group ${
-                            p.online === false ? 'opacity-50' : ''
-                          }`}
-                        >
-                          <div className="relative">
-                            <Avatar className="w-9 h-9 shrink-0">
-                              <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
-                            </Avatar>
-                            {/* Online indicator */}
-                            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
-                              p.online === false ? 'bg-slate-500' : 'bg-emerald-400'
-                            }`} />
-                            {/* Hand raised indicator */}
-                            {p.handRaised && (
-                              <motion.span
-                                className="absolute -top-1 -right-1 text-sm"
-                                animate={{ y: [0, -3, 0] }}
-                                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
-                              >
-                                {'✋'}
-                              </motion.span>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{p.name}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${getRoleBadgeClass(p.role)}`}>{p.role}</span>
+                      {filteredParticipants.map((p) => {
+                        const currentRole = participantRoles[p.id] || p.role;
+                        return (
+                          <div
+                            key={p.id}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all group ${
+                              p.online === false ? 'opacity-50' : ''
+                            }`}
+                          >
+                            <div className="relative">
+                              <Avatar className="w-9 h-9 shrink-0">
+                                <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
+                              </Avatar>
+                              {/* Online indicator */}
+                              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
+                                p.online === false ? 'bg-slate-500' : 'bg-emerald-400'
+                              }`} />
+                              {/* Hand raised indicator */}
+                              {p.handRaised && (
+                                <motion.span
+                                  className="absolute -top-1 -right-1 text-sm"
+                                  animate={{ y: [0, -3, 0] }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                                >
+                                  {'✋'}
+                                </motion.span>
+                              )}
                             </div>
-                            <span className={`text-[10px] ${p.online === false ? 'text-slate-500' : 'text-white/30'}`}>
-                              {p.online === false ? 'Offline' : 'In meeting'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.micOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
-                                  {p.micOn ? <Mic size={14} /> : <MicOff size={14} />}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.micOn ? 'Muted' : 'Unmuted'}</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.videoOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/20 hover:bg-white/10'}`}>
-                                  {p.videoOn ? <Video size={14} /> : <VideoOff size={14} />}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.videoOn ? 'Camera on' : 'Camera off'}</TooltipContent>
-                            </Tooltip>
-                            {p.role !== 'Host' && (
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium truncate">{p.name}</span>
+                                {/* Role dropdown */}
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setRoleDropdownOpen(roleDropdownOpen === p.id ? null : p.id); }}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${getRoleBadgeClass(currentRole)} hover:opacity-80 transition-opacity flex items-center gap-0.5`}
+                                  >
+                                    {currentRole} <ChevronDown size={9} />
+                                  </button>
+                                  <AnimatePresence>
+                                    {roleDropdownOpen === p.id && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        className="absolute top-full left-0 mt-1 w-32 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden shadow-2xl z-50"
+                                      >
+                                        {(['Host', 'Co-host', 'Presenter', 'Participant'] as const).map(role => (
+                                          <button
+                                            key={role}
+                                            onClick={() => handleChangeRole(p.id, role)}
+                                            className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                                              currentRole === role ? 'bg-violet-500/20 text-violet-300' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                          >
+                                            {role}
+                                          </button>
+                                        ))}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              </div>
+                              <span className={`text-[10px] ${p.online === false ? 'text-slate-500' : 'text-white/30'}`}>
+                                {p.online === false ? 'Offline' : 'In meeting'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:bg-white/10 hover:text-white/50 opacity-0 group-hover:opacity-100 transition-all">
-                                    <MicOff size={12} />
+                                  <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.micOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
+                                    {p.micOn ? <Mic size={14} /> : <MicOff size={14} />}
                                   </button>
                                 </TooltipTrigger>
-                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute participant</TooltipContent>
+                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.micOn ? 'Muted' : 'Unmuted'}</TooltipContent>
                               </Tooltip>
-                            )}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.videoOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/20 hover:bg-white/10'}`}>
+                                    {p.videoOn ? <Video size={14} /> : <VideoOff size={14} />}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.videoOn ? 'Camera on' : 'Camera off'}</TooltipContent>
+                              </Tooltip>
+                              {currentRole !== 'Host' && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:bg-white/10 hover:text-white/50 opacity-0 group-hover:opacity-100 transition-all">
+                                      <MicOff size={12} />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute participant</TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </ScrollArea>
+
+                  {/* Waiting Room Section */}
+                  {waitingParticipants.length > 0 && (
+                    <div className="border-t border-white/10 bg-white/[0.02]">
+                      <div className="px-4 py-2 flex items-center gap-1.5">
+                        <DoorOpen size={11} className="text-white/40" />
+                        <span className="text-[10px] font-semibold text-white/50">Waiting Room ({waitingParticipants.length})</span>
+                      </div>
+                      <div className="px-1.5 pb-2 space-y-0.5">
+                        {waitingParticipants.map(wp => (
+                          <motion.div
+                            key={wp.id}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-white/5 transition-colors"
+                          >
+                            <Avatar className="w-8 h-8 shrink-0">
+                              <AvatarFallback className={`${wp.color} text-white text-[10px] font-bold`}>{wp.initials}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium truncate block">{wp.name}</span>
+                              <span className="text-[10px] text-white/30">Waiting {wp.joinTime}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => handleAdmitParticipant(wp.id)}
+                                className="h-6 text-[10px] bg-emerald-600 hover:bg-emerald-700 rounded-md px-2"
+                              >
+                                <UserPlus size={10} className="mr-0.5" /> Admit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDenyParticipant(wp.id)}
+                                className="h-6 text-[10px] rounded-md px-2"
+                              >
+                                Deny
+                              </Button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1342,6 +1595,34 @@ export default function MeetingRoomPage() {
                   </ScrollArea>
                 </div>
               )}
+
+              {/* ── Breakout Rooms Tab ── */}
+              {meetingSidebarTab === 'breakout' && (
+                <BreakoutRoomsPanel
+                  rooms={breakoutRooms}
+                  timerActive={breakoutTimerActive}
+                  editingRoomId={editingRoomId}
+                  editingRoomName={editingRoomName}
+                  onSetEditingRoomId={setEditingRoomId}
+                  onSetEditingRoomName={setEditingRoomName}
+                  onCreateRoom={handleCreateBreakoutRoom}
+                  onDeleteRoom={handleDeleteBreakoutRoom}
+                  onRenameRoom={handleRenameBreakoutRoom}
+                  onAutoAssign={handleAutoAssign}
+                  onCloseAll={handleCloseAllRooms}
+                  onJoinRoom={handleJoinBreakoutRoom}
+                  onStartTimer={() => {
+                    setBreakoutTimerActive(true);
+                    if (!breakoutTimerActive) setBreakoutRooms(prev => prev.map(r => ({ ...r, timerSeconds: 600 })));
+                    toast.success('Timer started');
+                  }}
+                  onResetTimer={() => {
+                    setBreakoutRooms(prev => prev.map(r => ({ ...r, timerSeconds: 600 })));
+                    setBreakoutTimerActive(false);
+                    toast.success('Timer reset');
+                  }}
+                />
+              )}
             </div>
           </motion.div>
         )}
@@ -1467,6 +1748,215 @@ function ParticipantTile({
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Breakout Rooms Panel Component ──────────────────────────
+function BreakoutRoomsPanel({
+  rooms,
+  timerActive,
+  editingRoomId,
+  editingRoomName,
+  onSetEditingRoomId,
+  onSetEditingRoomName,
+  onCreateRoom,
+  onDeleteRoom,
+  onRenameRoom,
+  onAutoAssign,
+  onCloseAll,
+  onJoinRoom,
+  onStartTimer,
+  onResetTimer,
+}: {
+  rooms: BreakoutRoom[];
+  timerActive: boolean;
+  editingRoomId: string | null;
+  editingRoomName: string;
+  onSetEditingRoomId: (id: string | null) => void;
+  onSetEditingRoomName: (name: string) => void;
+  onCreateRoom: () => void;
+  onDeleteRoom: (id: string) => void;
+  onRenameRoom: (id: string) => void;
+  onAutoAssign: () => void;
+  onCloseAll: () => void;
+  onJoinRoom: (name: string) => void;
+  onStartTimer: () => void;
+  onResetTimer: () => void;
+}) {
+  const getTimerColor = (seconds: number) => {
+    if (seconds <= 60) return 'text-red-400';
+    if (seconds <= 180) return 'text-yellow-400';
+    return 'text-emerald-400';
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // Global min timer across all rooms
+  const globalMinTimer = rooms.length > 0 ? Math.min(...rooms.map(r => r.timerSeconds)) : 0;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">Breakout Rooms</h3>
+          <Badge variant="secondary" className="h-5 text-[10px] bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/20">
+            {rooms.length}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {rooms.length > 0 && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono ${getTimerColor(globalMinTimer)}`}>
+              <Clock size={11} />
+              {formatCountdown(globalMinTimer)}
+            </div>
+          )}
+          <Button
+            size="sm"
+            onClick={onCreateRoom}
+            disabled={rooms.length >= 8}
+            className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-40"
+          >
+            <Plus size={12} className="mr-1" /> Create Room
+          </Button>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      {rooms.length > 0 && (
+        <div className="px-3 py-2 border-b border-white/10 bg-white/[0.01] flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onAutoAssign}
+            className="h-7 text-[11px] border-white/10 hover:bg-white/10 text-white/70 hover:text-white rounded-lg"
+          >
+            <Shuffle size={12} className="mr-1" /> Auto-assign
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={timerActive ? onResetTimer : onStartTimer}
+            className="h-7 text-[11px] border-white/10 hover:bg-white/10 text-white/70 hover:text-white rounded-lg"
+          >
+            <Clock size={12} className="mr-1" /> {timerActive ? 'Reset Timer' : 'Start Timer'}
+          </Button>
+          <div className="flex-1" />
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={onCloseAll}
+            className="h-7 text-[11px] rounded-lg"
+          >
+            <X size={12} className="mr-1" /> Close All
+          </Button>
+        </div>
+      )}
+
+      {/* Rooms List */}
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-2.5">
+          <AnimatePresence>
+            {rooms.map((room) => {
+              const participants = room.participantIds
+                .map(id => mockParticipants.find(p => p.id === id))
+                .filter(Boolean) as Participant[];
+
+              return (
+                <motion.div
+                  key={room.id}
+                  layout
+                  initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  className="border border-border/50 rounded-lg p-3 bg-gradient-to-r from-primary/5 to-transparent hover:shadow-md hover:shadow-primary/5 transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between mb-2.5">
+                    <div className="flex-1 min-w-0">
+                      {editingRoomId === room.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            value={editingRoomName}
+                            onChange={(e) => onSetEditingRoomName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') onRenameRoom(room.id);
+                              if (e.key === 'Escape') onSetEditingRoomId(null);
+                            }}
+                            onBlur={() => onRenameRoom(room.id)}
+                            autoFocus
+                            className="bg-white/10 border border-white/20 rounded-md px-2 py-0.5 text-xs outline-none focus:border-violet-500/50 w-full"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { onSetEditingRoomId(room.id); onSetEditingRoomName(room.name); }}
+                          className="text-sm font-semibold text-left truncate hover:text-violet-300 transition-colors"
+                        >
+                          {room.name}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {/* Timer */}
+                      <span className={`text-[11px] font-mono ${getTimerColor(room.timerSeconds)}`}>
+                        {formatCountdown(room.timerSeconds)}
+                      </span>
+                      <button
+                        onClick={() => onDeleteRoom(room.id)}
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Participant avatar stack */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex -space-x-2">
+                        {participants.slice(0, 4).map((p) => (
+                          <Avatar key={p.id} className="w-7 h-7 ring-2 ring-slate-950">
+                            <AvatarFallback className={`${p.color} text-white text-[9px] font-bold`}>{p.initials}</AvatarFallback>
+                          </Avatar>
+                        ))}
+                        {participants.length > 4 && (
+                          <div className="w-7 h-7 rounded-full bg-white/10 ring-2 ring-slate-950 flex items-center justify-center text-[9px] font-medium text-white/60">
+                            +{participants.length - 4}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-white/40 ml-2.5">{participants.length} {participants.length === 1 ? 'person' : 'people'}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => onJoinRoom(room.name)}
+                      className="h-7 text-[11px] bg-white/10 hover:bg-white/20 text-white rounded-lg"
+                    >
+                      Join <ArrowRight size={12} className="ml-1" />
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+
+          {rooms.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
+                <LayoutGrid size={24} className="text-white/20" />
+              </div>
+              <p className="text-sm text-white/40 mb-1">No breakout rooms</p>
+              <p className="text-[11px] text-white/20">Create a room to split participants into groups</p>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
 

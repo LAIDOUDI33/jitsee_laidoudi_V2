@@ -1,0 +1,702 @@
+     1→  1192→                          </div>
+     2→  1193→                        </ScrollArea>
+     3→  1194→                      </motion.div>
+     4→  1195→                    )}
+     5→  1196→                  </AnimatePresence>
+     6→  1197→
+     7→  1198→                  {/* Chat Input */}
+     8→  1199→                  <div className="p-3 border-t border-white/10 bg-white/[0.02]">
+     9→  1200→                    <div className="flex gap-2">
+    10→  1201→                      <Input
+    11→  1202→                        ref={chatInputRef}
+    12→  1203→                        value={chatInput}
+    13→  1204→                        onChange={(e) => handleChatInputChange(e.target.value)}
+    14→  1205→                        onKeyDown={(e) => e.key === 'Enter' && !showMentionList && handleSendChat()}
+    15→  1206→                        placeholder="Type a message... (use @ to mention)"
+    16→  1207→                        className="bg-white/5 border-white/10 text-sm h-9 placeholder:text-white/25 focus:border-violet-500/50 rounded-xl"
+    17→  1208→                      />
+    18→  1209→                      <Button size="icon" onClick={handleSendChat} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700 rounded-xl">
+    19→  1210→                        <Send size={14} />
+    20→  1211→                      </Button>
+    21→  1212→                    </div>
+    22→  1213→                  </div>
+    23→  1214→                </div>
+    24→  1215→              )}
+    25→  1216→
+    26→  1217→              {/* ── Participants Tab ── */}
+    27→  1218→              {meetingSidebarTab === 'participants' && (
+    28→  1219→                <div className="flex flex-col h-full">
+    29→  1220→                  {/* Search bar */}
+    30→  1221→                  <div className="px-3 py-2.5 border-b border-white/10 bg-white/[0.02]">
+    31→  1222→                    <div className="relative">
+    32→  1223→                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
+    33→  1224→                      <input
+    34→  1225→                        value={participantSearch}
+    35→  1226→                        onChange={(e) => setParticipantSearch(e.target.value)}
+    36→  1227→                        placeholder="Search participants..."
+    37→  1228→                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs outline-none placeholder:text-white/25 focus:border-violet-500/50 transition-colors"
+    38→  1229→                      />
+    39→  1230→                    </div>
+    40→  1231→                  </div>
+    41→  1232→                  <div className="px-4 py-2 border-b border-white/10">
+    42→  1233→                    <h3 className="text-xs font-semibold text-white/50">{filteredParticipants.length} Participants ({onlineCount} online)</h3>
+    43→  1234→                  </div>
+    44→  1235→                  <ScrollArea className="flex-1">
+    45→  1236→                    <div className="p-1.5 space-y-0.5">
+    46→  1237→                      {filteredParticipants.map((p) => (
+    47→  1238→                        <div
+    48→  1239→                          key={p.id}
+    49→  1240→                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all group ${
+    50→  1241→                            p.online === false ? 'opacity-50' : ''
+    51→  1242→                          }`}
+    52→  1243→                        >
+    53→  1244→                          <div className="relative">
+    54→  1245→                            <Avatar className="w-9 h-9 shrink-0">
+    55→  1246→                              <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
+    56→  1247→                            </Avatar>
+    57→  1248→                            {/* Online indicator */}
+    58→  1249→                            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
+    59→  1250→                              p.online === false ? 'bg-slate-500' : 'bg-emerald-400'
+    60→  1251→                            }`} />
+    61→  1252→                            {/* Hand raised indicator */}
+    62→  1253→                            {p.handRaised && (
+    63→  1254→                              <motion.span
+    64→  1255→                                className="absolute -top-1 -right-1 text-sm"
+    65→  1256→                                animate={{ y: [0, -3, 0] }}
+    66→  1257→                                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+    67→  1258→                              >
+    68→  1259→                                {'✋'}
+    69→  1260→                              </motion.span>
+    70→  1261→                            )}
+    71→  1262→                          </div>
+    72→  1263→                          <div className="flex-1 min-w-0">
+    73→  1264→                            <div className="flex items-center gap-2">
+    74→  1265→                              <span className="text-sm font-medium truncate">{p.name}</span>
+    75→  1266→                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${getRoleBadgeClass(p.role)}`}>{p.role}</span>
+    76→  1267→                            </div>
+    77→  1268→                            <span className={`text-[10px] ${p.online === false ? 'text-slate-500' : 'text-white/30'}`}>
+    78→  1269→                              {p.online === false ? 'Offline' : 'In meeting'}
+    79→  1270→                            </span>
+    80→  1271→                          </div>
+    81→  1272→                          <div className="flex items-center gap-1">
+    82→  1273→                            <Tooltip>
+    83→  1274→                              <TooltipTrigger asChild>
+    84→  1275→                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.micOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
+    85→  1276→                                  {p.micOn ? <Mic size={14} /> : <MicOff size={14} />}
+    86→  1277→                                </button>
+    87→  1278→                              </TooltipTrigger>
+    88→  1279→                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.micOn ? 'Muted' : 'Unmuted'}</TooltipContent>
+    89→  1280→                            </Tooltip>
+    90→  1281→                            <Tooltip>
+    91→  1282→                              <TooltipTrigger asChild>
+    92→  1283→                                <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.videoOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/20 hover:bg-white/10'}`}>
+    93→  1284→                                  {p.videoOn ? <Video size={14} /> : <VideoOff size={14} />}
+    94→  1285→                                </button>
+    95→  1286→                              </TooltipTrigger>
+    96→  1287→                              <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.videoOn ? 'Camera on' : 'Camera off'}</TooltipContent>
+    97→  1288→                            </Tooltip>
+    98→  1289→                            {p.role !== 'Host' && (
+    99→  1290→                              <Tooltip>
+   100→  1291→                                <TooltipTrigger asChild>
+   101→  1292→                                  <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:bg-white/10 hover:text-white/50 opacity-0 group-hover:opacity-100 transition-all">
+   102→  1293→                                    <MicOff size={12} />
+   103→  1294→                                  </button>
+   104→  1295→                                </TooltipTrigger>
+   105→  1296→                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute participant</TooltipContent>
+   106→  1297→                              </Tooltip>
+   107→  1298→                            )}
+   108→  1299→                          </div>
+   109→  1300→                        </div>
+   110→  1301→                      ))}
+   111→  1302→                    </div>
+   112→  1303→                  </ScrollArea>
+   113→  1304→                </div>
+   114→  1305→              )}
+   115→  1306→
+   116→  1307→              {/* ── AI Tab ── */}
+   117→  1308→              {meetingSidebarTab === 'ai' && (
+   118→  1309→                <div className="flex flex-col h-full">
+   119→  1310→                  <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center gap-2">
+   120→  1311→                    <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
+   121→  1312→                      <Sparkles size={14} className="text-violet-400" />
+   122→  1313→                    </div>
+   123→  1314→                    <div>
+   124→  1315→                      <h3 className="text-sm font-semibold">AI Meeting Assistant</h3>
+   125→  1316→                      <p className="text-[10px] text-white/30">Powered by ALVISION</p>
+   126→  1317→                    </div>
+   127→  1318→                  </div>
+   128→  1319→                  <ScrollArea className="flex-1">
+   129→  1320→                    <div className="p-3 space-y-3">
+   130→  1321→                      {aiMessages.length === 0 && !aiTyping && (
+   131→  1322→                        <div className="py-8">
+   132→  1323→                          <motion.div
+   133→  1324→                            initial={{ scale: 0.8, opacity: 0 }}
+   134→  1325→                            animate={{ scale: 1, opacity: 1 }}
+   135→  1326→                            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/10 flex items-center justify-center mx-auto mb-4 border border-violet-500/20"
+   136→  1327→                          >
+   137→  1328→                            <Sparkles size={28} className="text-violet-400" />
+   138→  1329→                          </motion.div>
+   139→  1330→                          <p className="text-center text-sm text-white/40 mb-5">Ask me anything about this meeting</p>
+   140→  1331→                          <div className="flex flex-wrap gap-2 justify-center">
+   141→  1332→                            {aiSuggestions.map((suggestion) => (
+   142→  1333→                              <motion.button
+   143→  1334→                                key={suggestion}
+   144→  1335→                                whileHover={{ scale: 1.05 }}
+   145→  1336→                                whileTap={{ scale: 0.95 }}
+   146→  1337→                                onClick={() => handleAISuggestion(suggestion)}
+   147→  1338→                                className="px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 hover:bg-violet-500/20 hover:border-violet-500/30 transition-all"
+   148→  1339→                              >
+   149→  1340→                                {suggestion}
+   150→  1341→                              </motion.button>
+   151→  1342→                            ))}
+   152→  1343→                          </div>
+   153→  1344→                        </div>
+   154→  1345→                      )}
+   155→  1346→
+   156→  1347→                      {aiMessages.map((msg) => (
+   157→  1348→                        <motion.div
+   158→  1349→                          key={msg.id}
+   159→  1350→                          initial={{ opacity: 0, y: 8 }}
+   160→  1351→                          animate={{ opacity: 1, y: 0 }}
+   161→  1352→                          className={`${msg.isAI ? 'border-l-2 border-violet-500/50 pl-3 ml-0.5' : ''}`}
+   162→  1353→                        >
+   163→  1354→                          <div className="flex gap-2.5">
+   164→  1355→                            <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+   165→  1356→                              <AvatarFallback className={`${msg.color} text-white text-[10px] font-bold`}>{msg.initials}</AvatarFallback>
+   166→  1357→                            </Avatar>
+   167→  1358→                            <div className="flex-1 min-w-0">
+   168→  1359→                              <div className="flex items-baseline gap-2">
+   169→  1360→                                <span className="text-xs font-semibold text-white/90">{msg.sender}</span>
+   170→  1361→                                <span className="text-[10px] text-white/25">{msg.time}</span>
+   171→  1362→                              </div>
+   172→  1363→                              <div className={`mt-1 text-sm text-white/75 break-words whitespace-pre-wrap leading-relaxed ${
+   173→  1364→                                msg.isAI ? 'bg-violet-500/5 rounded-xl px-3 py-2' : 'bg-white/[0.06] rounded-2xl rounded-tl-sm px-3 py-2 inline-block'
+   174→  1365→                              }`}>
+   175→  1366→                                {msg.text}
+   176→  1367→                              </div>
+   177→  1368→                            </div>
+   178→  1369→                          </div>
+   179→  1370→                        </motion.div>
+   180→  1371→                      ))}
+   181→  1372→
+   182→  1373→                      {aiTyping && <AITypingIndicator />}
+   183→  1374→
+   184→  1375→                      {aiMessages.length > 0 && (
+   185→  1376→                        <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+   186→  1377→                          {aiSuggestions.slice(0, 3).map((suggestion) => (
+   187→  1378→                            <motion.button
+   188→  1379→                              key={suggestion}
+   189→  1380→                              whileHover={{ scale: 1.05 }}
+   190→  1381→                              whileTap={{ scale: 0.95 }}
+   191→  1382→                              onClick={() => handleAISuggestion(suggestion)}
+   192→  1383→                              className="px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 hover:bg-violet-500/20 transition-all"
+   193→  1384→                            >
+   194→  1385→                              {suggestion}
+   195→  1386→                            </motion.button>
+   196→  1387→                          ))}
+   197→  1388→                        </div>
+   198→  1389→                      )}
+   199→  1390→
+   200→  1391→                      <div ref={aiEndRef} />
+   201→  1392→                    </div>
+   202→  1393→                  </ScrollArea>
+   203→  1394→                  <div className="p-3 border-t border-white/10 bg-white/[0.02]">
+   204→  1395→                    <div className="flex gap-2">
+   205→  1396→                      <Input
+   206→  1397→                        value={aiInput}
+   207→  1398→                        onChange={(e) => setAiInput(e.target.value)}
+   208→  1399→                        onKeyDown={(e) => e.key === 'Enter' && handleSendAI()}
+   209→  1400→                        placeholder="Ask AI something..."
+   210→  1401→                        className="bg-white/5 border-white/10 text-sm h-9 placeholder:text-white/25 focus:border-violet-500/50 rounded-xl"
+   211→  1402→                      />
+   212→  1403→                      <Button size="icon" onClick={handleSendAI} className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-700 rounded-xl">
+   213→  1404→                        <Send size={14} />
+   214→  1405→                      </Button>
+   215→  1406→                    </div>
+   216→  1407→                  </div>
+   217→  1408→                </div>
+   218→  1409→              )}
+   219→  1410→
+   220→  1411→              {/* ── Polls Tab ── */}
+   221→  1412→              {meetingSidebarTab === 'polls' && (
+   222→  1413→                <div className="flex flex-col h-full">
+   223→  1414→                  <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+   224→  1415→                    <div>
+   225→  1416→                      <h3 className="text-sm font-semibold">Polls</h3>
+   226→  1417→                      <p className="text-[10px] text-white/30">Vote and create polls</p>
+   227→  1418→                    </div>
+   228→  1419→                    <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg">
+   229→  1420→                      <Plus size={12} className="mr-1" /> Create
+   230→  1421→                    </Button>
+   231→  1422→                  </div>
+   232→  1423→                  <ScrollArea className="flex-1">
+   233→  1424→                    <div className="p-3 space-y-4">
+   234→  1425→                      {mockPolls.map((poll) => (
+   235→  1426→                        <motion.div
+   236→  1427→                          key={poll.id}
+   237→  1428→                          initial={{ opacity: 0, y: 8 }}
+   238→  1429→                          animate={{ opacity: 1, y: 0 }}
+   239→  1430→                          className="bg-white/[0.03] rounded-2xl p-4 border border-white/5 hover:border-white/10 transition-colors"
+   240→  1431→                        >
+   241→  1432→                          <h4 className="text-sm font-semibold mb-1">{poll.question}</h4>
+   242→  1433→                          <p className="text-[10px] text-white/30 mb-3">{poll.totalVotes} total votes</p>
+   243→  1434→                          <div className="space-y-2">
+   244→  1435→                            {poll.options.map((opt) => {
+   245→  1436→                              const hasVoted = votedPolls[poll.id] === opt.label || opt.voted;
+   246→  1437→                              return (
+   247→  1438→                                <motion.button
+   248→  1439→                                  key={opt.label}
+   249→  1440→                                  whileHover={{ scale: 1.01 }}
+   250→  1441→                                  whileTap={{ scale: 0.99 }}
+   251→  1442→                                  onClick={() => !votedPolls[poll.id] && handleVotePoll(poll.id, opt.label)}
+   252→  1443→                                  className={`w-full text-left rounded-xl p-2.5 border transition-all ${
+   253→  1444→                                    hasVoted
+   254→  1445→                                      ? 'border-violet-500/30 bg-violet-500/5'
+   255→  1446→                                      : 'border-white/5 hover:border-white/15 hover:bg-white/5'
+   256→  1447→                                  }`}
+   257→  1448→                                >
+   258→  1449→                                  <div className="flex items-center justify-between text-xs mb-1.5">
+   259→  1450→                                    <span className={`font-medium ${hasVoted ? 'text-violet-300' : 'text-white/80'}`}>{opt.label}</span>
+   260→  1451→                                    <div className="flex items-center gap-1.5">
+   261→  1452→                                      <span className="text-white/40 font-mono">{opt.percentage}%</span>
+   262→  1453→                                      {hasVoted && <CheckCircle2 size={12} className="text-violet-400" />}
+   263→  1454→                                    </div>
+   264→  1455→                                  </div>
+   265→  1456→                                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+   266→  1457→                                    <motion.div
+   267→  1458→                                      className={`h-full rounded-full ${hasVoted ? 'bg-violet-500' : 'bg-white/20'}`}
+   268→  1459→                                      initial={{ width: 0 }}
+   269→  1460→                                      animate={{ width: `${opt.percentage}%` }}
+   270→  1461→                                      transition={{ duration: 0.8, ease: 'easeOut' }}
+   271→  1462→                                    />
+   272→  1463→                                  </div>
+   273→  1464→                                </motion.button>
+   274→  1465→                              );
+   275→  1466→                            })}
+   276→  1467→                          </div>
+   277→  1468→                        </motion.div>
+   278→  1469→                      ))}
+   279→  1470→                    </div>
+   280→  1471→                  </ScrollArea>
+   281→  1472→                </div>
+   282→  1473→              )}
+   283→  1474→
+   284→  1475→              {/* ── Breakout Rooms Tab ── */}
+   285→  1476→              {meetingSidebarTab === 'breakout' && (
+   286→  1477→                <BreakoutRoomsPanel
+   287→  1478→                  rooms={breakoutRooms}
+   288→  1479→                  timerActive={breakoutTimerActive}
+   289→  1480→                  editingRoomId={editingRoomId}
+   290→  1481→                  editingRoomName={editingRoomName}
+   291→  1482→                  onSetEditingRoomId={setEditingRoomId}
+   292→  1483→                  onSetEditingRoomName={setEditingRoomName}
+   293→  1484→                  onCreateRoom={handleCreateBreakoutRoom}
+   294→  1485→                  onDeleteRoom={handleDeleteBreakoutRoom}
+   295→  1486→                  onRenameRoom={handleRenameBreakoutRoom}
+   296→  1487→                  onAutoAssign={handleAutoAssign}
+   297→  1488→                  onCloseAll={handleCloseAllRooms}
+   298→  1489→                  onJoinRoom={handleJoinBreakoutRoom}
+   299→  1490→                  onStartTimer={() => {
+   300→  1491→                    setBreakoutTimerActive(true);
+   301→  1492→                    if (!breakoutTimerActive) setBreakoutRooms(prev => prev.map(r => ({ ...r, timerSeconds: 600 })));
+   302→  1493→                    toast.success('Timer started');
+   303→  1494→                  }}
+   304→  1495→                  onResetTimer={() => {
+   305→  1496→                    setBreakoutRooms(prev => prev.map(r => ({ ...r, timerSeconds: 600 })));
+   306→  1497→                    setBreakoutTimerActive(false);
+   307→  1498→                    toast.success('Timer reset');
+   308→  1499→                  }}
+   309→  1500→                />
+   310→  1501→              )}
+   311→  1502→            </div>
+   312→  1503→          </motion.div>
+   313→  1504→        )}
+   314→  1505→      </AnimatePresence>
+   315→  1506→    </div>
+   316→  1507→    </TooltipProvider>
+   317→  1508→  );
+   318→  1509→}
+   319→  1510→
+   320→  1511→// ─── Participant Tile Component ────────────────────────────────
+   321→  1512→function ParticipantTile({
+   322→  1513→  participant,
+   323→  1514→  isSpeaker = false,
+   324→  1515→  isPinned = false,
+   325→  1516→  isHandRaised = false,
+   326→  1517→  onPin,
+   327→  1518→  index = 0,
+   328→  1519→  compact = false,
+   329→  1520→}: {
+   330→  1521→  participant: Participant;
+   331→  1522→  isSpeaker?: boolean;
+   332→  1523→  isPinned?: boolean;
+   333→  1524→  isHandRaised?: boolean;
+   334→  1525→  onPin?: () => void;
+   335→  1526→  index?: number;
+   336→  1527→  compact?: boolean;
+   337→  1528→}) {
+   338→  1529→  const [hovered, setHovered] = useState(false);
+   339→  1530→  const gradient = getGradient(participant.color);
+   340→  1531→
+   341→  1532→  return (
+   342→  1533→    <motion.div
+   343→  1534→      initial={{ opacity: 0, scale: 0.95 }}
+   344→  1535→      animate={{ opacity: 1, scale: 1 }}
+   345→  1536→      transition={{ delay: index * 0.05, type: 'spring', stiffness: 260, damping: 20 }}
+   346→  1537→      onMouseEnter={() => setHovered(true)}
+   347→  1538→      onMouseLeave={() => setHovered(false)}
+   348→  1539→      className={`relative w-full h-full rounded-2xl overflow-hidden flex items-center justify-center transition-all duration-300 ${
+   349→  1540→        isPinned ? 'ring-2 ring-violet-500/60 ring-offset-2 ring-offset-slate-950' :
+   350→  1541→        isSpeaker ? 'ring-1 ring-white/10' : 'ring-1 ring-white/[0.06]'
+   351→  1542→      } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'}`}
+   352→  1543→    >
+   353→  1544→      {/* Gradient Background */}
+   354→  1545→      <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+   355→  1546→
+   356→  1547→      {/* Subtle noise texture overlay */}
+   357→  1548→      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }} />
+   358→  1549→
+   359→  1550→      {/* Avatar Placeholder */}
+   360→  1551→      <div className="relative z-10 flex flex-col items-center gap-2">
+   361→  1552→        <motion.div
+   362→  1553→          whileHover={{ scale: 1.05 }}
+   363→  1554→          className={`rounded-full ${participant.color} flex items-center justify-center text-white font-bold shadow-lg ${
+   364→  1555→            compact ? 'w-10 h-10 text-sm' : 'w-16 h-16 sm:w-20 sm:h-20 text-xl sm:text-2xl'
+   365→  1556→          }`}
+   366→  1557→          style={{ boxShadow: `0 8px 32px ${participant.color.replace('bg-', '')}40` }}
+   367→  1558→        >
+   368→  1559→          {participant.initials}
+   369→  1560→        </motion.div>
+   370→  1561→        {participant.videoOn && !compact && (
+   371→  1562→          <span className="text-[10px] text-white/40 font-medium">Camera active</span>
+   372→  1563→        )}
+   373→  1564→      </div>
+   374→  1565→
+   375→  1566→      {/* Audio Level Indicator (when mic on, bottom-left) */}
+   376→  1567→      {participant.micOn && !compact && (
+   377→  1568→        <div className="absolute bottom-3 left-3 z-20 bg-black/40 backdrop-blur-sm rounded-lg px-1.5 py-1">
+   378→  1569→          <AudioLevelBars />
+   379→  1570→        </div>
+   380→  1571→      )}
+   381→  1572→
+   382→  1573→      {/* Hand Raised Floating Indicator */}
+   383→  1574→      <AnimatePresence>
+   384→  1575→        {isHandRaised && (
+   385→  1576→          <motion.div
+   386→  1577→            initial={{ opacity: 0, y: 10, scale: 0.5 }}
+   387→  1578→            animate={{ opacity: 1, y: 0, scale: 1 }}
+   388→  1579→            exit={{ opacity: 0, y: 10, scale: 0.5 }}
+   389→  1580→            className="absolute top-3 left-3 z-20"
+   390→  1581→          >
+   391→  1582→            <motion.div
+   392→  1583→              animate={{ y: [0, -4, 0] }}
+   393→  1584→              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+   394→  1585→              className="flex items-center gap-1.5 bg-amber-500/20 backdrop-blur-sm border border-amber-500/30 rounded-full px-2.5 py-1"
+   395→  1586→            >
+   396→  1587→              <Hand size={12} className="text-amber-400" />
+   397→  1588→              {!compact && <span className="text-[10px] font-medium text-amber-300">Raised</span>}
+   398→  1589→            </motion.div>
+   399→  1590→          </motion.div>
+   400→  1591→        )}
+   401→  1592→      </AnimatePresence>
+   402→  1593→
+   403→  1594→      {/* Pin Button (top-right, on hover) */}
+   404→  1595→      <AnimatePresence>
+   405→  1596→        {hovered && (
+   406→  1597→          <motion.button
+   407→  1598→            initial={{ opacity: 0, scale: 0.8 }}
+   408→  1599→            animate={{ opacity: 1, scale: 1 }}
+   409→  1600→            exit={{ opacity: 0, scale: 0.8 }}
+   410→  1601→            onClick={onPin}
+   411→  1602→            className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+   412→  1603→              isPinned ? 'bg-violet-500 text-white' : 'bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60'
+   413→  1604→            }`}
+   414→  1605→          >
+   415→  1606→            {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+   416→  1607→          </motion.button>
+   417→  1608→        )}
+   418→  1609→      </AnimatePresence>
+   419→  1610→
+   420→  1611→      {/* Name Label + Role Badge (bottom) */}
+   421→  1612→      <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/30 to-transparent pt-8 pb-2.5 px-3">
+   422→  1613→        <div className="flex items-center justify-between">
+   423→  1614→          <div className="flex items-center gap-2 min-w-0">
+   424→  1615→            <span className={`font-medium truncate ${compact ? 'text-[11px]' : 'text-sm'}`}>{participant.name}</span>
+   425→  1616→            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium border shrink-0 ${getRoleBadgeClass(participant.role)}`}>
+   426→  1617→              {participant.role}
+   427→  1618→            </span>
+   428→  1619→          </div>
+   429→  1620→          <div className="flex items-center gap-1.5 shrink-0">
+   430→  1621→            {!participant.micOn && <MicOff size={compact ? 12 : 14} className="text-red-400" />}
+   431→  1622→            {!participant.videoOn && <VideoOff size={compact ? 12 : 14} className="text-white/30" />}
+   432→  1623→          </div>
+   433→  1624→        </div>
+   434→  1625→      </div>
+   435→  1626→    </motion.div>
+   436→  1627→  );
+   437→  1628→}
+   438→  1629→
+   439→  1630→// ─── Breakout Rooms Panel Component ──────────────────────────
+   440→  1631→function BreakoutRoomsPanel({
+   441→  1632→  rooms,
+   442→  1633→  timerActive,
+   443→  1634→  editingRoomId,
+   444→  1635→  editingRoomName,
+   445→  1636→  onSetEditingRoomId,
+   446→  1637→  onSetEditingRoomName,
+   447→  1638→  onCreateRoom,
+   448→  1639→  onDeleteRoom,
+   449→  1640→  onRenameRoom,
+   450→  1641→  onAutoAssign,
+   451→  1642→  onCloseAll,
+   452→  1643→  onJoinRoom,
+   453→  1644→  onStartTimer,
+   454→  1645→  onResetTimer,
+   455→  1646→}: {
+   456→  1647→  rooms: BreakoutRoom[];
+   457→  1648→  timerActive: boolean;
+   458→  1649→  editingRoomId: string | null;
+   459→  1650→  editingRoomName: string;
+   460→  1651→  onSetEditingRoomId: (id: string | null) => void;
+   461→  1652→  onSetEditingRoomName: (name: string) => void;
+   462→  1653→  onCreateRoom: () => void;
+   463→  1654→  onDeleteRoom: (id: string) => void;
+   464→  1655→  onRenameRoom: (id: string) => void;
+   465→  1656→  onAutoAssign: () => void;
+   466→  1657→  onCloseAll: () => void;
+   467→  1658→  onJoinRoom: (name: string) => void;
+   468→  1659→  onStartTimer: () => void;
+   469→  1660→  onResetTimer: () => void;
+   470→  1661→}) {
+   471→  1662→  const getTimerColor = (seconds: number) => {
+   472→  1663→    if (seconds <= 60) return 'text-red-400';
+   473→  1664→    if (seconds <= 180) return 'text-yellow-400';
+   474→  1665→    return 'text-emerald-400';
+   475→  1666→  };
+   476→  1667→
+   477→  1668→  const formatCountdown = (seconds: number) => {
+   478→  1669→    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+   479→  1670→    const s = (seconds % 60).toString().padStart(2, '0');
+   480→  1671→    return `${m}:${s}`;
+   481→  1672→  };
+   482→  1673→
+   483→  1674→  // Global min timer across all rooms
+   484→  1675→  const globalMinTimer = rooms.length > 0 ? Math.min(...rooms.map(r => r.timerSeconds)) : 0;
+   485→  1676→
+   486→  1677→  return (
+   487→  1678→    <div className="flex flex-col h-full">
+   488→  1679→      {/* Header */}
+   489→  1680→      <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+   490→  1681→        <div className="flex items-center gap-2">
+   491→  1682→          <h3 className="text-sm font-semibold">Breakout Rooms</h3>
+   492→  1683→          <Badge variant="secondary" className="h-5 text-[10px] bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/20">
+   493→  1684→            {rooms.length}
+   494→  1685→          </Badge>
+   495→  1686→        </div>
+   496→  1687→        <div className="flex items-center gap-1.5">
+   497→  1688→          {rooms.length > 0 && (
+   498→  1689→            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono ${getTimerColor(globalMinTimer)}`}>
+   499→  1690→              <Clock size={11} />
+   500→  1691→              {formatCountdown(globalMinTimer)}
+   501→  1692→            </div>
+   502→  1693→          )}
+   503→  1694→          <Button
+   504→  1695→            size="sm"
+   505→  1696→            onClick={onCreateRoom}
+   506→  1697→            disabled={rooms.length >= 8}
+   507→  1698→            className="h-7 text-xs bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-40"
+   508→  1699→          >
+   509→  1700→            <Plus size={12} className="mr-1" /> Create Room
+   510→  1701→          </Button>
+   511→  1702→        </div>
+   512→  1703→      </div>
+   513→  1704→
+   514→  1705→      {/* Action Buttons */}
+   515→  1706→      {rooms.length > 0 && (
+   516→  1707→        <div className="px-3 py-2 border-b border-white/10 bg-white/[0.01] flex items-center gap-2">
+   517→  1708→          <Button
+   518→  1709→            size="sm"
+   519→  1710→            variant="outline"
+   520→  1711→            onClick={onAutoAssign}
+   521→  1712→            className="h-7 text-[11px] border-white/10 hover:bg-white/10 text-white/70 hover:text-white rounded-lg"
+   522→  1713→          >
+   523→  1714→            <Shuffle size={12} className="mr-1" /> Auto-assign
+   524→  1715→          </Button>
+   525→  1716→          <Button
+   526→  1717→            size="sm"
+   527→  1718→            variant="outline"
+   528→  1719→            onClick={timerActive ? onResetTimer : onStartTimer}
+   529→  1720→            className="h-7 text-[11px] border-white/10 hover:bg-white/10 text-white/70 hover:text-white rounded-lg"
+   530→  1721→          >
+   531→  1722→            <Clock size={12} className="mr-1" /> {timerActive ? 'Reset Timer' : 'Start Timer'}
+   532→  1723→          </Button>
+   533→  1724→          <div className="flex-1" />
+   534→  1725→          <Button
+   535→  1726→            size="sm"
+   536→  1727→            variant="destructive"
+   537→  1728→            onClick={onCloseAll}
+   538→  1729→            className="h-7 text-[11px] rounded-lg"
+   539→  1730→          >
+   540→  1731→            <X size={12} className="mr-1" /> Close All
+   541→  1732→          </Button>
+   542→  1733→        </div>
+   543→  1734→      )}
+   544→  1735→
+   545→  1736→      {/* Rooms List */}
+   546→  1737→      <ScrollArea className="flex-1">
+   547→  1738→        <div className="p-3 space-y-2.5">
+   548→  1739→          <AnimatePresence>
+   549→  1740→            {rooms.map((room) => {
+   550→  1741→              const participants = room.participantIds
+   551→  1742→                .map(id => mockParticipants.find(p => p.id === id))
+   552→  1743→                .filter(Boolean) as Participant[];
+   553→  1744→
+   554→  1745→              return (
+   555→  1746→                <motion.div
+   556→  1747→                  key={room.id}
+   557→  1748→                  layout
+   558→  1749→                  initial={{ opacity: 0, x: 20, scale: 0.95 }}
+   559→  1750→                  animate={{ opacity: 1, x: 0, scale: 1 }}
+   560→  1751→                  exit={{ opacity: 0, x: -20, scale: 0.95 }}
+   561→  1752→                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+   562→  1753→                  className="border border-border/50 rounded-lg p-3 bg-gradient-to-r from-primary/5 to-transparent hover:shadow-md hover:shadow-primary/5 transition-all duration-200"
+   563→  1754→                >
+   564→  1755→                  <div className="flex items-start justify-between mb-2.5">
+   565→  1756→                    <div className="flex-1 min-w-0">
+   566→  1757→                      {editingRoomId === room.id ? (
+   567→  1758→                        <div className="flex items-center gap-1.5">
+   568→  1759→                          <input
+   569→  1760→                            value={editingRoomName}
+   570→  1761→                            onChange={(e) => onSetEditingRoomName(e.target.value)}
+   571→  1762→                            onKeyDown={(e) => {
+   572→  1763→                              if (e.key === 'Enter') onRenameRoom(room.id);
+   573→  1764→                              if (e.key === 'Escape') onSetEditingRoomId(null);
+   574→  1765→                            }}
+   575→  1766→                            onBlur={() => onRenameRoom(room.id)}
+   576→  1767→                            autoFocus
+   577→  1768→                            className="bg-white/10 border border-white/20 rounded-md px-2 py-0.5 text-xs outline-none focus:border-violet-500/50 w-full"
+   578→  1769→                          />
+   579→  1770→                        </div>
+   580→  1771→                      ) : (
+   581→  1772→                        <button
+   582→  1773→                          onClick={() => { onSetEditingRoomId(room.id); onSetEditingRoomName(room.name); }}
+   583→  1774→                          className="text-sm font-semibold text-left truncate hover:text-violet-300 transition-colors"
+   584→  1775→                        >
+   585→  1776→                          {room.name}
+   586→  1777→                        </button>
+   587→  1778→                      )}
+   588→  1779→                    </div>
+   589→  1780→                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+   590→  1781→                      {/* Timer */}
+   591→  1782→                      <span className={`text-[11px] font-mono ${getTimerColor(room.timerSeconds)}`}>
+   592→  1783→                        {formatCountdown(room.timerSeconds)}
+   593→  1784→                      </span>
+   594→  1785→                      <button
+   595→  1786→                        onClick={() => onDeleteRoom(room.id)}
+   596→  1787→                        className="w-6 h-6 rounded-md flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+   597→  1788→                      >
+   598→  1789→                        <X size={12} />
+   599→  1790→                      </button>
+   600→  1791→                    </div>
+   601→  1792→                  </div>
+   602→  1793→
+   603→  1794→                  {/* Participant avatar stack */}
+   604→  1795→                  <div className="flex items-center justify-between">
+   605→  1796→                    <div className="flex items-center">
+   606→  1797→                      <div className="flex -space-x-2">
+   607→  1798→                        {participants.slice(0, 4).map((p) => (
+   608→  1799→                          <Avatar key={p.id} className="w-7 h-7 ring-2 ring-slate-950">
+   609→  1800→                            <AvatarFallback className={`${p.color} text-white text-[9px] font-bold`}>{p.initials}</AvatarFallback>
+   610→  1801→                          </Avatar>
+   611→  1802→                        ))}
+   612→  1803→                        {participants.length > 4 && (
+   613→  1804→                          <div className="w-7 h-7 rounded-full bg-white/10 ring-2 ring-slate-950 flex items-center justify-center text-[9px] font-medium text-white/60">
+   614→  1805→                            +{participants.length - 4}
+   615→  1806→                          </div>
+   616→  1807→                        )}
+   617→  1808→                      </div>
+   618→  1809→                      <span className="text-[10px] text-white/40 ml-2.5">{participants.length} {participants.length === 1 ? 'person' : 'people'}</span>
+   619→  1810→                    </div>
+   620→  1811→                    <Button
+   621→  1812→                      size="sm"
+   622→  1813→                      onClick={() => onJoinRoom(room.name)}
+   623→  1814→                      className="h-7 text-[11px] bg-white/10 hover:bg-white/20 text-white rounded-lg"
+   624→  1815→                    >
+   625→  1816→                      Join <ArrowRight size={12} className="ml-1" />
+   626→  1817→                    </Button>
+   627→  1818→                  </div>
+   628→  1819→                </motion.div>
+   629→  1820→              );
+   630→  1821→            })}
+   631→  1822→          </AnimatePresence>
+   632→  1823→
+   633→  1824→          {rooms.length === 0 && (
+   634→  1825→            <div className="flex flex-col items-center justify-center py-10 text-center">
+   635→  1826→              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
+   636→  1827→                <LayoutGrid size={24} className="text-white/20" />
+   637→  1828→              </div>
+   638→  1829→              <p className="text-sm text-white/40 mb-1">No breakout rooms</p>
+   639→  1830→              <p className="text-[11px] text-white/20">Create a room to split participants into groups</p>
+   640→  1831→            </div>
+   641→  1832→          )}
+   642→  1833→        </div>
+   643→  1834→      </ScrollArea>
+   644→  1835→    </div>
+   645→  1836→  );
+   646→  1837→}
+   647→  1838→
+   648→  1839→// ─── Toolbar Button Component ──────────────────────────────────
+   649→  1840→function ToolbarButton({
+   650→  1841→  icon,
+   651→  1842→  label,
+   652→  1843→  onClick,
+   653→  1844→  active = false,
+   654→  1845→  glowColor,
+   655→  1846→}: {
+   656→  1847→  icon: React.ReactNode;
+   657→  1848→  label: string;
+   658→  1849→  onClick: () => void;
+   659→  1850→  active?: boolean;
+   660→  1851→  glowColor?: 'emerald' | 'sky' | 'amber' | 'red';
+   661→  1852→}) {
+   662→  1853→  const glowClasses: Record<string, string> = {
+   663→  1854→    emerald: 'shadow-[0_0_12px_rgba(16,185,129,0.3)] ring-emerald-500/30',
+   664→  1855→    sky: 'shadow-[0_0_12px_rgba(14,165,233,0.3)] ring-sky-500/30',
+   665→  1856→    amber: 'shadow-[0_0_12px_rgba(245,158,11,0.3)] ring-amber-500/30',
+   666→  1857→    red: 'shadow-[0_0_12px_rgba(239,68,68,0.3)] ring-red-500/30',
+   667→  1858→  };
+   668→  1859→
+   669→  1860→  const inactiveStateClasses: Record<string, string> = {
+   670→  1861→    emerald: 'text-red-400',
+   671→  1862→    sky: 'text-sky-400',
+   672→  1863→    amber: 'text-amber-400',
+   673→  1864→    red: 'text-red-500',
+   674→  1865→  };
+   675→  1866→
+   676→  1867→  return (
+   677→  1868→    <Tooltip>
+   678→  1869→      <TooltipTrigger asChild>
+   679→  1870→        <motion.button
+   680→  1871→          whileHover={{ scale: 1.08 }}
+   681→  1872→          whileTap={{ scale: 0.92 }}
+   682→  1873→          onClick={onClick}
+   683→  1874→          className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all ${
+   684→  1875→            active && glowColor
+   685→  1876→              ? `text-white bg-white/10 ring-1 ${glowClasses[glowColor]}`
+   686→  1877→              : active
+   687→  1878→                ? 'text-white bg-white/15'
+   688→  1879→                : glowColor && !active
+   689→  1880→                  ? `${inactiveStateClasses[glowColor]} bg-white/5 hover:bg-white/10`
+   690→  1881→                  : 'text-white/80 bg-white/5 hover:bg-white/15'
+   691→  1882→          }`}
+   692→  1883→        >
+   693→  1884→          {icon}
+   694→  1885→        </motion.button>
+   695→  1886→      </TooltipTrigger>
+   696→  1887→      <TooltipContent side="top" className="bg-slate-800/95 backdrop-blur-xl text-white border-white/10 text-xs rounded-lg">
+   697→  1888→        {label}
+   698→  1889→      </TooltipContent>
+   699→  1890→    </Tooltip>
+   700→  1891→  );
+   701→  1892→}
+   702→  1893→

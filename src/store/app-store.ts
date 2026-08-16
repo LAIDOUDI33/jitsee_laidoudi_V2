@@ -18,6 +18,7 @@ export type AppView =
   | 'calendar'
   | 'events'
   | 'whiteboard'
+  | 'analytics'
   | 'admin'
   | 'admin-users'
   | 'admin-orgs'
@@ -65,8 +66,8 @@ interface AppState {
   setMeetingTitle: (title: string) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
-  meetingSidebarTab: 'chat' | 'participants' | 'ai' | 'polls'
-  setMeetingSidebarTab: (tab: 'chat' | 'participants' | 'ai' | 'polls') => void
+  meetingSidebarTab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout'
+  setMeetingSidebarTab: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => void
   
   // Notifications
   notificationCount: number

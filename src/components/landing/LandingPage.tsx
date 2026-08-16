@@ -28,7 +28,11 @@ import {
   Check,
   Zap,
   ChevronRight,
+  ChevronDown,
   Calendar,
+  Clock,
+  User,
+  MousePointer2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -302,6 +306,13 @@ const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
+const HERO_STATS = [
+  { icon: Building2, value: '10K+', label: 'Organizations' },
+  { icon: Clock, value: '500M+', label: 'Meeting Minutes' },
+  { icon: Activity, value: '99.99%', label: 'Uptime' },
+  { icon: Globe, value: '150+', label: 'Countries' },
+] as const;
+
 /* -------------------------------------------------------------------------- */
 /*                              HELPER FUNCTIONS                             */
 /* -------------------------------------------------------------------------- */
@@ -433,7 +444,7 @@ export default function LandingPage() {
         {/* ============================================================== */}
         {/* 1. HERO SECTION                                             */}
         {/* ============================================================== */}
-        <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden">
+        <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden" id="hero">
           {/* Animated gradient mesh background with floating orbs */}
           <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30" />
@@ -459,7 +470,9 @@ export default function LandingPage() {
             />\n          </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-16">
-            <div className="flex flex-col items-center text-center">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              {/* Left column: Headline + CTA */}
+              <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
               {/* Headline */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
@@ -530,33 +543,38 @@ export default function LandingPage() {
                         onKeyDown={(e) =>
                           e.key === 'Enter' && handleStartMeeting()
                         }
-                        className="flex-1 h-11 rounded-lg border border-input bg-background px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all"
+                        className="flex-1 h-11 rounded-lg border border-input bg-background px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
                       />
-                      <Button
-                        onClick={handleStartMeeting}
-                        disabled={starting}
-                        className="h-11 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold shadow-lg shadow-blue-500/25 transition-all"
-                      >
-                        {starting ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Creating...
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-2">
-                            <Video className="w-4 h-4" />
-                            Start Meeting
-                          </span>
-                        )}
-                      </Button>
+                      <div className="relative">
+                        {/* Glow effect behind Start Meeting button */}
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-violet-600 rounded-lg blur-md opacity-40 -z-10" />
+                        <Button
+                          onClick={handleStartMeeting}
+                          disabled={starting}
+                          className="relative h-11 px-6 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-500 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          {starting ? (
+                            <span className="flex items-center gap-2">
+                              <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Creating...
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <Video className="w-4 h-4" />
+                              Start Meeting
+                              </span>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <div className="flex gap-3 mt-3">
                       <Button
                         variant="outline"
-                        className="flex-1 h-10 text-sm"
+                        className="flex-1 h-10 text-sm relative overflow-hidden group"
                       >
-                        <ChevronRight className="w-4 h-4 mr-1.5" />
-                        Join Meeting
+                        <span className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-300" />
+                        <ChevronRight className="w-4 h-4 mr-1.5 relative z-10" />
+                        <span className="relative z-10">Join Meeting</span>
                       </Button>
                       <Button
                         variant="ghost"
@@ -572,7 +590,7 @@ export default function LandingPage() {
 
               {/* Trust Badges */}
               <motion.div
-                className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-3"
+                className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' }}
@@ -582,11 +600,112 @@ export default function LandingPage() {
                     key={badge.label}
                     className="flex items-center gap-2 text-muted-foreground text-sm"
                   >
-                    <badge.icon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <badge.icon className="w-4 h-4 text-primary/70" />
                     <span className="font-medium">{badge.label}</span>
                   </div>
                 ))}
               </motion.div>
+              </div>
+
+              {/* Right column: Animated Video Call Illustration (desktop only) */}
+              <div className="hidden lg:block relative">
+                <motion.div
+                  initial={{ opacity: 0, x: 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+                  className="relative rounded-2xl bg-white/5 dark:bg-white/[0.03] backdrop-blur-md border border-white/10 dark:border-white/5 p-4 shadow-2xl"
+                >
+                  {/* 2x2 video grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { name: 'Sarah Chen', color: 'from-blue-500/30 to-cyan-500/20', active: true, delay: 0.4 },
+                      { name: 'James Miller', color: 'from-violet-500/30 to-purple-500/20', active: false, delay: 0.5 },
+                      { name: 'Aiko Tanaka', color: 'from-emerald-500/30 to-teal-500/20', active: false, delay: 0.6 },
+                      { name: 'Carlos Ruiz', color: 'from-orange-500/30 to-amber-500/20', active: false, delay: 0.7 },
+                    ].map((participant) => (
+                      <motion.div
+                        key={participant.name}
+                        initial={{ opacity: 0, scale: 0.85, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: participant.delay, ease: 'easeOut' }}
+                        className={`relative rounded-xl bg-gradient-to-br ${participant.color} p-4 flex flex-col items-center justify-center gap-2 min-h-[120px] ${participant.active ? 'ring-2 ring-primary/50' : ''}`}
+                      >
+                        {participant.active && (
+                          <motion.div
+                            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500"
+                            animate={{ scale: [1, 1.3, 1] }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                          />
+                        )}
+                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${participant.color} border-2 border-white/20 flex items-center justify-center`}>
+                          <User className="w-6 h-6 text-white/80" />
+                        </div>
+                        <span className="text-xs font-medium text-foreground/80">{participant.name}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Floating AI Assistant Bubble */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.6, delay: 0.9, type: 'spring', bounce: 0.4 }}
+                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-violet-600 px-4 py-2 shadow-lg shadow-primary/30"
+                  >
+                    <motion.div
+                      animate={{ rotate: [0, 15, -15, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
+                    >
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </motion.div>
+                    <span className="text-xs font-semibold text-white">AI Assistant Active</span>
+                  </motion.div>
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Scroll indicator */}
+            <motion.div
+              className="flex flex-col items-center mt-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, delay: 1.2 }}
+            >
+              <motion.div
+                animate={{ y: [0, 8, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className="flex flex-col items-center gap-1.5 text-muted-foreground/50"
+              >
+                <MousePointer2 className="w-5 h-5" />
+                <ChevronDown className="w-4 h-4" />
+              </motion.div>
+              <span className="text-xs text-muted-foreground/40 mt-1 font-medium">Scroll to explore</span>
+            </motion.div>
+          </div>
+
+          {/* Hero Stats Row */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+                {HERO_STATS.map((stat, i) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' }}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <stat.icon className="w-5 h-5 text-primary/70" />
+                    </div>
+                    <div>
+                      <div className="text-xl lg:text-2xl font-bold tracking-tight">{stat.value}</div>
+                      <div className="text-xs text-muted-foreground font-medium">{stat.label}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
