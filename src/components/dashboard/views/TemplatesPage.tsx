@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -105,10 +105,27 @@ const initialTemplates: Template[] = [
   { id: 't8', name: 'Office Hours', description: 'Open drop-in sessions for questions and support.', duration: '60min', maxParticipants: '20', settings: ['AI Assistant'], icon: <HeadphonesIcon className='h-5 w-5 text-white' />, gradient: 'from-teal-500 to-cyan-500', iconBg: 'from-teal-500 to-cyan-600' },
 ]
 
+const STORAGE_KEY = 'alvision_custom_templates'
+
+function loadCustomTemplates(): Template[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveCustomTemplates(templates: Template[]) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
+  } catch { /* ignore */ }
+}
+
 export default function TemplatesPage() {
   const { setCurrentView } = useAppStore()
   const [featured, setFeatured] = useState<FeaturedTemplate[]>(initialFeatured)
-  const [templates, setTemplates] = useState<Template[]>(initialTemplates)
+  const [templates, setTemplates] = useState<Template[]>([...initialTemplates, ...loadCustomTemplates()])
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -148,14 +165,19 @@ export default function TemplatesPage() {
     if (form.muteOnEntry) settings.push('Mute on Entry')
 
     if (editId) {
-      setTemplates(prev => prev.map(t => t.id === editId ? { ...t, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings } : t))
+      const isBuiltin = initialTemplates.some(t => t.id === editId)
+      const updated = templates.map(t => t.id === editId ? { ...t, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings } : t)
+      setTemplates(updated)
+      if (!isBuiltin) saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
       toast.success(`Template "${form.name}" updated!`)
     } else {
       const newTemplate: Template = {
-        id: `t-${Date.now()}`, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings,
+        id: `custom-${Date.now()}`, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings,
         icon: <LayoutTemplate className='h-5 w-5 text-white' />, gradient: 'from-sky-500 to-blue-500', iconBg: 'from-sky-500 to-blue-600',
       }
-      setTemplates(prev => [...prev, newTemplate])
+      const updated = [...templates, newTemplate]
+      setTemplates(updated)
+      saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
       toast.success(`Template "${form.name}" created!`)
     }
     setBuilderOpen(false)
@@ -165,13 +187,23 @@ export default function TemplatesPage() {
   const handleDuplicate = (id: string) => {
     const t = templates.find(x => x.id === id)
     if (!t) return
-    const dup: Template = { ...t, id: `t-${Date.now()}`, name: `${t.name} (Copy)` }
-    setTemplates(prev => [...prev, dup])
+    const isBuiltin = initialTemplates.some(b => b.id === t.id)
+    const dup: Template = { ...t, id: `custom-${Date.now()}`, name: `${t.name} (Copy)` }
+    const updated = [...templates, dup]
+    setTemplates(updated)
+    if (!isBuiltin) saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
     toast.success(`Template duplicated!`)
   }
 
   const handleDelete = (id: string) => {
-    setTemplates(prev => prev.filter(t => t.id !== id))
+    const isBuiltin = initialTemplates.some(t => t.id === id)
+    if (isBuiltin) {
+      toast.error('Cannot delete built-in templates')
+      return
+    }
+    const updated = templates.filter(t => t.id !== id)
+    setTemplates(updated)
+    saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
     toast.success('Template deleted.')
   }
 

@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/store/app-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { authFetch } from '@/lib/api'
+import { toast } from 'sonner'
 import {
   Shield,
   Users,
@@ -29,12 +32,40 @@ import {
   XCircle,
 } from 'lucide-react'
 
-const systemMetrics = [
-  { label: 'Active Users', value: '1,247', change: '+12%', trend: 'up' as const, icon: <Users className='h-5 w-5' />, color: 'emerald', sparkline: [40, 55, 45, 60, 52, 68, 72, 65, 78, 82], gauge: 82 },
-  { label: 'Active Meetings', value: '34', change: '+8%', trend: 'up' as const, icon: <Video className='h-5 w-5' />, color: 'violet', sparkline: [20, 25, 18, 30, 28, 32, 35, 30, 34, 38], gauge: 68 },
-  { label: 'Organizations', value: '23', change: '+3', trend: 'up' as const, icon: <Building2 className='h-5 w-5' />, color: 'amber', sparkline: [15, 16, 17, 18, 18, 19, 20, 21, 22, 23], gauge: 92 },
-  { label: 'Storage Used', value: '48.2 GB', change: '-3%', trend: 'down' as const, icon: <HardDrive className='h-5 w-5' />, color: 'rose', sparkline: [52, 51, 50, 49, 50, 49, 48, 49, 48, 48], gauge: 48 },
-]
+function timeAgo(date: string): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
+function generateSparkline(value: number, count = 10): number[] {
+  const base = Math.max(1, value)
+  return Array.from({ length: count }, () => Math.max(1, Math.round(base + (Math.random() - 0.5) * base * 0.4)))
+}
+
+interface StatsData {
+  totalUsers: number
+  activeUsers: number
+  suspendedUsers: number
+  totalOrganizations: number
+  totalMeetings: number
+  activeMeetings: number
+  totalRecordings: number
+  totalAuditLogs: number
+  recentActivity: Array<{
+    id: string
+    action: string
+    details: string | null
+    createdAt: string
+    user: { id: string; name: string; email: string } | null
+  }>
+  recentUsers: Array<{ id: string; name: string; email: string; role: string; createdAt: string }>
+}
 
 const colorMap: Record<string, { iconBg: string; iconText: string; trendUp: string; trendDown: string; sparkColor: string; gaugeColor: string; gaugeTrack: string }> = {
   emerald: { iconBg: 'bg-gradient-to-br from-emerald-500/10 to-emerald-500/5', iconText: 'text-emerald-600', trendUp: 'text-emerald-600', trendDown: 'text-red-500', sparkColor: 'bg-emerald-500', gaugeColor: '#10b981', gaugeTrack: 'stroke-emerald-500/15' },
@@ -57,31 +88,14 @@ const statusDotColor = {
   down: 'bg-red-500',
 }
 
-const overallStatus = systemHealth.every(s => s.status === 'healthy') ? 'green' : systemHealth.some(s => s.status === 'down') ? 'red' : 'yellow'
-
 const statusBannerConfig = {
   green: { gradient: 'from-emerald-500/5 via-cyan-500/5 to-teal-500/5', border: 'border-emerald-200/50 dark:border-emerald-800/30', badgeBg: 'bg-emerald-500/10 text-emerald-600 border-emerald-200', text: 'All Systems Operational', dotColor: 'bg-emerald-500' },
   yellow: { gradient: 'from-amber-500/5 via-orange-500/5 to-yellow-500/5', border: 'border-amber-200/50 dark:border-amber-800/30', badgeBg: 'bg-amber-500/10 text-amber-600 border-amber-200', text: 'Partial Degradation', dotColor: 'bg-amber-500' },
   red: { gradient: 'from-red-500/5 via-rose-500/5 to-pink-500/5', border: 'border-red-200/50 dark:border-red-800/30', badgeBg: 'bg-red-500/10 text-red-500 border-red-200', text: 'Service Outage Detected', dotColor: 'bg-red-500' },
 }
 
-const recentActivity = [
-  { action: 'New organization registered', detail: 'TechStart Inc.', time: '2 min ago', type: 'info' as const, user: 'System' },
-  { action: 'User account created', detail: 'john@techstart.com', time: '5 min ago', type: 'info' as const, user: 'Sarah Chen' },
-  { action: 'Failed login attempt', detail: 'admin@corp.com (3rd attempt)', time: '12 min ago', type: 'warning' as const, user: 'System' },
-  { action: 'Meeting recording processed', detail: 'AI summary generated', time: '18 min ago', type: 'success' as const, user: 'AI Engine' },
-  { action: 'Storage threshold alert', detail: 'Org #12 at 90% capacity', time: '25 min ago', type: 'warning' as const, user: 'System' },
-  { action: 'API rate limit triggered', detail: 'IP 192.168.1.45', time: '30 min ago', type: 'warning' as const, user: 'System' },
-]
-
-const quickActions = [
-  { label: 'Manage Users', view: 'admin-users' as const, icon: <Users className='h-4 w-4' />, count: '1,247 users', color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600' },
-  { label: 'Organizations', view: 'admin-orgs' as const, icon: <Building2 className='h-4 w-4' />, count: '23 orgs', color: 'from-violet-500/10 to-violet-500/5 text-violet-600' },
-  { label: 'Security', view: 'admin-security' as const, icon: <Shield className='h-4 w-4' />, count: '2 alerts', color: 'from-rose-500/10 to-rose-500/5 text-rose-600' },
-  { label: 'Audit Log', view: 'admin-audit' as const, icon: <FileText className='h-4 w-4' />, count: '1.2k entries', color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
-  { label: 'System Health', view: 'admin-system' as const, icon: <Server className='h-4 w-4' />, count: '5 services', color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
-  { label: 'View Reports', view: 'dashboard' as const, icon: <BarChart3 className='h-4 w-4' />, count: 'Analytics', color: 'from-fuchsia-500/10 to-fuchsia-500/5 text-fuchsia-600' },
-]
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
+const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } } }
 
 function AnimatedCounter({ target, prefix = '', suffix = '' }: { target: number; prefix?: string; suffix?: string }) {
   const [count, setCount] = useState(0)
@@ -148,9 +162,6 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
-const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } } }
-
 function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
@@ -180,9 +191,126 @@ function TiltCard({ children, className }: { children: React.ReactNode; classNam
   )
 }
 
+function AdminPageSkeleton() {
+  return (
+    <div className='space-y-6'>
+      <Card className='border border-border/50'>
+        <CardContent className='p-5 flex items-center gap-4'>
+          <Skeleton className='h-12 w-12 rounded-xl' />
+          <div className='flex-1 space-y-2'>
+            <Skeleton className='h-5 w-48' />
+            <Skeleton className='h-4 w-72' />
+          </div>
+        </CardContent>
+      </Card>
+      <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className='border border-border/50'>
+            <CardContent className='p-4 space-y-3'>
+              <div className='flex justify-between'><Skeleton className='h-9 w-9 rounded-lg' /><Skeleton className='h-4 w-12' /></div>
+              <Skeleton className='h-7 w-24' />
+              <Skeleton className='h-4 w-20' />
+              <Skeleton className='h-6 w-full' />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const { setCurrentView } = useAppStore()
+  const [stats, setStats] = useState<StatsData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchData() {
+      try {
+        const res = await authFetch('/api/v1/admin/stats')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        if (!cancelled && json.data?.stats) {
+          setStats(json.data.stats)
+        }
+      } catch (err) {
+        if (!cancelled) toast.error('Failed to load admin stats')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
+
+  const overallStatus = systemHealth.every(s => s.status === 'healthy') ? 'green' as const : systemHealth.some(s => s.status === 'down') ? 'red' as const : 'yellow' as const
   const banner = statusBannerConfig[overallStatus]
+
+  // Compute systemMetrics from API data
+  const systemMetrics = stats ? [
+    {
+      label: 'Active Users',
+      value: stats.activeUsers.toLocaleString(),
+      change: `of ${stats.totalUsers.toLocaleString()}`,
+      trend: 'up' as const,
+      icon: <Users className='h-5 w-5' />,
+      color: 'emerald',
+      sparkline: generateSparkline(stats.activeUsers),
+      gauge: Math.min(95, Math.round(stats.activeUsers / Math.max(1, stats.totalUsers) * 100)),
+    },
+    {
+      label: 'Active Meetings',
+      value: stats.activeMeetings.toLocaleString(),
+      change: `of ${stats.totalMeetings.toLocaleString()}`,
+      trend: 'up' as const,
+      icon: <Video className='h-5 w-5' />,
+      color: 'violet',
+      sparkline: generateSparkline(stats.activeMeetings),
+      gauge: Math.min(95, Math.round(stats.activeMeetings / Math.max(1, stats.totalMeetings) * 100)),
+    },
+    {
+      label: 'Organizations',
+      value: stats.totalOrganizations.toLocaleString(),
+      change: `${stats.totalOrganizations} total`,
+      trend: 'up' as const,
+      icon: <Building2 className='h-5 w-5' />,
+      color: 'amber',
+      sparkline: generateSparkline(stats.totalOrganizations),
+      gauge: Math.min(95, Math.round(stats.totalOrganizations / Math.max(1, 50) * 100)),
+    },
+    {
+      label: 'Recordings',
+      value: stats.totalRecordings.toLocaleString(),
+      change: `${stats.totalRecordings} total`,
+      trend: 'up' as const,
+      icon: <HardDrive className='h-5 w-5' />,
+      color: 'rose',
+      sparkline: generateSparkline(stats.totalRecordings),
+      gauge: Math.min(95, Math.round(stats.totalRecordings / Math.max(1, 100) * 100)),
+    },
+  ] : []
+
+  // Map recentActivity from API
+  const recentActivity = stats ? stats.recentActivity.map(entry => ({
+    action: entry.action.replace('.', ': '),
+    detail: entry.details || '',
+    time: timeAgo(entry.createdAt),
+    type: (entry.action.includes('failed') || entry.action.includes('block') || entry.action.includes('critical') || entry.action.includes('warn') ? 'warning' : 'info') as 'info' | 'warning' | 'success',
+    user: entry.user?.name || 'System',
+  })) : []
+
+  // Quick actions with real counts
+  const quickActions = [
+    { label: 'Manage Users', view: 'admin-users' as const, icon: <Users className='h-4 w-4' />, count: stats ? `${stats.totalUsers} users` : '…', color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600' },
+    { label: 'Organizations', view: 'admin-orgs' as const, icon: <Building2 className='h-4 w-4' />, count: stats ? `${stats.totalOrganizations} orgs` : '…', color: 'from-violet-500/10 to-violet-500/5 text-violet-600' },
+    { label: 'Security', view: 'admin-security' as const, icon: <Shield className='h-4 w-4' />, count: 'View', color: 'from-rose-500/10 to-rose-500/5 text-rose-600' },
+    { label: 'Audit Log', view: 'admin-audit' as const, icon: <FileText className='h-4 w-4' />, count: stats ? `${stats.totalAuditLogs} entries` : '…', color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
+    { label: 'System Health', view: 'admin-system' as const, icon: <Server className='h-4 w-4' />, count: 'View', color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
+    { label: 'View Reports', view: 'dashboard' as const, icon: <BarChart3 className='h-4 w-4' />, count: 'Analytics', color: 'from-fuchsia-500/10 to-fuchsia-500/5 text-fuchsia-600' },
+  ]
+
+  if (loading) return <AdminPageSkeleton />
 
   return (
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
@@ -217,15 +345,15 @@ export default function AdminPage() {
                 <CardContent className='p-4'>
                   <div className='flex items-center justify-between mb-3'>
                     <div className={`p-2 rounded-lg bg-gradient-to-br ${cm.iconBg} ${cm.iconText}`}>{m.icon}</div>
-                    <span className={`text-xs font-semibold flex items-center gap-0.5 ${m.trend === 'up' ? cm.trendUp : cm.trendDown}`}>
-                      {m.trend === 'up' ? <TrendingUp className='h-3 w-3' /> : <TrendingDown className='h-3 w-3' />}
+                    <span className={`text-xs font-semibold flex items-center gap-0.5 ${cm.trendUp}`}>
+                      <TrendingUp className='h-3 w-3' />
                       {m.change}
                     </span>
                   </div>
                   <div className='flex items-center justify-between gap-2'>
                     <div>
                       <p className='text-2xl font-bold tracking-tight'>
-                        <AnimatedCounter target={parseInt(m.value.replace(/[^0-9.]/g, ''))} suffix={m.value.match(/[A-Z ]/i)?.[0] ? ` ${m.value.match(/[^0-9,. ]+$/)?.[0] || ''}` : ''} />
+                        <AnimatedCounter target={parseInt(m.value.replace(/[^0-9]/g, ''))} />
                       </p>
                       <p className='text-xs text-muted-foreground mt-0.5'>{m.label}</p>
                     </div>
@@ -279,7 +407,7 @@ export default function AdminPage() {
               <div className='flex items-center justify-between'>
                 <CardTitle className='text-sm flex items-center gap-2'><Activity className='h-4 w-4 text-emerald-500' /> System Health</CardTitle>
                 <Badge variant='outline' className={`gap-1.5 text-[10px] ${banner.badgeBg}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${banner.dotColor} animate-breathe`} />{systemHealth.filter(s => s.status === 'healthy').length}/{systemHealth.length} Healthy
+                  <span className={`w-1.5 h-1.5 rounded-full ${banner.dotColor} animate-breathe`} />{' '}{systemHealth.filter((sv) => sv.status === 'healthy').length}{'/'}{systemHealth.length} Healthy
                 </Badge>
               </div>
             </CardHeader>

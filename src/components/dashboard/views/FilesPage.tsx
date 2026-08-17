@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence } from 'framer-motion'
+import { authFetch } from '@/lib/api'
 
 interface FileItem {
   id: string
@@ -92,19 +93,48 @@ function formatFileSize(bytes: number): string {
   return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`
 }
 
-const mockFiles: FileItem[] = [
-  { id: 'f1', name: 'Q4 Strategy Presentation.pptx', type: 'presentation', size: '4.2 MB', sizeBytes: 4.2 * 1024 * 1024, modified: 'Jan 12, 2025', modifiedBy: 'Sarah Chen', shared: true, folder: 'Strategy' },
-  { id: 'f2', name: 'Meeting Notes - Sprint 14.docx', type: 'document', size: '128 KB', sizeBytes: 128 * 1024, modified: 'Jan 11, 2025', modifiedBy: 'Mike Johnson', shared: false, folder: 'Engineering' },
-  { id: 'f3', name: 'Product Roadmap 2025.xlsx', type: 'spreadsheet', size: '2.1 MB', sizeBytes: 2.1 * 1024 * 1024, modified: 'Jan 10, 2025', modifiedBy: 'Alex Turner', shared: true, folder: 'Product' },
-  { id: 'f4', name: 'Team Photo Retreat.jpg', type: 'image', size: '3.8 MB', sizeBytes: 3.8 * 1024 * 1024, modified: 'Jan 8, 2025', modifiedBy: 'Lisa Park', shared: false },
-  { id: 'f5', name: 'Client Demo Recording.mp4', type: 'video', size: '156 MB', sizeBytes: 156 * 1024 * 1024, modified: 'Jan 7, 2025', modifiedBy: 'Emily Davis', shared: true, folder: 'Sales' },
-  { id: 'f6', name: 'Brand Guidelines v3.pdf', type: 'document', size: '12.4 MB', sizeBytes: 12.4 * 1024 * 1024, modified: 'Jan 5, 2025', modifiedBy: 'Alex Turner', shared: true },
-  { id: 'f7', name: 'Sprint Retrospective Notes.docx', type: 'document', size: '96 KB', sizeBytes: 96 * 1024, modified: 'Jan 4, 2025', modifiedBy: 'James Wilson', shared: false, folder: 'Engineering' },
-  { id: 'f8', name: 'Onboarding Checklist.xlsx', type: 'spreadsheet', size: '45 KB', sizeBytes: 45 * 1024, modified: 'Jan 3, 2025', modifiedBy: 'Sarah Chen', shared: true, folder: 'HR' },
-  { id: 'f9', name: 'Webinar Intro Audio.mp3', type: 'audio', size: '8.2 MB', sizeBytes: 8.2 * 1024 * 1024, modified: 'Jan 2, 2025', modifiedBy: 'Nina Patel', shared: false, folder: 'Marketing' },
-]
+interface ApiFile {
+  id: string
+  name: string
+  path: string
+  size: number
+  mimeType: string | null
+  isPublic: boolean
+  createdAt: string
+  uploader: { name: string } | null
+}
 
-const folders = ['All Files', 'Strategy', 'Engineering', 'Product', 'Sales', 'HR', 'Marketing']
+function getFileType(filename: string, mimeType?: string | null): FileItem['type'] {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+ if (['pptx', 'ppt', 'key'].includes(ext) || mimeType?.includes('presentation')) return 'presentation'
+  if (['xlsx', 'xls', 'csv'].includes(ext) || mimeType?.includes('spreadsheet')) return 'spreadsheet'
+  if (['mp4', 'webm', 'mov', 'avi'].includes(ext) || mimeType?.startsWith('video')) return 'video'
+  if (['mp3', 'wav', 'ogg', 'flac'].includes(ext) || mimeType?.startsWith('audio')) return 'audio'
+  if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext) || mimeType?.startsWith('image')) return 'image'
+  return 'document'
+}
+
+function mapApiFile(f: ApiFile): FileItem {
+  const type = getFileType(f.name, f.mimeType)
+  return {
+    id: f.id,
+    name: f.name,
+    type,
+    size: formatFileSize(f.size),
+    sizeBytes: f.size,
+    modified: new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    modifiedBy: f.uploader?.name || 'Unknown',
+    shared: f.isPublic,
+  }
+}
+
+const defaultFolders = ['All Files']
+
+function getUniqueFolders(files: FileItem[]): string[] {
+  const folderSet = new Set<string>()
+  files.forEach(f => { if (f.folder) folderSet.add(f.folder) })
+  return ['All Files', ...Array.from(folderSet).sort()]
+}
 
 const TOTAL_STORAGE_GB = 5
 
@@ -125,6 +155,29 @@ export default function FilesPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [files, setFiles] = useState<FileItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchFiles = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/v1/files')
+      if (!res.ok) throw new Error('Failed to fetch files')
+      const json = await res.json()
+      const mapped = (json.data?.files || []).map(mapApiFile)
+      setFiles(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load files')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchFiles() }, [])
+
+  const folders = getUniqueFolders(files)
   // Simulated upload progress animation when dialog is open
   const uploadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const uploadStartRef = useRef(false)
@@ -169,13 +222,13 @@ export default function FilesPage() {
     }
   }, [])
 
-  const filtered = mockFiles.filter(f => {
+  const filtered = files.filter(f => {
     const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase())
     const matchesFolder = activeFolder === 'All Files' || f.folder === activeFolder
     return matchesSearch && matchesFolder
   })
 
-  const totalSizeBytes = useMemo(() => mockFiles.reduce((acc, f) => acc + f.sizeBytes, 0), [])
+  const totalSizeBytes = useMemo(() => files.reduce((acc, f) => acc + f.sizeBytes, 0), [files])
   const totalSizeMB = totalSizeBytes / (1024 * 1024)
   const storagePct = Math.min((totalSizeBytes / (TOTAL_STORAGE_GB * 1024 * 1024 * 1024)) * 100, 100)
 
@@ -246,7 +299,7 @@ export default function FilesPage() {
             <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><File className='h-5 w-5 text-emerald-600' /></div>
             <div className='flex-1'>
               <div className='flex items-center justify-between'>
-                <p className='text-2xl font-bold'>{mockFiles.length}</p>
+                <p className='text-2xl font-bold'>{files.length}</p>
                 <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+3</span>
               </div>
               <p className='text-xs text-muted-foreground'>Total Files</p>
@@ -258,7 +311,7 @@ export default function FilesPage() {
           <CardContent className='p-4 flex items-center gap-3'>
             <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-500/5'><Share2 className='h-5 w-5 text-violet-600' /></div>
             <div className='flex-1'>
-              <p className='text-2xl font-bold'>{mockFiles.filter(f => f.shared).length}</p>
+              <p className='text-2xl font-bold'>{files.filter(f => f.shared).length}</p>
               <p className='text-xs text-muted-foreground'>Shared Files</p>
               {sparkline([15, 25, 35, 30, 40, 38, 42], 'bg-violet-500/40')}
             </div>
@@ -308,6 +361,28 @@ export default function FilesPage() {
         </motion.div>
       )}
 
+      {error && (
+        <div className='flex items-center justify-center py-8'>
+          <p className='text-sm text-red-500'>{error}</p>
+          <Button variant='outline' className='ml-3 text-xs' onClick={fetchFiles}>Retry</Button>
+        </div>
+      )}
+      {loading && !error && (
+        <Card className='border border-border/50 bg-card overflow-hidden'>
+          <div className='p-4 space-y-3 animate-pulse'>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className='flex items-center gap-3'>
+                <div className='h-4 w-4 rounded bg-muted' />
+                <div className='p-2 rounded-lg bg-muted h-8 w-8' />
+                <div className='flex-1 space-y-1.5'><div className='h-3.5 w-48 rounded bg-muted' /><div className='h-2.5 w-24 rounded bg-muted' /></div>
+                <div className='h-3 w-16 rounded bg-muted' />
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      {!loading && !error && (
+      <>
       {/* List view */}
       {view === 'list' ? (
         <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden'>
@@ -407,6 +482,8 @@ export default function FilesPage() {
             )
           })}
         </motion.div>
+      )}
+      </>
       )}
 
       {/* Upload dialog */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence } from 'framer-motion'
+import { authFetch } from '@/lib/api'
 
 interface TeamMember {
   id: string
@@ -83,39 +84,37 @@ const gradientMap: Record<string, string> = {
   'bg-emerald-500': 'from-emerald-500/20 to-emerald-600/5',
 }
 
-const mockTeams: Team[] = [
-  {
-    id: 't1', name: 'Engineering', description: 'Core platform engineering team', color: 'bg-blue-500',
-    isOwner: true,
-    members: [
-      { id: 'u1', name: 'Sarah Chen', email: 'sarah@alvision.ai', role: 'admin', status: 'online' },
-      { id: 'u2', name: 'Mike Johnson', email: 'mike@alvision.ai', role: 'member', status: 'online' },
-      { id: 'u3', name: 'Emily Davis', email: 'emily@alvision.ai', role: 'member', status: 'away' },
-      { id: 'u4', name: 'James Wilson', email: 'james@alvision.ai', role: 'viewer', status: 'offline' },
-      { id: 'u5', name: 'Lisa Park', email: 'lisa@alvision.ai', role: 'member', status: 'online' },
-    ],
-    channels: 8, meetings: 24,
-  },
-  {
-    id: 't2', name: 'Product', description: 'Product design and strategy', color: 'bg-violet-500',
-    isOwner: false,
-    members: [
-      { id: 'u6', name: 'Alex Turner', email: 'alex@alvision.ai', role: 'admin', status: 'online' },
-      { id: 'u7', name: 'Maria Garcia', email: 'maria@alvision.ai', role: 'member', status: 'offline' },
-      { id: 'u8', name: 'David Kim', email: 'david@alvision.ai', role: 'member', status: 'online' },
-    ],
-    channels: 5, meetings: 18,
-  },
-  {
-    id: 't3', name: 'Sales', description: 'Sales and customer success', color: 'bg-emerald-500',
-    isOwner: false,
-    members: [
-      { id: 'u9', name: 'Tom Brown', email: 'tom@alvision.ai', role: 'admin', status: 'away' },
-      { id: 'u10', name: 'Nina Patel', email: 'nina@alvision.ai', role: 'member', status: 'online' },
-    ],
-    channels: 3, meetings: 12,
-  },
-]
+interface ApiTeam {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
+  _count: { members: number; channels: number }
+  members: { role: string; user: { id: string; name: string; email: string; role: string } }[]
+}
+
+const teamColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-teal-500']
+
+function mapApiTeam(t: ApiTeam, index: number): Team {
+  const memberStatuses = ['online', 'away', 'offline'] as const
+  const members: TeamMember[] = t.members.map((m, i) => ({
+    id: m.user.id,
+    name: m.user.name,
+    email: m.user.email,
+    role: m.role as TeamMember['role'],
+    status: memberStatuses[i % 3],
+  }))
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description || '',
+    members,
+    channels: t._count.channels,
+    meetings: 0,
+    color: teamColors[index % teamColors.length],
+    isOwner: t.members.some(m => m.role === 'admin'),
+  }
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -126,21 +125,13 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
-const sparklineData = ['t1', 't2', 't3'].reduce<Record<string, number[]>>((acc, id) => {
-  acc[id] = Array.from({ length: 7 }, () => Math.floor(Math.random() * 80) + 20)
-  return acc
-}, {})
+const sparklineDataFunc = () =>
+  Array.from({ length: 7 }, () => Math.floor(Math.random() * 80) + 20)
 
-const sprintProgress = ['t1', 't2', 't3'].reduce<Record<string, number>>((acc, id) => {
-  acc[id] = Math.floor(Math.random() * 50) + 40
-  return acc
-}, {})
+const sprintProgressFunc = () => Math.floor(Math.random() * 50) + 40
 
 // 7-day activity heatmap data (0-4 intensity levels)
-const heatmapData: Record<string, number[]> = ['t1', 't2', 't3'].reduce((acc, id) => {
-  acc[id] = Array.from({ length: 7 }, () => Math.floor(Math.random() * 5))
-  return acc
-}, {} as Record<string, number[]>)
+const heatmapDataFunc = () => Array.from({ length: 7 }, () => Math.floor(Math.random() * 5))
 
 const heatmapColors: Record<number, string> = {
   0: 'bg-muted',
@@ -251,12 +242,33 @@ function CreateTeamStepIndicator({ step }: { step: number }) {
 
 export default function TeamsPage() {
   const [search, setSearch] = useState('')
+  const [teams, setTeams] = useState<Team[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createStep, setCreateStep] = useState(0)
   const [newTeam, setNewTeam] = useState({ name: '', description: '' })
 
-  const filtered = mockTeams.filter(t =>
+  const fetchTeams = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/v1/teams')
+      if (!res.ok) throw new Error('Failed to fetch teams')
+      const json = await res.json()
+      const mapped = (json.data?.teams || []).map((t: ApiTeam, i: number) => mapApiTeam(t, i))
+      setTeams(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load teams')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchTeams() }, [])
+
+  const filtered = teams.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -266,12 +278,13 @@ export default function TeamsPage() {
     setCreateOpen(false)
     setNewTeam({ name: '', description: '' })
     setCreateStep(0)
+    fetchTeams()
   }
 
   const canProceedStep = createStep === 0 ? newTeam.name.trim().length > 0 : true
 
-  const totalMembers = mockTeams.reduce((a, t) => a + t.members.length, 0)
-  const totalOnline = mockTeams.reduce((a, t) => a + t.members.filter(m => m.status === 'online').length, 0)
+  const totalMembers = teams.reduce((a, t) => a + t.members.length, 0)
+  const totalOnline = teams.reduce((a, t) => a + t.members.filter(m => m.status === 'online').length, 0)
 
   return (
     <div className='space-y-6'>
@@ -380,7 +393,7 @@ export default function TeamsPage() {
           <CardContent className='p-4 flex items-center gap-3'>
             <div className='p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5'><Users className='h-5 w-5 text-primary' /></div>
             <div>
-              <p className='text-2xl font-bold'>{mockTeams.length}</p>
+              <p className='text-2xl font-bold'>{teams.length}</p>
               <p className='text-xs text-muted-foreground'>Total Teams</p>
             </div>
           </CardContent>
@@ -401,7 +414,7 @@ export default function TeamsPage() {
           <CardContent className='p-4 flex items-center gap-3'>
             <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/10 to-violet-500/5'><Video className='h-5 w-5 text-violet-600' /></div>
             <div>
-              <p className='text-2xl font-bold'>{mockTeams.reduce((a, t) => a + t.meetings, 0)}</p>
+              <p className='text-2xl font-bold'>{teams.reduce((a, t) => a + t.meetings, 0)}</p>
               <p className='text-xs text-muted-foreground'>Team Meetings</p>
             </div>
           </CardContent>
@@ -414,7 +427,30 @@ export default function TeamsPage() {
         <Input placeholder='Search teams...' className='pl-9' value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* Team grid */}
+      {error && (
+        <div className='flex items-center justify-center py-8'>
+          <p className='text-sm text-red-500'>{error}</p>
+          <Button variant='outline' className='ml-3 text-xs' onClick={fetchTeams}>Retry</Button>
+        </div>
+      )}
+      {loading && !error && (
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className='border border-border/50 bg-card rounded-lg overflow-hidden animate-pulse'>
+              <div className='h-12 bg-muted' />
+              <div className='p-4 space-y-3'>
+                <div className='flex items-center gap-3'>
+                  <div className='h-11 w-11 rounded-xl bg-muted' />
+                  <div className='space-y-2 flex-1'><div className='h-4 w-24 rounded bg-muted' /><div className='h-3 w-36 rounded bg-muted' /></div>
+                </div>
+                <div className='h-1.5 rounded-full bg-muted' />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!loading && !error && (
+      <>
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(team => {
           const onlineCount = team.members.filter(m => m.status === 'online').length
@@ -454,9 +490,9 @@ export default function TeamsPage() {
                   {/* Team Activity Sparkline + Sprint Progress */}
                   <div className='flex items-center justify-between mb-3 gap-3'>
                     <div className='flex-1'>
-                      <SprintProgressBar progress={sprintProgress[team.id]} color={team.color} />
+                      <SprintProgressBar progress={sprintProgressFunc()} color={team.color} />
                     </div>
-                    <TeamSparkline data={sparklineData[team.id]} color={team.color} />
+                    <TeamSparkline data={sparklineDataFunc()} color={team.color} />
                   </div>
                   <div className='flex items-center justify-between text-sm text-muted-foreground mb-3'>
                     <span className='flex items-center gap-1.5 text-xs'><MessageSquare className='h-3.5 w-3.5' />{team.channels} channels</span>
@@ -510,6 +546,8 @@ export default function TeamsPage() {
             <Plus className='h-4 w-4' /> Create Team
           </Button>
         </div>
+      )}
+      </>
       )}
 
       {/* Team detail panel */}
@@ -567,7 +605,7 @@ export default function TeamsPage() {
                     </div>
                   </TabsContent>
                   <TabsContent value='activity' className='mt-4'>
-                    <ActivityHeatmap data={heatmapData[selectedTeam.id] || heatmapData['t1']} />
+                    <ActivityHeatmap data={heatmapDataFunc()} />
                     <div className='flex flex-col items-center justify-center py-8'>
                       <div className='relative'>
                         <Zap className='h-16 w-16 text-muted-foreground/20' />

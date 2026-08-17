@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +31,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { authFetch } from '@/lib/api'
 
 interface Event {
   id: string
@@ -64,13 +65,37 @@ const statusConfig: Record<string, { color: string; label: string; pulse?: boole
   draft: { color: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800', label: 'Draft' },
 }
 
-const mockEvents: Event[] = [
-  { id: 'e1', title: 'ALVISION Platform 2.0 Launch', description: 'Join us for the official launch of ALVISION 2.0 with AI-powered meeting summaries, real-time transcription, and more.', date: 'Jan 20, 2025', time: '2:00 PM EST', duration: '1h 30m', type: 'webinar', status: 'upcoming', host: 'Sarah Chen', hostRole: 'CEO', registrants: 342, maxRegistrants: 500, isPublic: true, featured: true, tags: ['product', 'launch', 'ai'] },
-  { id: 'e2', title: 'Monthly Town Hall', description: 'Company-wide update with Q&A session covering roadmap, metrics, and team highlights.', date: 'Jan 25, 2025', time: '11:00 AM EST', duration: '1h', type: 'townhall', status: 'upcoming', host: 'Alex Turner', hostRole: 'VP of Product', registrants: 189, maxRegistrants: 300, isPublic: false, featured: false, tags: ['company', 'updates'] },
-  { id: 'e3', title: 'AI in Enterprise Communication', description: 'Expert panel discussion on the future of AI in workplace communication and collaboration.', date: 'Jan 18, 2025', time: '3:00 PM EST', duration: '2h', type: 'webinar', status: 'live', host: 'Mike Johnson', hostRole: 'CTO', registrants: 567, maxRegistrants: 1000, isPublic: true, featured: true, tags: ['ai', 'enterprise', 'panel'] },
-  { id: 'e4', title: 'Video Meeting Best Practices Workshop', description: 'Hands-on workshop for running effective and engaging video meetings.', date: 'Jan 30, 2025', time: '10:00 AM EST', duration: '3h', type: 'workshop', status: 'upcoming', host: 'Emily Davis', hostRole: 'Head of CX', registrants: 78, maxRegistrants: 50, isPublic: true, featured: false, tags: ['workshop', 'best-practices'] },
-  { id: 'e5', title: 'Year in Review 2024', description: 'Recap of 2024 achievements, milestones, and a look ahead at 2025 plans.', date: 'Dec 28, 2024', time: '2:00 PM EST', duration: '1h', type: 'townhall', status: 'ended', host: 'Sarah Chen', hostRole: 'CEO', registrants: 412, maxRegistrants: 500, isPublic: true, featured: false, tags: ['review', '2024'] },
-]
+const fallbackEvents: Event[] = []
+
+function mapApiEvent(e: { id: string; title: string; description: string; type: string; status: string; startTime: string; endTime: string | null; maxAttendees: number; registrants: number; recordingEnabled: boolean }): Event {
+  const start = new Date(e.startTime)
+  const end = e.endTime ? new Date(e.endTime) : null
+  const dur = end ? Math.round((end.getTime() - start.getTime()) / 60000) : 60
+  const h = Math.floor(dur / 60)
+  const m = dur % 60
+  const duration = h > 0 ? `${h}h ${m}m` : `${m}m`
+  const date = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const evType = ['webinar', 'townhall', 'livestream', 'workshop'].includes(e.type) ? e.type as Event['type'] : 'webinar'
+  const evStatus = ['upcoming', 'live', 'ended', 'draft'].includes(e.status) ? e.status as Event['status'] : 'upcoming'
+  return {
+    id: e.id,
+    title: e.title,
+    description: e.description,
+    date,
+    time,
+    duration,
+    type: evType,
+    status: evStatus,
+    host: 'Team',
+    hostRole: 'Organizer',
+    registrants: e.registrants,
+    maxRegistrants: e.maxAttendees,
+    isPublic: true,
+    featured: false,
+    tags: [evType, 'event'],
+  }
+}
 
 function getCountdown(dateStr: string, timeStr: string): string | null {
   const months: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 }
@@ -124,26 +149,49 @@ export default function EventsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
+  const [events, setEvents] = useState<Event[]>(fallbackEvents)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await authFetch('/api/v1/events')
+      const json = await res.json()
+      if (json.success) {
+        setEvents((json.data.events as ReturnType<typeof mapApiEvent>[]).map(mapApiEvent))
+      } else {
+        setError(json.error?.message ?? 'Failed to fetch events')
+      }
+    } catch (err) {
+      setError('Network error fetching events')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchEvents() }, [fetchEvents])
 
   const stats = useMemo(() => ({
-    total: mockEvents.length,
-    registrants: mockEvents.reduce((a, e) => a + e.registrants, 0),
-    live: mockEvents.filter(e => e.status === 'live').length,
-    upcoming: mockEvents.filter(e => e.status === 'upcoming').length,
-  }), [])
+    total: events.length,
+    registrants: events.reduce((a, e) => a + e.registrants, 0),
+    live: events.filter(e => e.status === 'live').length,
+    upcoming: events.filter(e => e.status === 'upcoming').length,
+  }), [events])
 
   const animatedTotal = useCountUp(stats.total)
   const animatedRegistrants = useCountUp(stats.registrants)
   const animatedLive = useCountUp(stats.live)
   const animatedUpcoming = useCountUp(stats.upcoming)
 
-  const filtered = mockEvents.filter(e => {
+  const filtered = events.filter(e => {
     const matchesSearch = e.title.toLowerCase().includes(search.toLowerCase()) || e.tags.some(t => t.includes(search.toLowerCase()))
     const matchesFilter = filter === 'all' || e.type === filter || e.status === filter
     return matchesSearch && matchesFilter
   })
 
-  const featuredEvent = mockEvents.find(e => e.featured && (e.status === 'upcoming' || e.status === 'live'))
+  const featuredEvent = events.find(e => e.featured && (e.status === 'upcoming' || e.status === 'live'))
 
   return (
     <div className='space-y-6'>
@@ -197,7 +245,35 @@ export default function EventsPage() {
         </Dialog>
       </div>
 
+      {/* Loading skeleton */}
+      {loading && (
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className='border border-border/50 animate-pulse'>
+              <CardContent className='p-5 space-y-3'>
+                <div className='h-4 bg-muted rounded w-24' />
+                <div className='h-5 bg-muted rounded w-3/4' />
+                <div className='h-3 bg-muted rounded w-full' />
+                <div className='h-3 bg-muted rounded w-1/2' />
+                <div className='h-1.5 bg-muted rounded w-full' />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <Card className='border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20'>
+          <CardContent className='p-4 flex items-center justify-between'>
+            <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
+            <Button variant='outline' size='sm' onClick={fetchEvents}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats row */}
+      {!loading && (
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         <motion.div variants={item}>
         <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
@@ -232,6 +308,7 @@ export default function EventsPage() {
         </Card>
         </motion.div>
       </motion.div>
+      )}
 
       {/* Featured event banner */}
       {featuredEvent && (

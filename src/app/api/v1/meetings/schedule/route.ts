@@ -17,6 +17,50 @@ function generateMeetingId(): string {
 }
 
 /**
+ * GET /api/v1/meetings/schedule
+ * List scheduled/upcoming meetings with start/end times for calendar.
+ */
+export async function GET() {
+  try {
+    const user = await requireAuth();
+
+    const meetings = await db.meeting.findMany({
+      where: {
+        status: { in: ['scheduled', 'active'] },
+        startTime: { not: null },
+      },
+      include: {
+        host: { select: { id: true, name: true, email: true } },
+        participants: {
+          include: {
+            user: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { startTime: 'asc' },
+      take: 100,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: { meetings },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    console.error('List scheduled meetings error:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch scheduled meetings' } },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/v1/meetings/schedule
  * Create a scheduled or recurring meeting with full options.
  */

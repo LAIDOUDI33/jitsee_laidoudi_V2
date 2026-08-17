@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { authFetch } from '@/lib/api'
+import { toast } from 'sonner'
 import {
   History, Search, Download, Filter, Clock, Users, Video, Mic, Radio,
   Star, ChevronRight, ChevronLeft, Calendar, ArrowUpDown, Play, FileText,
@@ -16,7 +18,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { toast } from 'sonner'
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.35 } } }
@@ -63,41 +64,66 @@ function StarRating({ rating }: { rating: number }) {
   )
 }
 
-const mockSessions = [
-  { id: 's1', title: 'Q4 Strategy Review', type: 'Video', status: 'Completed', date: '2025-01-15T14:00:00', duration: 87, participants: 12, host: 'Alex Chen', hostInitials: 'AC', hostColor: 'bg-violet-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'Discussed Q4 roadmap, approved 3 major initiatives' },
-  { id: 's2', title: 'Design Sprint Kickoff', type: 'Video', status: 'Completed', date: '2025-01-15T10:00:00', duration: 45, participants: 6, host: 'Sarah Kim', hostInitials: 'SK', hostColor: 'bg-emerald-600', hasRecording: true, hasSummary: false, quality: 4, notes: 'Defined sprint goals and assigned design challenges' },
-  { id: 's3', title: 'Weekly Team Standup', type: 'Audio', status: 'Completed', date: '2025-01-14T09:00:00', duration: 12, participants: 8, host: 'Marcus Rivera', hostInitials: 'MR', hostColor: 'bg-sky-600', hasRecording: false, hasSummary: false, quality: 3, notes: 'Quick status updates, no blockers' },
-  { id: 's4', title: 'Product Demo - Enterprise Client', type: 'Webinar', status: 'Completed', date: '2025-01-14T15:00:00', duration: 62, participants: 45, host: 'Priya Patel', hostInitials: 'PP', hostColor: 'bg-rose-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'Demoed new analytics features, received positive feedback' },
-  { id: 's5', title: 'Engineering All-Hands', type: 'Video', status: 'Completed', date: '2025-01-13T11:00:00', duration: 55, participants: 32, host: 'Jordan Lee', hostInitials: 'JL', hostColor: 'bg-amber-600', hasRecording: true, hasSummary: true, quality: 4, notes: 'Architecture decisions, new tech stack announcement' },
-  { id: 's6', title: '1-on-1 with Manager', type: 'Video', status: 'Completed', date: '2025-01-13T14:30:00', duration: 30, participants: 2, host: 'Alex Chen', hostInitials: 'AC', hostColor: 'bg-violet-600', hasRecording: false, hasSummary: false, quality: 5, notes: 'Career development discussion' },
-  { id: 's7', title: 'Bug Triage Meeting', type: 'Screen Share', status: 'Completed', date: '2025-01-12T10:00:00', duration: 38, participants: 5, host: 'Sarah Kim', hostInitials: 'SK', hostColor: 'bg-emerald-600', hasRecording: true, hasSummary: false, quality: 4, notes: 'Triaged 23 bugs, prioritized 8 for sprint' },
-  { id: 's8', title: 'Client Onboarding Call', type: 'Video', status: 'Completed', date: '2025-01-12T14:00:00', duration: 42, participants: 7, host: 'Marcus Rivera', hostInitials: 'MR', hostColor: 'bg-sky-600', hasRecording: true, hasSummary: true, quality: 4, notes: 'New client Acme Corp onboarding completed' },
-  { id: 's9', title: 'Retrospective - Sprint 14', type: 'Video', status: 'Completed', date: '2025-01-11T16:00:00', duration: 50, participants: 9, host: 'Jordan Lee', hostInitials: 'JL', hostColor: 'bg-amber-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'What went well, what to improve, action items defined' },
-  { id: 's10', title: 'Marketing Sync', type: 'Audio', status: 'Completed', date: '2025-01-11T10:00:00', duration: 25, participants: 4, host: 'Priya Patel', hostInitials: 'PP', hostColor: 'bg-rose-600', hasRecording: false, hasSummary: false, quality: 3, notes: 'Reviewed campaign performance metrics' },
-  { id: 's11', title: 'Security Review Board', type: 'Video', status: 'Completed', date: '2025-01-10T13:00:00', duration: 72, participants: 6, host: 'Alex Chen', hostInitials: 'AC', hostColor: 'bg-violet-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'Reviewed 3 security incidents, approved new policies' },
-  { id: 's12', title: 'Investor Update Call', type: 'Webinar', status: 'Completed', date: '2025-01-10T09:00:00', duration: 35, participants: 15, host: 'Marcus Rivera', hostInitials: 'MR', hostColor: 'bg-sky-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'Quarterly metrics presentation, strong growth reported' },
-  { id: 's13', title: 'UX Research Debrief', type: 'Video', status: 'Completed', date: '2025-01-09T15:00:00', duration: 48, participants: 7, host: 'Sarah Kim', hostInitials: 'SK', hostColor: 'bg-emerald-600', hasRecording: true, hasSummary: false, quality: 4, notes: 'User testing results for new dashboard layout' },
-  { id: 's14', title: 'Quick Sync - Design Team', type: 'Audio', status: 'Completed', date: '2025-01-09T11:00:00', duration: 8, participants: 3, host: 'Jordan Lee', hostInitials: 'JL', hostColor: 'bg-amber-600', hasRecording: false, hasSummary: false, quality: 3, notes: 'Alignment on icon style and spacing system' },
-  { id: 's15', title: 'Partner Integration Workshop', type: 'Screen Share', status: 'Completed', date: '2025-01-08T10:00:00', duration: 95, participants: 11, host: 'Priya Patel', hostInitials: 'PP', hostColor: 'bg-rose-600', hasRecording: true, hasSummary: true, quality: 4, notes: 'Technical deep-dive on API integration with Slack and Teams' },
-  { id: 's16', title: 'Hiring Committee - Senior Dev', type: 'Video', status: 'Cancelled', date: '2025-01-08T14:00:00', duration: 0, participants: 4, host: 'Alex Chen', hostInitials: 'AC', hostColor: 'bg-violet-600', hasRecording: false, hasSummary: false, quality: 0, notes: 'Candidate withdrew' },
-  { id: 's17', title: 'Sprint 15 Planning', type: 'Video', status: 'Completed', date: '2025-01-07T10:00:00', duration: 90, participants: 10, host: 'Jordan Lee', hostInitials: 'JL', hostColor: 'bg-amber-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'Planned 42 story points, allocated resources' },
-  { id: 's18', title: 'Emergency Security Patch Review', type: 'Video', status: 'Completed', date: '2025-01-07T16:30:00', duration: 18, participants: 5, host: 'Alex Chen', hostInitials: 'AC', hostColor: 'bg-violet-600', hasRecording: true, hasSummary: true, quality: 4, notes: 'Reviewed and approved critical security patch' },
-  { id: 's19', title: 'Company Town Hall', type: 'Webinar', status: 'Completed', date: '2025-01-06T14:00:00', duration: 65, participants: 156, host: 'Marcus Rivera', hostInitials: 'MR', hostColor: 'bg-sky-600', hasRecording: true, hasSummary: true, quality: 5, notes: 'CEO address, Q&A, new product announcement' },
-  { id: 's20', title: 'Training: New Features Workshop', type: 'Screen Share', status: 'Expired', date: '2025-01-05T10:00:00', duration: 0, participants: 0, host: 'Sarah Kim', hostInitials: 'SK', hostColor: 'bg-emerald-600', hasRecording: false, hasSummary: false, quality: 0, notes: 'No attendees' },
-]
+const hostColors = ['bg-violet-600', 'bg-emerald-600', 'bg-sky-600', 'bg-rose-600', 'bg-amber-600', 'bg-cyan-600']
+
+const defaultSessions: any[] = []
 
 export default function SessionHistoryPage() {
+  const [sessions, setSessions] = useState(defaultSessions)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [durationFilter, setDurationFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
   const [page, setPage] = useState(1)
-  const [selectedSession, setSelectedSession] = useState<typeof mockSessions[0] | null>(null)
+  const [selectedSession, setSelectedSession] = useState<any>(null)
   const perPage = 10
 
+  const fetchSessions = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await authFetch('/api/v1/meetings?status=ended')
+      if (!res.ok) throw new Error('Failed to fetch sessions')
+      const json = await res.json()
+      const meetings = json.data?.meetings || []
+      const mapped = meetings.map((m: any, i: number) => {
+        const hostName = m.host?.name || 'Unknown'
+        const initials = hostName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+        const start = m.startTime ? new Date(m.startTime) : null
+        const end = m.endTime ? new Date(m.endTime) : null
+        const dur = start && end ? Math.round((end.getTime() - start.getTime()) / 60000) : 0
+        const hasRec = (m.recordings?.length || 0) > 0
+        const hasSum = false
+        return {
+          id: m.id,
+          title: m.title,
+          type: 'Video',
+          status: m.status === 'ended' ? 'Completed' : m.status,
+          date: m.startTime || m.createdAt,
+          duration: dur || 0,
+          participants: m.participants?.length || 0,
+          host: hostName,
+          hostInitials: initials,
+          hostColor: hostColors[i % hostColors.length],
+          hasRecording: hasRec,
+          hasSummary: hasSum,
+          quality: dur > 30 ? 4 : 3,
+          notes: '',
+        }
+      })
+      setSessions(mapped)
+    } catch {
+      toast.error('Failed to load session history')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchSessions() }, [fetchSessions])
+
   const filtered = useMemo(() => {
-    let result = [...mockSessions]
+    let result = [...sessions]
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(s => s.title.toLowerCase().includes(q) || s.host.toLowerCase().includes(q))
@@ -127,10 +153,11 @@ export default function SessionHistoryPage() {
   const totalPages = Math.ceil(filtered.length / perPage)
   const paginated = filtered.slice((page - 1) * perPage, page * perPage)
 
-  const totalHours = useCountUp(Math.round(mockSessions.reduce((a, s) => a + s.duration, 0) / 60 * 10) / 10)
-  const totalSessions = useCountUp(mockSessions.length)
-  const avgDuration = useCountUp(Math.round(mockSessions.reduce((a, s) => a + s.duration, 0) / mockSessions.filter(s => s.duration > 0).length))
-  const uniqueParticipants = useCountUp(new Set(mockSessions.flatMap(s => Array(s.participants).fill(0).map((_, i) => `${s.host}-${i}`))).size)
+  const completedSessions = sessions.filter(s => s.duration > 0)
+  const totalHours = useCountUp(Math.round(sessions.reduce((a, s) => a + s.duration, 0) / 60 * 10) / 10)
+  const totalSessions = useCountUp(sessions.length)
+  const avgDuration = useCountUp(completedSessions.length > 0 ? Math.round(sessions.reduce((a, s) => a + s.duration, 0) / completedSessions.length) : 0)
+  const uniqueParticipants = useCountUp(sessions.reduce((a, s) => a + s.participants, 0))
 
   function formatDuration(mins: number) {
     const h = Math.floor(mins / 60)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 
 interface AuditEntry {
   id: string
@@ -57,21 +58,14 @@ const severityConfig: Record<string, { color: string; dot: string; bg: string; t
   critical: { color: 'bg-red-500/10 text-red-500 border-red-200 dark:border-red-800/50', dot: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500', icon: <AlertTriangle className='h-3 w-3 animate-pulse' /> },
 }
 
-const mockEntries: AuditEntry[] = [
-  { id: 'a1', timestamp: '2025-01-14 14:32:05', actor: 'sarah@alvision.ai', action: 'user.login', resource: 'User', details: 'Successful login from 192.168.1.10', severity: 'info', ip: '192.168.1.10' },
-  { id: 'a2', timestamp: '2025-01-14 14:28:17', actor: 'system', action: 'security.policy', resource: 'Policy', details: 'IP 203.0.113.42 blocked after 3 failed login attempts', severity: 'warning', ip: '203.0.113.42' },
-  { id: 'a3', timestamp: '2025-01-14 14:15:42', actor: 'sarah@alvision.ai', action: 'user.create', resource: 'User', details: 'Created user account john@techstart.com', severity: 'info', ip: '192.168.1.10' },
-  { id: 'a4', timestamp: '2025-01-14 13:55:09', actor: 'emily@techstart.com', action: 'org.settings', resource: 'Organization', details: 'Updated organization settings for TechStart Inc.', severity: 'info', ip: '10.0.0.45' },
-  { id: 'a5', timestamp: '2025-01-14 13:42:33', actor: 'mike@alvision.ai', action: 'meeting.create', resource: 'Meeting', details: 'Created meeting: Engineering Standup', severity: 'info', ip: '192.168.1.22' },
-  { id: 'a6', timestamp: '2025-01-14 13:30:18', actor: 'unknown@external.com', action: 'user.login', resource: 'User', details: 'Failed login attempt for admin@alvision.ai', severity: 'warning', ip: '203.0.113.42' },
-  { id: 'a7', timestamp: '2025-01-14 12:15:44', actor: 'james@alvision.ai', action: 'meeting.end', resource: 'Meeting', details: 'Meeting ended: Security Review Board (2h 05m)', severity: 'info', ip: '192.168.1.33' },
-  { id: 'a8', timestamp: '2025-01-14 11:08:22', actor: 'alex@alvision.ai', action: 'user.update', resource: 'User', details: 'Changed role for lisa@alvision.ai from participant to host', severity: 'info', ip: '192.168.1.15' },
-  { id: 'a9', timestamp: '2025-01-14 10:45:11', actor: 'system', action: 'security.policy', resource: 'Policy', details: 'Detected brute force attempt from 198.51.100.0/24', severity: 'critical', ip: '198.51.100.12' },
-  { id: 'a10', timestamp: '2025-01-14 10:30:00', actor: 'sarah@alvision.ai', action: 'org.settings', resource: 'Organization', details: 'Enabled 2FA requirement for all users', severity: 'info', ip: '192.168.1.10' },
-]
-
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
+
+function formatTimestamp(dateStr: string): string {
+  const d = new Date(dateStr)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 export default function AdminAuditPage() {
   const [search, setSearch] = useState('')
@@ -80,18 +74,62 @@ export default function AdminAuditPage() {
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [total, setTotal] = useState(0)
+  const [warningCount, setWarningCount] = useState(0)
+  const [criticalCount, setCriticalCount] = useState(0)
+  const [availableActions, setAvailableActions] = useState<string[]>([])
 
-  const actions = [...new Set(mockEntries.map(e => e.action))]
+  const fetchEntries = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (actionFilter !== 'all') params.set('action', actionFilter)
+      if (severityFilter !== 'all') params.set('severity', severityFilter)
+      if (dateFrom) params.set('from', dateFrom)
+      if (dateTo) params.set('to', dateTo)
+      const query = params.toString() ? `?${params.toString()}` : ''
+      const res = await authFetch(`/api/v1/admin/audit-logs${query}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to fetch audit logs' } }))
+        throw new Error(err.error?.message || 'Failed to fetch audit logs')
+      }
+      const json = await res.json()
+      const { entries: apiEntries, total: t, warningCount: wc, criticalCount: cc } = json.data
 
-  const filtered = mockEntries.filter(e => {
-    const matchSearch = e.actor.toLowerCase().includes(search.toLowerCase()) || e.details.toLowerCase().includes(search.toLowerCase())
-    const matchSeverity = severityFilter === 'all' || e.severity === severityFilter
-    const matchAction = actionFilter === 'all' || e.action === actionFilter
-    return matchSearch && matchSeverity && matchAction
-  })
+      const mappedEntries: AuditEntry[] = apiEntries.map((e: any) => ({
+        id: e.id,
+        timestamp: formatTimestamp(e.createdAt),
+        actor: e.user?.email || 'system',
+        action: e.action,
+        resource: e.resource || '',
+        details: e.details || '',
+        severity: e.severity || 'info',
+        ip: e.ipAddress || '—',
+      }))
+
+      const actions = [...new Set(apiEntries.map((e: any) => e.action))]
+
+      setEntries(mappedEntries)
+      setTotal(t ?? apiEntries.length)
+      setWarningCount(wc ?? 0)
+      setCriticalCount(cc ?? 0)
+      setAvailableActions(actions)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load audit logs')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, severityFilter, actionFilter, dateFrom, dateTo])
+
+  useEffect(() => {
+    fetchEntries()
+  }, [fetchEntries])
 
   const handleExport = (format: string) => {
-    toast.success(`Exported ${filtered.length} entries as ${format.toUpperCase()}`)
+    toast.success(`Exported ${entries.length} entries as ${format.toUpperCase()}`)
   }
 
   return (
@@ -99,9 +137,9 @@ export default function AdminAuditPage() {
       {/* Stats with trend indicators */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         {[
-          { label: 'Total Entries', value: '1,247', change: '+8%', trend: 'up' as const, icon: <FileText className='h-5 w-5' />, color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
-          { label: 'Warnings', value: '23', change: '-5%', trend: 'down' as const, icon: <AlertTriangle className='h-5 w-5' />, color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
-          { label: 'Critical', value: '3', icon: <Shield className='h-5 w-5' />, color: 'from-red-500/10 to-red-500/5 text-red-600' },
+          { label: 'Total Entries', value: String(total), change: '', trend: 'up' as const, icon: <FileText className='h-5 w-5' />, color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
+          { label: 'Warnings', value: String(warningCount), change: '', trend: 'down' as const, icon: <AlertTriangle className='h-5 w-5' />, color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
+          { label: 'Critical', value: String(criticalCount), icon: <Shield className='h-5 w-5' />, color: 'from-red-500/10 to-red-500/5 text-red-600' },
           { label: 'Monitoring', value: '24/7', icon: <Clock className='h-5 w-5' />, color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600' },
         ].map(s => (
           <motion.div key={s.label} variants={item}>
@@ -138,7 +176,7 @@ export default function AdminAuditPage() {
           </Select>
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className='w-[150px] h-9'><SelectValue placeholder='Action' /></SelectTrigger>
-            <SelectContent><SelectItem value='all'>All Actions</SelectItem>{actions.map(a => <SelectItem key={a} value={a}>{a.replace('.', ' > ')}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value='all'>All Actions</SelectItem>{availableActions.map(a => <SelectItem key={a} value={a}>{a.replace('.', ' > ')}</SelectItem>)}</SelectContent>
           </Select>
           <div className='flex items-center gap-1.5'>
             <Calendar className='h-3.5 w-3.5 text-muted-foreground' />
@@ -152,7 +190,7 @@ export default function AdminAuditPage() {
             <button onClick={() => setViewMode('table')} className={`p-2 transition-colors ${viewMode === 'table' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><Rows3 className='h-3.5 w-3.5' /></button>
             <button onClick={() => setViewMode('timeline')} className={`p-2 transition-colors ${viewMode === 'timeline' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><List className='h-3.5 w-3.5' /></button>
           </div>
-          <Button variant='outline' size='sm' className='gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => toast.info('Refreshed')}><RefreshCw className='h-3.5 w-3.5' /> Refresh</Button>
+          <Button variant='outline' size='sm' className='gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { fetchEntries(); toast.info('Refreshed') }}><RefreshCw className='h-3.5 w-3.5' /> Refresh</Button>
           <Button variant='outline' size='sm' className='gap-1 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleExport('csv')}><Download className='h-3.5 w-3.5' /> CSV</Button>
           <Button variant='outline' size='sm' className='gap-1 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleExport('json')}><Download className='h-3.5 w-3.5' /> JSON</Button>
         </div>
@@ -162,47 +200,60 @@ export default function AdminAuditPage() {
       {viewMode === 'table' && (
         <motion.div variants={item}>
           <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
-            <Table>
-              <TableHeader>
-                <TableRow className='divide-y divide-border/50'>
-                  <TableHead className='w-10' />
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead className='hidden lg:table-cell'>Details</TableHead>
-                  <TableHead className='hidden md:table-cell'>IP</TableHead>
-                  <TableHead>Severity</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(e => {
-                  const sev = severityConfig[e.severity]
-                  return (
-                    <TableRow key={e.id} className='even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
-                      <TableCell><div className={`p-1.5 rounded-md ${sev.bg} ${sev.text}`}>{actionIcons[e.action] || <FileText className='h-3.5 w-3.5' />}</div></TableCell>
-                      <TableCell className='font-mono text-xs text-muted-foreground whitespace-nowrap'>{e.timestamp}</TableCell>
-                      <TableCell>
-                        <div className='flex items-center gap-2'>
-                          <Avatar className='h-6 w-6 border border-border/50'><AvatarFallback className='text-[9px] bg-muted font-medium'>{e.actor.split('@')[0].slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
-                          <span className='text-sm font-medium'>{e.actor}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell><Badge variant='outline' className='text-[10px] gap-1'>{actionIcons[e.action]}<span className='hidden sm:inline'>{e.action.replace('.', ' > ')}</span></Badge></TableCell>
-                      <TableCell className='hidden lg:table-cell text-sm text-muted-foreground max-w-[300px] truncate'>{e.details}</TableCell>
-                      <TableCell className='hidden md:table-cell font-mono text-xs text-muted-foreground'>{e.ip}</TableCell>
-                      <TableCell><Badge variant='outline' className={`text-[10px] gap-1 ${sev.color}`}>{sev.icon}{e.severity}</Badge></TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            {filtered.length === 0 && (
-              <div className='text-center py-16'>
-                <FileText className='h-16 w-16 mx-auto mb-4 opacity-20 text-muted-foreground' />
-                <p className='font-medium text-muted-foreground'>No audit entries found</p>
-                <p className='text-sm text-muted-foreground/60 mt-1'>Try adjusting your search or filters</p>
-                <Button variant='outline' size='sm' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setSearch(''); setSeverityFilter('all'); setActionFilter('all') }}>Clear Filters</Button>
+            {loading ? (
+              <div className='animate-pulse p-8 space-y-4'>
+                <div className='h-4 bg-muted rounded w-1/4' />
+                <div className='space-y-3'>
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className='h-12 bg-muted rounded' />
+                  ))}
+                </div>
               </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow className='divide-y divide-border/50'>
+                      <TableHead className='w-10' />
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead className='hidden lg:table-cell'>Details</TableHead>
+                      <TableHead className='hidden md:table-cell'>IP</TableHead>
+                      <TableHead>Severity</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entries.map(e => {
+                      const sev = severityConfig[e.severity] || severityConfig.info
+                      return (
+                        <TableRow key={e.id} className='even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
+                          <TableCell><div className={`p-1.5 rounded-md ${sev.bg} ${sev.text}`}>{actionIcons[e.action] || <FileText className='h-3.5 w-3.5' />}</div></TableCell>
+                          <TableCell className='font-mono text-xs text-muted-foreground whitespace-nowrap'>{e.timestamp}</TableCell>
+                          <TableCell>
+                            <div className='flex items-center gap-2'>
+                              <Avatar className='h-6 w-6 border border-border/50'><AvatarFallback className='text-[9px] bg-muted font-medium'>{e.actor.split('@')[0].slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                              <span className='text-sm font-medium'>{e.actor}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell><Badge variant='outline' className='text-[10px] gap-1'>{actionIcons[e.action] || <FileText className='h-3 w-3' />}<span className='hidden sm:inline'>{e.action.replace('.', ' > ')}</span></Badge></TableCell>
+                          <TableCell className='hidden lg:table-cell text-sm text-muted-foreground max-w-[300px] truncate'>{e.details}</TableCell>
+                          <TableCell className='hidden md:table-cell font-mono text-xs text-muted-foreground'>{e.ip}</TableCell>
+                          <TableCell><Badge variant='outline' className={`text-[10px] gap-1 ${sev.color}`}>{sev.icon}{e.severity}</Badge></TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+                {entries.length === 0 && (
+                  <div className='text-center py-16'>
+                    <FileText className='h-16 w-16 mx-auto mb-4 opacity-20 text-muted-foreground' />
+                    <p className='font-medium text-muted-foreground'>No audit entries found</p>
+                    <p className='text-sm text-muted-foreground/60 mt-1'>Try adjusting your search or filters</p>
+                    <Button variant='outline' size='sm' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setSearch(''); setSeverityFilter('all'); setActionFilter('all') }}>Clear Filters</Button>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </motion.div>
@@ -214,12 +265,18 @@ export default function AdminAuditPage() {
           <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
             <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><Clock className='h-4 w-4' /> Audit Timeline</CardTitle></CardHeader>
             <CardContent>
-              {filtered.length > 0 ? (
+              {loading ? (
+                <div className='animate-pulse space-y-4'>
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className='h-16 bg-muted rounded' />
+                  ))}
+                </div>
+              ) : entries.length > 0 ? (
                 <div className='relative'>
                   <div className='absolute left-[15px] top-2 bottom-2 w-px bg-border' />
                   <div className='space-y-4'>
-                    {filtered.map((e, i) => {
-                      const sev = severityConfig[e.severity]
+                    {entries.map((e, i) => {
+                      const sev = severityConfig[e.severity] || severityConfig.info
                       return (
                         <motion.div
                           key={e.id}
@@ -236,7 +293,7 @@ export default function AdminAuditPage() {
                               <div className='flex items-center gap-2 min-w-0'>
                                 <Avatar className='h-5 w-5 border border-border/50'><AvatarFallback className='text-[8px] bg-muted font-medium'>{e.actor.split('@')[0].slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                                 <span className='text-sm font-medium truncate'>{e.actor}</span>
-                                <Badge variant='outline' className='text-[10px] gap-1 shrink-0'>{actionIcons[e.action]}{e.action.replace('.', ' > ')}</Badge>
+                                <Badge variant='outline' className='text-[10px] gap-1 shrink-0'>{actionIcons[e.action] || <FileText className='h-3 w-3' />}{e.action.replace('.', ' > ')}</Badge>
                               </div>
                               <Badge variant='outline' className={`text-[10px] shrink-0 gap-1 ${sev.color}`}>{e.severity}</Badge>
                             </div>

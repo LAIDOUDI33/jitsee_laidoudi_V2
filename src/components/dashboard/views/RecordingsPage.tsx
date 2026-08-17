@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { motion, AnimatePresence } from 'framer-motion'
+import { authFetch } from '@/lib/api'
 
 interface Recording {
   id: string
@@ -61,14 +62,57 @@ interface Recording {
   shared: boolean
 }
 
-const mockRecordings: Recording[] = [
-  { id: 'r1', title: 'Q4 Strategy Review', meetingId: 'm1', date: 'Jan 12, 2025', duration: '1h 02m', size: '234 MB', participants: 5, host: 'Sarah Chen', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 12, shared: true },
-  { id: 'r2', title: 'Client Onboarding - Acme Corp', meetingId: 'm4', date: 'Jan 10, 2025', duration: '1h 28m', size: '312 MB', participants: 4, host: 'Emily Davis', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 8, shared: false },
-  { id: 'r3', title: 'Product Design Review', meetingId: 'm2', date: 'Jan 9, 2025', duration: '47m', size: '156 MB', participants: 3, host: 'You', hasTranscript: true, hasAiSummary: false, quality: 'SD', views: 5, shared: false },
-  { id: 'r4', title: 'Security Review Board', meetingId: 'm7', date: 'Jan 8, 2025', duration: '2h 05m', size: '445 MB', participants: 6, host: 'James Wilson', hasTranscript: false, hasAiSummary: true, quality: 'HD', views: 3, shared: true },
-  { id: 'r5', title: 'Sprint 14 Planning', meetingId: 'm3', date: 'Jan 7, 2025', duration: '58m', size: '189 MB', participants: 8, host: 'Mike Johnson', hasTranscript: true, hasAiSummary: true, quality: 'HD', views: 15, shared: true },
-  { id: 'r6', title: '1:1 with Manager', meetingId: 'm6', date: 'Jan 6, 2025', duration: '28m', size: '89 MB', participants: 2, host: 'Alex Turner', hasTranscript: false, hasAiSummary: false, quality: 'SD', views: 1, shared: false },
-]
+interface ApiEndedMeeting {
+  id: string
+  title: string
+  meetingId: string
+  startTime: string | null
+  endTime: string | null
+  type: string
+  status: string
+  maxParticipants: number
+  recordingEnabled: boolean
+  host?: { id: string; name: string; email: string } | null
+  participants?: { user: { id: string; name: string; email: string } }[]
+  recordings?: { id: string; duration: number; size: number; createdAt: string }[]
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return '0m'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return m > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${h}h`
+  return `${m}m`
+}
+
+function formatSizeBytes(bytes: number): string {
+  if (bytes <= 0) return '0 MB'
+  const mb = bytes / (1024 * 1024)
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  return `${Math.round(mb)} MB`
+}
+
+function mapApiToRecording(m: ApiEndedMeeting): Recording | null {
+  const rec = m.recordings?.[0]
+  const durationSec = rec?.duration || (m.startTime && m.endTime ? Math.round((new Date(m.endTime).getTime() - new Date(m.startTime).getTime()) / 1000) : 0)
+  const sizeBytes = rec?.size || 0
+  if (durationSec <= 0 && sizeBytes <= 0) return null
+  return {
+    id: rec?.id || m.id,
+    title: m.title,
+    meetingId: m.meetingId,
+    date: m.endTime ? new Date(m.endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown',
+    duration: formatDuration(durationSec),
+    size: formatSizeBytes(sizeBytes),
+    participants: m.participants?.length || 0,
+    host: m.host?.name || 'Unknown',
+    hasTranscript: false,
+    hasAiSummary: false,
+    quality: sizeBytes > 100 * 1024 * 1024 ? 'HD' : 'SD',
+    views: 0,
+    shared: false,
+  }
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -111,15 +155,37 @@ export default function RecordingsPage() {
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesTitle, setNotesTitle] = useState('')
+  const [recordings, setRecordings] = useState<Recording[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const totalSize = mockRecordings.reduce((acc, r) => {
+  const fetchRecordings = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/v1/meetings?status=ended')
+      if (!res.ok) throw new Error('Failed to fetch recordings')
+      const json = await res.json()
+      const endedMeetings = json.data?.meetings || []
+      const mapped = endedMeetings.map(mapApiToRecording).filter((r): r is Recording => r !== null)
+      setRecordings(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load recordings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchRecordings() }, [])
+
+  const totalSize = recordings.reduce((acc, r) => {
     const match = r.size.match(/([\d.]+)\s*(MB|GB)/)
     if (!match) return acc
     return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
   }, 0)
 
-  const animatedRecordings = useCountUp(mockRecordings.length)
-  const animatedAiSummarized = useCountUp(mockRecordings.filter(r => r.hasAiSummary).length)
+  const animatedRecordings = useCountUp(recordings.length)
+  const animatedAiSummarized = useCountUp(recordings.filter(r => r.hasAiSummary).length)
   const animatedStorage = useCountUp(Math.round(totalSize))
 
   useEffect(() => {
@@ -137,7 +203,7 @@ export default function RecordingsPage() {
     return () => clearInterval(timer)
   }, [playing])
 
-  const filtered = [...mockRecordings]
+  const filtered = [...recordings]
     .filter(r => r.title.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'date') return 0
@@ -235,7 +301,28 @@ export default function RecordingsPage() {
         </div>
       </div>
 
-      {/* Recording cards */}
+      {error && (
+        <div className='flex items-center justify-center py-8'>
+          <p className='text-sm text-red-500'>{error}</p>
+          <Button variant='outline' className='ml-3 text-xs' onClick={fetchRecordings}>Retry</Button>
+        </div>
+      )}
+      {loading && !error && (
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className='border border-border/50 bg-card rounded-lg overflow-hidden animate-pulse'>
+              <div className='bg-zinc-800 aspect-video' />
+              <div className='p-4 space-y-3'>
+                <div className='h-4 w-3/4 rounded bg-muted' />
+                <div className='h-3 w-1/2 rounded bg-muted' />
+                <div className='flex gap-2'><div className='h-5 w-16 rounded-full bg-muted' /><div className='h-5 w-20 rounded-full bg-muted' /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!loading && !error && (
+      <>
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(rec => (
           <motion.div key={rec.id} variants={item}>
@@ -334,9 +421,11 @@ export default function RecordingsPage() {
               <Film className='h-8 w-8 text-muted-foreground/40' />
             </div>
           </div>
-          <p className='font-medium mt-4'>No recordings found</p>
-          <p className='text-sm text-muted-foreground mt-1'>Recordings from your meetings will appear here</p>
+          <p className='font-medium mt-4'>No recordings yet</p>
+          <p className='text-sm text-muted-foreground mt-1'>Recordings from your ended meetings will appear here</p>
         </div>
+      )}
+      </>
       )}
 
       {/* Meeting Notes Dialog */}

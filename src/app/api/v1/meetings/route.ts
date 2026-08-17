@@ -16,11 +16,20 @@ function generateMeetingId(): string {
   return `${group()}-${group()}-${group()}`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth();
 
+    const { searchParams } = new URL(request.url);
+    const statusFilter = searchParams.get('status');
+
+    const where: Record<string, unknown> = {};
+    if (statusFilter) {
+      where.status = statusFilter;
+    }
+
     const meetings = await db.meeting.findMany({
+      where,
       include: {
         host: { select: { id: true, name: true, email: true } },
         participants: {
@@ -28,9 +37,10 @@ export async function GET() {
             user: { select: { id: true, name: true, email: true } },
           },
         },
+        recordings: { select: { id: true, duration: true, size: true, createdAt: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: 50,
     });
 
     return NextResponse.json({

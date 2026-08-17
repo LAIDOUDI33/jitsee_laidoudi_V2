@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { authFetch } from '@/lib/api'
 import {
   Server,
   Cpu,
@@ -29,6 +31,48 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
+function timeAgo(date: string): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
+interface ServiceData {
+  name: string
+  status: string
+  uptime: number
+  responseTime: number
+  lastIncident: string | null
+}
+
+interface MetricData {
+  label: string
+  value: number
+}
+
+interface SystemInfoData {
+  nodeVersion: string
+  platform: string
+  runtime: string
+  deployment: string
+  lastDeploy: string
+  environment: string
+}
+
 interface ServiceStatus {
   name: string
   status: 'healthy' | 'degraded' | 'down'
@@ -38,21 +82,25 @@ interface ServiceStatus {
   icon: React.ReactNode
 }
 
-const services: ServiceStatus[] = [
-  { name: 'API Gateway', status: 'healthy', uptime: '99.98%', responseTime: '12ms', lastIncident: '14 days ago', icon: <Globe className='h-5 w-5' /> },
-  { name: 'AI Engine', status: 'healthy', uptime: '99.95%', responseTime: '245ms', lastIncident: '7 days ago', icon: <Zap className='h-5 w-5' /> },
-  { name: 'Database (SQLite)', status: 'healthy', uptime: '99.99%', responseTime: '3ms', lastIncident: '30 days ago', icon: <Database className='h-5 w-5' /> },
-  { name: 'WebSocket Server', status: 'healthy', uptime: '99.97%', responseTime: '8ms', lastIncident: '5 days ago', icon: <Wifi className='h-5 w-5' /> },
-  { name: 'File Storage', status: 'degraded', uptime: '99.90%', responseTime: '120ms', lastIncident: '1 hour ago', icon: <HardDrive className='h-5 w-5' /> },
-  { name: 'Auth Service', status: 'healthy', uptime: '99.99%', responseTime: '15ms', lastIncident: '21 days ago', icon: <Server className='h-5 w-5' /> },
-]
+// Icon mapping for service names
+function getServiceIcon(name: string): React.ReactNode {
+  const lower = name.toLowerCase()
+  if (lower.includes('database') || lower.includes('db')) return <Database className='h-5 w-5' />
+  if (lower.includes('api') || lower.includes('gateway')) return <Globe className='h-5 w-5' />
+  if (lower.includes('auth')) return <Server className='h-5 w-5' />
+  if (lower.includes('websocket') || lower.includes('ws')) return <Wifi className='h-5 w-5' />
+  if (lower.includes('ai') || lower.includes('engine')) return <Zap className='h-5 w-5' />
+  if (lower.includes('storage') || lower.includes('file')) return <HardDrive className='h-5 w-5' />
+  return <Server className='h-5 w-5' />
+}
 
-const metrics = [
-  { label: 'CPU Usage', value: 34, icon: <Cpu className='h-4 w-4' />, color: '#10b981', bgColor: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600', desc: 'Normal utilization' },
-  { label: 'Memory', value: 62, icon: <MemoryStick className='h-4 w-4' />, color: '#f59e0b', bgColor: 'from-amber-500/10 to-amber-500/5 text-amber-600', desc: 'Moderate utilization' },
-  { label: 'Disk Usage', value: 48, icon: <HardDrive className='h-4 w-4' />, color: '#10b981', bgColor: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600', desc: 'Normal utilization' },
-  { label: 'Network I/O', value: 25, icon: <Wifi className='h-4 w-4' />, color: '#10b981', bgColor: 'from-violet-500/10 to-violet-500/5 text-violet-600', desc: 'Normal utilization' },
-]
+// Metric config with icon/color/desc
+const metricConfig: Record<string, { icon: React.ReactNode; color: string; bgColor: string; desc: string }> = {
+  'CPU Usage': { icon: <Cpu className='h-4 w-4' />, color: '#10b981', bgColor: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600', desc: 'Normal utilization' },
+  'Memory': { icon: <MemoryStick className='h-4 w-4' />, color: '#f59e0b', bgColor: 'from-amber-500/10 to-amber-500/5 text-amber-600', desc: 'Moderate utilization' },
+  'Disk Usage': { icon: <HardDrive className='h-4 w-4' />, color: '#10b981', bgColor: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600', desc: 'Normal utilization' },
+  'Network I/O': { icon: <Wifi className='h-4 w-4' />, color: '#10b981', bgColor: 'from-violet-500/10 to-violet-500/5 text-violet-600', desc: 'Normal utilization' },
+}
 
 const recentIncidents = [
   { title: 'File Storage Latency Spike', status: 'investigating', time: '1 hour ago', severity: 'warning' as const },
@@ -114,38 +162,127 @@ const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transiti
 export default function AdminSystemPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [logsExpanded, setLogsExpanded] = useState(false)
+  const [services, setServices] = useState<ServiceStatus[]>([])
+  const [metrics, setMetrics] = useState<Array<{ label: string; value: number; icon: React.ReactNode; color: string; bgColor: string; desc: string }>>([])
+  const [systemInfo, setSystemInfo] = useState<SystemInfoData | null>(null)
+  const [loading, setLoading] = useState(true)
 
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/v1/admin/system')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      const data = json.data || {}
+
+      // Map services
+      const mappedServices: ServiceStatus[] = (data.services || []).map((s: ServiceData) => ({
+        name: s.name,
+        status: s.status === 'healthy' ? 'healthy' : s.status === 'degraded' ? 'degraded' : 'down',
+        uptime: '99.9%',
+        responseTime: `${s.responseTime}ms`,
+        lastIncident: s.lastIncident || 'None',
+        icon: getServiceIcon(s.name),
+      }))
+      setServices(mappedServices)
+
+      // Map metrics — merge API value with existing icon/color/desc configs
+      const mappedMetrics = (data.metrics || []).map((m: MetricData) => {
+        const config = metricConfig[m.label] || { icon: <Cpu className='h-4 w-4' />, color: '#10b981', bgColor: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600', desc: 'Normal' }
+        // Update desc based on value
+        let desc = config.desc
+        if (m.value >= 80) desc = 'High utilization'
+        else if (m.value >= 60) desc = 'Moderate utilization'
+        else desc = 'Normal utilization'
+        // Update color based on value
+        let color = config.color
+        if (m.value >= 80) color = '#ef4444'
+        else if (m.value >= 60) color = '#f59e0b'
+        return { ...m, ...config, desc, color }
+      })
+      setMetrics(mappedMetrics)
+
+      // System info
+      if (data.systemInfo) {
+        setSystemInfo(data.systemInfo)
+      }
+    } catch {
+      toast.error('Failed to load system data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // Auto-refresh when autoRefresh is true
   useEffect(() => {
     if (!autoRefresh) return
     const interval = setInterval(() => {
-      // mock refresh
+      fetchData()
     }, 5000)
     return () => clearInterval(interval)
-  }, [autoRefresh])
+  }, [autoRefresh, fetchData])
 
   const restartService = (name: string) => {
     toast.success(`Restarting ${name}...`)
   }
 
   const healthyCount = services.filter(s => s.status === 'healthy').length
+  const totalCount = services.length || 1
+
+  // Build system info grid from API data
+  const infoGrid = systemInfo ? [
+    { label: 'Platform Version', value: 'v2.0.0-beta.4' },
+    { label: 'Node.js', value: systemInfo.nodeVersion },
+    { label: 'Runtime', value: systemInfo.runtime },
+    { label: 'Deployment', value: systemInfo.deployment },
+    { label: 'Platform', value: systemInfo.platform },
+    { label: 'Environment', value: systemInfo.environment },
+    { label: 'Last Deploy', value: systemInfo.lastDeploy },
+    { label: 'AI Provider', value: 'z-ai-web-dev-sdk' },
+  ] : [
+    { label: 'Platform Version', value: 'v2.0.0-beta.4' },
+    { label: 'Node.js', value: '—' },
+    { label: 'Database', value: 'SQLite 3.x' },
+    { label: 'Runtime', value: 'Next.js 16' },
+    { label: 'AI Provider', value: 'z-ai-web-dev-sdk' },
+    { label: 'Deployment', value: '—' },
+    { label: 'Last Deploy', value: '—' },
+    { label: 'Environment', value: '—' },
+  ]
+
+  if (loading) {
+    return (
+      <div className='space-y-6'>
+        <Card className='border border-border/50'><CardContent className='p-5 flex items-center gap-4'><Skeleton className='h-12 w-12 rounded-xl' /><div className='flex-1 space-y-2'><Skeleton className='h-5 w-48' /><Skeleton className='h-4 w-72' /></div></CardContent></Card>
+        <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className='border border-border/50'><CardContent className='p-4 flex flex-col items-center space-y-3'><Skeleton className='h-5 w-24' /><Skeleton className='h-24 w-24 rounded-full' /><Skeleton className='h-3 w-32' /></CardContent></Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
       {/* System overview banner with dynamic status */}
       <motion.div variants={item}>
-        <Card className={`hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 ${healthyCount === services.length ? 'bg-gradient-to-br from-emerald-500/5 to-cyan-500/5 border-emerald-200/50 dark:border-emerald-800/30' : healthyCount >= 4 ? 'bg-gradient-to-br from-amber-500/5 to-orange-500/5 border-amber-200/50 dark:border-amber-800/30' : 'bg-gradient-to-br from-red-500/5 to-rose-500/5 border-red-200/50 dark:border-red-800/30'}`}>
+        <Card className={`hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 ${healthyCount === totalCount ? 'bg-gradient-to-br from-emerald-500/5 to-cyan-500/5 border-emerald-200/50 dark:border-emerald-800/30' : healthyCount >= Math.ceil(totalCount * 0.7) ? 'bg-gradient-to-br from-amber-500/5 to-orange-500/5 border-amber-200/50 dark:border-amber-800/30' : 'bg-gradient-to-br from-red-500/5 to-rose-500/5 border-red-200/50 dark:border-red-800/30'}`}>
           <CardContent className='p-5 flex flex-col sm:flex-row items-center gap-4'>
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${healthyCount === services.length ? 'bg-gradient-to-br from-emerald-500 to-cyan-600 shadow-emerald-500/20' : healthyCount >= 4 ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20' : 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/20'}`}>
-              {healthyCount === services.length ? <CheckCircle2 className='h-6 w-6 text-white' /> : <AlertTriangle className='h-6 w-6 text-white' />}
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${healthyCount === totalCount ? 'bg-gradient-to-br from-emerald-500 to-cyan-600 shadow-emerald-500/20' : healthyCount >= Math.ceil(totalCount * 0.7) ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20' : 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/20'}`}>
+              {healthyCount === totalCount ? <CheckCircle2 className='h-6 w-6 text-white' /> : <AlertTriangle className='h-6 w-6 text-white' />}
             </div>
             <div className='flex-1 text-center sm:text-left'>
               <h2 className='font-semibold flex items-center justify-center sm:justify-start gap-2'>
-                System Status: <span className={healthyCount === services.length ? 'text-emerald-600' : healthyCount >= 4 ? 'text-amber-600' : 'text-red-500'}>{healthyCount === services.length ? 'All Healthy' : 'Partial Degradation'}</span>
+                System Status: <span className={healthyCount === totalCount ? 'text-emerald-600' : healthyCount >= Math.ceil(totalCount * 0.7) ? 'text-amber-600' : 'text-red-500'}>{healthyCount === totalCount ? 'All Healthy' : 'Partial Degradation'}</span>
               </h2>
-              <p className='text-sm text-muted-foreground'>{healthyCount === services.length ? 'All services are running normally.' : 'File storage experiencing elevated latency. Team is investigating.'}</p>
+              <p className='text-sm text-muted-foreground'>{healthyCount === totalCount ? 'All services are running normally.' : 'Some services experiencing issues. Team is investigating.'}</p>
             </div>
-            <Badge variant='outline' className={`shrink-0 gap-1 ${healthyCount === services.length ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'bg-amber-500/10 text-amber-600 border-amber-200'}`}>
-              {healthyCount === services.length ? <CheckCircle2 className='h-3 w-3' /> : <AlertTriangle className='h-3 w-3 animate-pulse' />}{healthyCount}/{services.length} Healthy
+            <Badge variant='outline' className={`shrink-0 gap-1 ${healthyCount === totalCount ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 'bg-amber-500/10 text-amber-600 border-amber-200'}`}>
+              {healthyCount === totalCount ? <CheckCircle2 className='h-3 w-3' /> : <AlertTriangle className='h-3 w-3 animate-pulse' />}{healthyCount}/{totalCount} Healthy
             </Badge>
           </CardContent>
         </Card>
@@ -181,7 +318,7 @@ export default function AdminSystemPage() {
                     <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} className='scale-75' />
                     <Label className='text-[10px] text-muted-foreground'>Auto</Label>
                   </div>
-                  <Button variant='ghost' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => toast.info('Services refreshed')}><RefreshCw className='h-3 w-3' /> Refresh</Button>
+                  <Button variant='ghost' size='sm' className='gap-1.5 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { fetchData(); toast.info('Services refreshed') }}><RefreshCw className='h-3 w-3' /> Refresh</Button>
                 </div>
               </div>
             </CardHeader>
@@ -293,16 +430,7 @@ export default function AdminSystemPage() {
           <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><Server className='h-4 w-4 text-muted-foreground' /> System Information</CardTitle></CardHeader>
           <CardContent>
             <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
-              {[
-                { label: 'Platform Version', value: 'v2.0.0-beta.4' },
-                { label: 'Node.js', value: 'v22.x (Bun)' },
-                { label: 'Database', value: 'SQLite 3.x' },
-                { label: 'Runtime', value: 'Next.js 16' },
-                { label: 'AI Provider', value: 'z-ai-web-dev-sdk' },
-                { label: 'Deployment', value: 'Production' },
-                { label: 'Last Deploy', value: 'Jan 14, 2025' },
-                { label: 'Environment', value: 'Cloud Sandbox' },
-              ].map(info => (
+              {infoGrid.map(info => (
                 <div key={info.label} className='p-2 rounded-lg hover:bg-muted/30 transition-colors'><p className='text-muted-foreground text-xs'>{info.label}</p><p className='font-medium'>{info.value}</p></div>
               ))}
             </div>

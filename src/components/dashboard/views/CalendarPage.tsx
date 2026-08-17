@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { authFetch } from '@/lib/api'
 import {
   ChevronLeft,
   ChevronRight,
@@ -33,16 +34,37 @@ interface CalendarEvent {
   color: string
 }
 
-const mockEvents: CalendarEvent[] = [
-  { id: 'ce1', title: 'Q4 Strategy Review', date: '2025-01-15', time: '10:00 AM', duration: '1h', type: 'meeting', participants: 5, color: 'bg-sky-500' },
-  { id: 'ce2', title: 'Engineering Standup', date: '2025-01-15', time: '9:00 AM', duration: '15m', type: 'meeting', participants: 7, color: 'bg-violet-500' },
-  { id: 'ce3', title: 'Product Launch Deadline', date: '2025-01-17', time: '5:00 PM', duration: '', type: 'deadline', color: 'bg-red-500' },
-  { id: 'ce4', title: 'Team Offsite Planning', date: '2025-01-18', time: '2:00 PM', duration: '1h 30m', type: 'meeting', participants: 12, color: 'bg-emerald-500' },
-  { id: 'ce5', title: 'Client Demo - Acme Corp', date: '2025-01-20', time: '11:00 AM', duration: '45m', type: 'meeting', participants: 4, color: 'bg-amber-500' },
-  { id: 'ce6', title: 'Sprint 15 Planning', date: '2025-01-21', time: '10:00 AM', duration: '2h', type: 'meeting', participants: 8, color: 'bg-pink-500' },
-  { id: 'ce7', title: 'Weekly Report Due', date: '2025-01-22', time: '9:00 AM', duration: '', type: 'reminder', color: 'bg-zinc-500' },
-  { id: 'ce8', title: 'Board Meeting', date: '2025-01-24', time: '3:00 PM', duration: '2h', type: 'meeting', participants: 15, color: 'bg-sky-600' },
-]
+interface ApiScheduledMeeting {
+  id: string
+  title: string
+  meetingId: string
+  type: string
+  status: string
+  startTime: string | null
+  endTime: string | null
+  maxParticipants: number
+  settings: string | null
+  participants?: { user: { id: string; name: string } }[]
+}
+
+const meetingColors = ['bg-sky-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-teal-500', 'bg-rose-500', 'bg-sky-600']
+
+function mapApiToCalendarEvent(m: ApiScheduledMeeting, index: number): CalendarEvent {
+  const start = m.startTime ? new Date(m.startTime) : null
+  const settings = m.settings ? (() => { try { return JSON.parse(m.settings) } catch { return {} } })() : {}
+  const dur = settings.duration || 60
+  const durStr = dur >= 60 ? `${Math.floor(dur / 60)}h${dur % 60 > 0 ? ` ${dur % 60}m` : ''}` : `${dur}m`
+  return {
+    id: m.id,
+    title: m.title,
+    date: start ? start.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    time: start ? start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+    duration: durStr,
+    type: 'meeting',
+    participants: m.participants?.length || 0,
+    color: meetingColors[index % meetingColors.length],
+  }
+}
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -96,7 +118,30 @@ export default function CalendarPage() {
   const dateStr = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
   const todayStr = today.toISOString().split('T')[0]
 
-  const getEventsForDate = (ds: string) => mockEvents.filter(e => e.date === ds)
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchEvents = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/v1/meetings/schedule')
+      if (!res.ok) throw new Error('Failed to fetch schedule')
+      const json = await res.json()
+      const meetings = json.data?.meetings || []
+      const mapped = meetings.map((m: ApiScheduledMeeting, i: number) => mapApiToCalendarEvent(m, i))
+      setEvents(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load schedule')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchEvents() }, [])
+
+  const getEventsForDate = (ds: string) => events.filter(e => e.date === ds)
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : []
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -128,7 +173,7 @@ export default function CalendarPage() {
     return cells
   }, [currentYear, currentMonth, daysInMonth, todayStr])
 
-  const thisWeekEvents = mockEvents.filter(e => {
+  const thisWeekEvents = events.filter(e => {
     const eventDate = new Date(e.date + 'T12:00:00')
     const now = new Date()
     const weekEnd = new Date(now)
@@ -219,6 +264,25 @@ export default function CalendarPage() {
 
       <div className='flex flex-col lg:flex-row gap-6'>
         <div className='flex-1'>
+          {loading && (
+            <div className='flex items-center justify-center py-16 animate-pulse'>
+              <div className='space-y-3 w-full max-w-md'>
+                <div className='h-8 w-48 rounded bg-muted mx-auto' />
+                <div className='grid grid-cols-7 gap-1'>
+                  {Array.from({ length: 35 }).map((_, i) => (
+                    <div key={i} className='h-16 rounded bg-muted' />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {error && (
+            <div className='flex items-center justify-center py-16'>
+              <p className='text-sm text-red-500'>{error}</p>
+              <Button variant='outline' className='ml-3 text-xs' onClick={fetchEvents}>Retry</Button>
+            </div>
+          )}
+          {!loading && !error && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}>
           <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
             <CardHeader className='pb-2'>
@@ -243,6 +307,7 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
           </motion.div>
+          )}
         </div>
 
         <div className='w-full lg:w-80 space-y-4'>

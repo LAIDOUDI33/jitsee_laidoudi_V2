@@ -58,16 +58,60 @@ interface Meeting {
   host: string
 }
 
-const mockMeetings: Meeting[] = [
-  { id: 'm1', title: 'Q4 Strategy Review', status: 'upcoming', type: 'scheduled', date: '2025-01-15', time: '10:00 AM', duration: '1h', participants: 5, maxParticipants: 10, roomId: 'alv-q4-strategy', host: 'Sarah Chen', description: 'Quarterly strategy alignment meeting' },
-  { id: 'm2', title: 'Product Design Sprint', status: 'active', type: 'instant', date: '2025-01-14', time: '2:30 PM', duration: '45m', participants: 3, maxParticipants: 8, roomId: 'alv-design-sprint', host: 'You' },
-  { id: 'm3', title: 'Engineering Standup', status: 'scheduled', type: 'recurring', date: '2025-01-15', time: '9:00 AM', duration: '15m', participants: 7, maxParticipants: 15, roomId: 'alv-standup', host: 'Mike Johnson' },
-  { id: 'm4', title: 'Client Onboarding - Acme Corp', status: 'upcoming', type: 'scheduled', date: '2025-01-16', time: '11:00 AM', duration: '1h 30m', participants: 2, maxParticipants: 6, roomId: 'alv-acme-onboard', host: 'Emily Davis' },
-  { id: 'm5', title: 'Weekly Team Sync', status: 'scheduled', type: 'recurring', date: '2025-01-13', time: '3:00 PM', duration: '30m', participants: 9, maxParticipants: 20, roomId: 'alv-team-sync', host: 'Sarah Chen' },
-  { id: 'm6', title: '1:1 with Manager', status: 'upcoming', type: 'scheduled', date: '2025-01-14', time: '4:00 PM', duration: '30m', participants: 1, maxParticipants: 2, roomId: 'alv-1on1', host: 'Alex Turner' },
-  { id: 'm7', title: 'Security Review Board', status: 'ended', type: 'scheduled', date: '2025-01-12', time: '10:00 AM', duration: '2h', participants: 6, maxParticipants: 8, roomId: 'alv-sec-review', host: 'James Wilson' },
-  { id: 'm8', title: 'Marketing Campaign Planning', status: 'ended', type: 'scheduled', date: '2025-01-11', time: '1:00 PM', duration: '1h', participants: 4, maxParticipants: 10, roomId: 'alv-mktg-plan', host: 'Lisa Park' },
-]
+interface ApiMeeting {
+  id: string
+  title: string
+  meetingId: string
+  type: string
+  status: string
+  startTime: string | null
+  endTime: string | null
+  maxParticipants: number
+  recordingEnabled: boolean
+  hostId: string | null
+  settings: string | null
+  host?: { id: string; name: string; email: string } | null
+  participants?: { user: { id: string; name: string; email: string } }[]
+}
+
+function mapApiMeeting(m: ApiMeeting): Meeting {
+  const startDate = m.startTime ? new Date(m.startTime) : null
+  const settings = m.settings ? (() => { try { return JSON.parse(m.settings) } catch { return {} } })() : {}
+  const dur = settings.duration || 60
+  const durStr = dur >= 60 ? `${Math.floor(dur / 60)}h${dur % 60 > 0 ? ` ${dur % 60}m` : ''}` : `${dur}m`
+
+  let status: Meeting['status'] = m.status as Meeting['status']
+  if (m.status === 'scheduled' && startDate && startDate > new Date()) status = 'upcoming'
+  if (m.type === 'recurring') status = 'recurring'
+
+  return {
+    id: m.id,
+    title: m.title,
+    status,
+    type: m.type as Meeting['type'],
+    date: startDate ? startDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    time: startDate ? startDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+    duration: durStr,
+    participants: m.participants?.length || 0,
+    maxParticipants: m.maxParticipants,
+    roomId: m.meetingId,
+    description: settings.description || undefined,
+    host: m.host?.name || 'Unknown',
+  }
+}
+
+function SkeletonCard() {
+  return (
+    <div className='border border-border/50 bg-card rounded-lg p-4 space-y-3 animate-pulse'>
+      <div className='flex items-center gap-2'>
+        <div className='h-4 w-4 rounded bg-muted' />\n        <div className='h-4 w-40 rounded bg-muted' />\n        <div className='h-5 w-16 rounded-full bg-muted ml-auto' />\n      </div>
+      <div className='flex items-center gap-3'>
+        <div className='h-3 w-20 rounded bg-muted' />\n        <div className='h-3 w-16 rounded bg-muted' />\n        <div className='h-3 w-10 rounded bg-muted' />\n      </div>
+      <div className='flex items-center gap-3'>
+        <div className='h-6 w-6 rounded-full bg-muted' />\n        <div className='h-6 w-6 rounded-full bg-muted' />\n        <div className='h-1 flex-1 rounded-full bg-muted' />\n      </div>
+    </div>
+  )
+}
 
 const statusConfig: Record<string, { color: string; label: string; pulse?: boolean }> = {
   active: { color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800', label: 'Active', pulse: true },
@@ -118,11 +162,31 @@ const item = {
 export default function MeetingsPage() {
   const { setCurrentMeetingId, setMeetingTitle, setCurrentView } = useAppStore()
   const [search, setSearch] = useState('')
-  const [meetings, setMeetings] = useState<Meeting[]>(mockMeetings)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', duration: '30m', type: 'scheduled', description: '' })
   const [activeTab, setActiveTab] = useState('upcoming')
   const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set())
+
+  const fetchMeetings = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/v1/meetings')
+      if (!res.ok) throw new Error('Failed to fetch meetings')
+      const json = await res.json()
+      const mapped = (json.data?.meetings || []).map(mapApiMeeting)
+      setMeetings(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load meetings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchMeetings() }, [])
 
   const filtered = meetings.filter(m =>
     m.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -185,24 +249,9 @@ export default function MeetingsPage() {
       setCreateOpen(false)
       setNewMeeting({ title: '', date: '', time: '', duration: '30m', type: 'scheduled', description: '' })
       toast.success(`Meeting "${newMeeting.title}" created!`)
+      fetchMeetings()
     } catch {
-      const created: Meeting = {
-        id: `m-${Date.now()}`,
-        title: newMeeting.title,
-        status: 'upcoming',
-        type: newMeeting.type as Meeting['type'],
-        date: newMeeting.date || new Date().toISOString().split('T')[0],
-        time: newMeeting.time || '9:00 AM',
-        duration: newMeeting.duration,
-        participants: 0, maxParticipants: 10,
-        roomId,
-        host: useAppStore.getState().user?.name || 'You',
-        description: newMeeting.description || undefined,
-      }
-      setMeetings([created, ...meetings])
-      setCreateOpen(false)
-      setNewMeeting({ title: '', date: '', time: '', duration: '30m', type: 'scheduled', description: '' })
-      toast.success(`Meeting "${newMeeting.title}" created!`)
+      toast.error('Failed to create meeting')
     }
   }
 
@@ -401,6 +450,7 @@ export default function MeetingsPage() {
                   description: m.description,
                 }
                 setMeetings(prev => [created, ...prev])
+                fetchMeetings()
               }}
             />
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -484,7 +534,7 @@ export default function MeetingsPage() {
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><Video className='h-5 w-5 text-emerald-600' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>1</p>
+                  <p className='text-2xl font-bold'>{meetings.filter(m => m.status === 'active').length}</p>
                   <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />Live</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>Active Now</p>
@@ -499,7 +549,7 @@ export default function MeetingsPage() {
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/10 to-sky-500/5'><CalendarDays className='h-5 w-5 text-sky-600' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>3</p>
+                  <p className='text-2xl font-bold'>{upcoming.length}</p>
                   <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+12%</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>Upcoming</p>
@@ -514,7 +564,7 @@ export default function MeetingsPage() {
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-500/5'><Repeat className='h-5 w-5 text-amber-600' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>2</p>
+                  <p className='text-2xl font-bold'>{meetings.filter(m => m.type === 'recurring').length}</p>
                   <span className='text-[10px] font-medium text-muted-foreground flex items-center gap-0.5'>Stable</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>Recurring</p>
@@ -529,7 +579,7 @@ export default function MeetingsPage() {
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-zinc-500/10 to-zinc-500/5'><VideoOff className='h-5 w-5 text-zinc-500' /></div>
               <div className='flex-1'>
                 <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold'>2</p>
+                  <p className='text-2xl font-bold'>{past.length}</p>
                   <span className='text-[10px] font-medium text-red-500 flex items-center gap-0.5'>↓ 3%</span>
                 </div>
                 <p className='text-xs text-muted-foreground'>Ended</p>
@@ -565,6 +615,18 @@ export default function MeetingsPage() {
             </button>
           ))}
         </div>
+        {error && (
+          <div className='flex items-center justify-center py-8'>
+            <p className='text-sm text-red-500'>{error}</p>
+            <Button variant='outline' className='ml-3 text-xs' onClick={fetchMeetings}>Retry</Button>
+          </div>
+        )}
+        {loading && !error && (
+          <div className='space-y-3 max-h-[calc(100vh-420px)] overflow-y-auto pr-1'>
+            {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        )}
+        {!loading && !error && (
         <AnimatePresence mode='wait'>
           {activeTab === 'upcoming' ? (
             <motion.div
@@ -617,6 +679,7 @@ export default function MeetingsPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        )}
       </div>
     </div>
   )

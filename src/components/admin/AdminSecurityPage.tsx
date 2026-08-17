@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { authFetch } from '@/lib/api'
 import {
   Shield,
   Lock,
@@ -29,6 +31,33 @@ import {
   Terminal,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+function timeAgo(date: string): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
+function extractDevice(userAgent: string | null): string {
+  if (!userAgent) return 'Unknown'
+  let browser = 'Unknown'
+  if (/Chrome/i.test(userAgent)) browser = 'Chrome'
+  else if (/Firefox/i.test(userAgent)) browser = 'Firefox'
+  else if (/Safari/i.test(userAgent)) browser = 'Safari'
+  else if (/Edge/i.test(userAgent)) browser = 'Edge'
+  let os = 'Unknown'
+  if (/Windows/i.test(userAgent)) os = 'Windows'
+  else if (/Mac/i.test(userAgent)) os = 'macOS'
+  else if (/Linux/i.test(userAgent)) os = 'Linux'
+  else if (/iPhone|iPad/i.test(userAgent)) os = 'iOS'
+  else if (/Android/i.test(userAgent)) os = 'Android'
+  return `${browser} / ${os}`
+}
 
 interface SecurityPolicy {
   id: string
@@ -68,23 +97,6 @@ const policies: SecurityPolicy[] = [
   { id: 'p9', name: 'Rate Limiting', description: 'Block IPs with excessive failed login attempts', enabled: true, category: 'network' },
 ]
 
-const loginAttempts: LoginAttempt[] = [
-  { id: 'la1', email: 'sarah@alvision.ai', ip: '192.168.1.10', location: 'San Francisco, US', device: 'Chrome / macOS', time: '2 min ago', status: 'success' },
-  { id: 'la2', email: 'unknown@external.com', ip: '203.0.113.42', location: 'Unknown', device: 'Firefox / Windows', time: '5 min ago', status: 'blocked' },
-  { id: 'la3', email: 'mike@alvision.ai', ip: '192.168.1.22', location: 'San Francisco, US', device: 'Safari / iOS', time: '12 min ago', status: 'success' },
-  { id: 'la4', email: 'admin@alvision.ai', ip: '203.0.113.42', location: 'Unknown', device: 'Python/requests', time: '15 min ago', status: 'failed' },
-  { id: 'la5', email: 'admin@alvision.ai', ip: '203.0.113.42', location: 'Unknown', device: 'Python/requests', time: '15 min ago', status: 'failed' },
-  { id: 'la6', email: 'admin@alvision.ai', ip: '203.0.113.42', location: 'Unknown', device: 'Python/requests', time: '14 min ago', status: 'blocked' },
-]
-
-const securityEvents: SecurityEvent[] = [
-  { id: 'se1', title: 'Brute force attack blocked', description: 'IP 203.0.113.42 blocked after 3 failed attempts', time: '5 min ago', severity: 'critical' },
-  { id: 'se2', title: '2FA bypass attempt', description: 'User mike@alvision.ai tried expired 2FA code', time: '12 min ago', severity: 'warning' },
-  { id: 'se3', title: 'New device login', description: 'sarah@alvision.ai logged in from new Chrome/macOS device', time: '18 min ago', severity: 'info' },
-  { id: 'se4', title: 'Policy change', description: 'Password complexity policy updated by superadmin', time: '1 hour ago', severity: 'info' },
-  { id: 'se5', title: 'Session anomaly detected', description: 'Concurrent sessions exceeded for user emily@techstart.com', time: '2 hours ago', severity: 'warning' },
-]
-
 const eventSeverityColors: Record<string, { dot: string; bg: string; text: string }> = {
   info: { dot: 'bg-cyan-500', bg: 'bg-cyan-500/10', text: 'text-cyan-600' },
   warning: { dot: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-600' },
@@ -106,11 +118,63 @@ export default function AdminSecurityPage() {
   const [animatedScore, setAnimatedScore] = useState(0)
   const scoreRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([])
+  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([])
+  const [blockedIps, setBlockedIps] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   const togglePolicy = (id: string) => {
     setPolicyStates(prev => ({ ...prev, [id]: !prev[id] }))
     toast.success(`Policy ${policies.find(p => p.id === id)?.name} ${policyStates[id] ? 'disabled' : 'enabled'}`)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchData() {
+      try {
+        const res = await authFetch('/api/v1/admin/security')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        if (!cancelled) {
+          const data = json.data || {}
+          // Map login attempts
+          const attempts: LoginAttempt[] = (data.loginAttempts || []).map((a: Record<string, unknown>) => ({
+            id: a.id as string,
+            email: (a.user as Record<string, string> | null)?.email || 'unknown',
+            ip: (a.ipAddress as string) || 'Unknown',
+            location: 'Unknown',
+            device: extractDevice(a.userAgent as string | null),
+            time: timeAgo(a.createdAt as string),
+            status: (a.status as string || 'success') as 'success' | 'failed' | 'blocked',
+          }))
+          setLoginAttempts(attempts)
+
+          // Map security events
+          const events: SecurityEvent[] = (data.securityEvents || []).map((ev: Record<string, unknown>) => {
+            const action = (ev.action as string) || 'unknown.event'
+            let severity: 'info' | 'warning' | 'critical' = 'info'
+            if (/fail|block|critical|error/i.test(action)) severity = 'critical'
+            else if (/warn|alert|anomal/i.test(action)) severity = 'warning'
+            return {
+              id: ev.id as string,
+              title: action.replace('.', ': ').replace(/_/g, ' ').replace(/^./, (c: string) => c.toUpperCase()),
+              description: (ev.details as string) || '',
+              time: timeAgo(ev.createdAt as string),
+              severity,
+            }
+          })
+          setSecurityEvents(events)
+          setBlockedIps(data.blockedIps || 0)
+        }
+      } catch {
+        if (!cancelled) toast.error('Failed to load security data')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
 
   const enabledCount = Object.values(policyStates).filter(Boolean).length
   const securityScore = Math.round((enabledCount / policies.length) * 100)
@@ -139,7 +203,7 @@ export default function AdminSecurityPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [securityScore, startCountUp])
 
-  const blockedCount = loginAttempts.filter(a => a.status === 'blocked').length
+  const blockedCount = blockedIps
 
   const gaugeRadius = 52
   const gaugeStroke = 8
@@ -272,35 +336,48 @@ export default function AdminSecurityPage() {
             <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
               <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><Terminal className='h-4 w-4' /> Security Events Timeline</CardTitle></CardHeader>
               <CardContent>
-                <div className='relative'>
-                  <div className='absolute left-[15px] top-2 bottom-2 w-px bg-border' />
+                {loading ? (
                   <div className='space-y-4'>
-                    {securityEvents.map((ev, i) => {
-                      const sev = eventSeverityColors[ev.severity]
-                      return (
-                        <motion.div
-                          key={ev.id}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.08, duration: 0.3 }}
-                          className='flex items-start gap-3 relative'
-                        >
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 border-background ${sev.bg} ${sev.text}`}>
-                            <div className={`w-2.5 h-2.5 rounded-full ${sev.dot} ${ev.severity === 'critical' ? 'animate-pulse' : ''}`} />
-                          </div>
-                          <div className='flex-1 min-w-0 p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors'>
-                            <div className='flex items-center justify-between mb-1'>
-                              <p className='text-sm font-medium'>{ev.title}</p>
-                              <Badge variant='outline' className={`text-[10px] capitalize ${sev.bg} ${sev.text} border-0`}>{ev.severity}</Badge>
-                            </div>
-                            <p className='text-xs text-muted-foreground'>{ev.description}</p>
-                            <p className='text-[10px] text-muted-foreground mt-1'>{ev.time}</p>
-                          </div>
-                        </motion.div>
-                      )
-                    })}
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className='flex items-start gap-3'>
+                        <Skeleton className='h-8 w-8 rounded-full shrink-0' />
+                        <div className='flex-1 space-y-2'><Skeleton className='h-4 w-48' /><Skeleton className='h-3 w-64' /></div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : securityEvents.length === 0 ? (
+                  <p className='text-sm text-muted-foreground text-center py-8'>No security events found.</p>
+                ) : (
+                  <div className='relative'>
+                    <div className='absolute left-[15px] top-2 bottom-2 w-px bg-border' />
+                    <div className='space-y-4'>
+                      {securityEvents.map((ev, i) => {
+                        const sev = eventSeverityColors[ev.severity]
+                        return (
+                          <motion.div
+                            key={ev.id}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.08, duration: 0.3 }}
+                            className='flex items-start gap-3 relative'
+                          >
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 border-background ${sev.bg} ${sev.text}`}>
+                              <div className={`w-2.5 h-2.5 rounded-full ${sev.dot} ${ev.severity === 'critical' ? 'animate-pulse' : ''}`} />
+                            </div>
+                            <div className='flex-1 min-w-0 p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors'>
+                              <div className='flex items-center justify-between mb-1'>
+                                <p className='text-sm font-medium'>{ev.title}</p>
+                                <Badge variant='outline' className={`text-[10px] capitalize ${sev.bg} ${sev.text} border-0`}>{ev.severity}</Badge>
+                              </div>
+                              <p className='text-xs text-muted-foreground'>{ev.description}</p>
+                              <p className='text-[10px] text-muted-foreground mt-1'>{ev.time}</p>
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -308,39 +385,53 @@ export default function AdminSecurityPage() {
           <TabsContent value='logins' className='mt-4'>
             <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
               <CardHeader className='pb-3'><CardTitle className='text-sm flex items-center gap-2'><Eye className='h-4 w-4' /> Recent Login Attempts</CardTitle></CardHeader>
-              <Table>
-                <TableHeader>
-                  <TableRow className='divide-y divide-border/50'>
-                    <TableHead>User</TableHead>
-                    <TableHead className='hidden md:table-cell'>IP Address</TableHead>
-                    <TableHead className='hidden lg:table-cell'>Location</TableHead>
-                    <TableHead className='hidden md:table-cell'>Device</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loginAttempts.map(a => (
-                    <TableRow key={a.id} className='even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
-                      <TableCell>
-                        <div className='flex items-center gap-2'>
-                          <Avatar className='h-7 w-7 border border-border/50'><AvatarFallback className='text-[10px] bg-muted font-medium'>{a.email.split('@')[0].slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
-                          <span className='font-mono text-sm'>{a.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className='hidden md:table-cell font-mono text-sm text-muted-foreground'>{a.ip}</TableCell>
-                      <TableCell className='hidden lg:table-cell text-sm'>{a.location}</TableCell>
-                      <TableCell className='hidden md:table-cell text-sm text-muted-foreground'>{a.device}</TableCell>
-                      <TableCell className='text-sm text-muted-foreground'>{a.time}</TableCell>
-                      <TableCell>
-                        <Badge variant='outline' className={`text-[10px] gap-1 ${a.status === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : a.status === 'failed' ? 'bg-amber-500/10 text-amber-600 border-amber-200' : 'bg-red-500/10 text-red-500 border-red-200'}`}>
-                          {a.status === 'success' ? <CheckCircle2 className='h-3 w-3' /> : a.status === 'failed' ? <XCircle className='h-3 w-3' /> : <AlertTriangle className='h-3 w-3 animate-pulse' />}{a.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
+              {loading ? (
+                <CardContent className='space-y-3'>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className='flex items-center gap-3'>
+                      <Skeleton className='h-7 w-7 rounded-full' />
+                      <Skeleton className='h-4 w-40' />
+                      <Skeleton className='h-4 w-28 ml-auto' />
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </CardContent>
+              ) : loginAttempts.length === 0 ? (
+                <CardContent><p className='text-sm text-muted-foreground text-center py-8'>No login attempts found.</p></CardContent>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className='divide-y divide-border/50'>
+                      <TableHead>User</TableHead>
+                      <TableHead className='hidden md:table-cell'>IP Address</TableHead>
+                      <TableHead className='hidden lg:table-cell'>Location</TableHead>
+                      <TableHead className='hidden md:table-cell'>Device</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loginAttempts.map(a => (
+                      <TableRow key={a.id} className='even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
+                        <TableCell>
+                          <div className='flex items-center gap-2'>
+                            <Avatar className='h-7 w-7 border border-border/50'><AvatarFallback className='text-[10px] bg-muted font-medium'>{a.email.split('@')[0].slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                            <span className='font-mono text-sm'>{a.email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className='hidden md:table-cell font-mono text-sm text-muted-foreground'>{a.ip}</TableCell>
+                        <TableCell className='hidden lg:table-cell text-sm'>{a.location}</TableCell>
+                        <TableCell className='hidden md:table-cell text-sm text-muted-foreground'>{a.device}</TableCell>
+                        <TableCell className='text-sm text-muted-foreground'>{a.time}</TableCell>
+                        <TableCell>
+                          <Badge variant='outline' className={`text-[10px] gap-1 ${a.status === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : a.status === 'failed' ? 'bg-amber-500/10 text-amber-600 border-amber-200' : 'bg-red-500/10 text-red-500 border-red-200'}`}>
+                            {a.status === 'success' ? <CheckCircle2 className='h-3 w-3' /> : a.status === 'failed' ? <XCircle className='h-3 w-3' /> : <AlertTriangle className='h-3 w-3 animate-pulse' />}{a.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </Card>
           </TabsContent>
         </Tabs>

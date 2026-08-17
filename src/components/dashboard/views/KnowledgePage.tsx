@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { authFetch } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,16 +43,26 @@ interface KnowledgeArticle {
   bookmarked?: boolean
 }
 
-const mockArticles: KnowledgeArticle[] = [
-  { id: 'k1', title: 'Getting Started with ALVISION', description: 'Complete guide to setting up your workspace, scheduling meetings, and using core features.', category: 'Getting Started', tags: ['onboarding', 'setup', 'basics'], type: 'guide', author: 'Sarah Chen', date: 'Jan 10, 2025', readTime: '5 min', views: 245, bookmarked: true },
-  { id: 'k2', title: 'AI Meeting Summaries Explained', description: 'Learn how ALVISION generates meeting summaries, extracts action items, and provides intelligent insights.', category: 'AI Features', tags: ['ai', 'summaries', 'nlp'], type: 'article', author: 'Mike Johnson', date: 'Jan 8, 2025', readTime: '8 min', views: 189, bookmarked: false },
-  { id: 'k3', title: 'Best Practices for Video Meetings', description: 'Tips for running effective, engaging video meetings with your team.', category: 'Best Practices', tags: ['meetings', 'productivity', 'tips'], type: 'article', author: 'Emily Davis', date: 'Jan 5, 2025', readTime: '4 min', views: 312 },
-  { id: 'k4', title: 'Security & Compliance Overview', description: 'Understanding ALVISION security features, data encryption, and compliance certifications.', category: 'Security', tags: ['security', 'compliance', 'encryption'], type: 'guide', author: 'James Wilson', date: 'Jan 3, 2025', readTime: '10 min', views: 156, bookmarked: true },
-  { id: 'k5', title: 'Team Management & RBAC', description: 'How to set up teams, manage roles, and configure permissions for your organization.', category: 'Administration', tags: ['teams', 'rbac', 'permissions'], type: 'guide', author: 'Alex Turner', date: 'Dec 28, 2024', readTime: '7 min', views: 98 },
-  { id: 'k6', title: 'Recording & Transcription Setup', description: 'Configure automatic recording, enable speaker-identified transcripts, and manage storage.', category: 'Features', tags: ['recording', 'transcript', 'storage'], type: 'video', author: 'Lisa Park', date: 'Dec 25, 2024', readTime: '6 min', views: 134 },
-  { id: 'k7', title: 'Integrating with Calendar Apps', description: 'Connect Microsoft 365 and Google Calendar for seamless meeting scheduling.', category: 'Integrations', tags: ['calendar', 'microsoft', 'google'], type: 'guide', author: 'Sarah Chen', date: 'Dec 20, 2024', readTime: '5 min', views: 87 },
-  { id: 'k8', title: 'FAQ: Common Questions', description: 'Answers to the most frequently asked questions about ALVISION.', category: 'Getting Started', tags: ['faq', 'help'], type: 'faq', author: 'Support Team', date: 'Dec 15, 2024', readTime: '12 min', views: 523, bookmarked: true },
-]
+const fallbackArticles: KnowledgeArticle[] = []
+
+function mapKnowledgeItem(item: { id: string; title: string; content: string; keyTopics: string[]; type: string; createdAt: string; duration?: number; participantCount?: number }): KnowledgeArticle {
+  const d = new Date(item.createdAt)
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const readMins = item.duration ? Math.max(1, Math.round(item.duration / 60)) : 3
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.content.slice(0, 200) + (item.content.length > 200 ? '...' : ''),
+    category: 'AI Features',
+    tags: item.keyTopics.length > 0 ? item.keyTopics.slice(0, 3) : ['meeting', 'summary'],
+    type: 'article',
+    author: 'AI Assistant',
+    date,
+    readTime: `${readMins} min`,
+    views: 0,
+    bookmarked: false,
+  }
+}
 
 const categoryConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; gradientBorder: string }> = {
   'Getting Started': { icon: <GraduationCap className='h-4 w-4' />, color: 'text-emerald-600', bg: 'bg-emerald-500/10', gradientBorder: 'from-emerald-500 to-emerald-400' },
@@ -84,7 +95,29 @@ const item = {
 export default function KnowledgePage() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
-  const [articles, setArticles] = useState(mockArticles)
+  const [articles, setArticles] = useState<KnowledgeArticle[]>(fallbackArticles)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchKnowledge = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await authFetch('/api/v1/knowledge')
+      const json = await res.json()
+      if (json.success) {
+        setArticles((json.data.items as ReturnType<typeof mapKnowledgeItem>[]).map(mapKnowledgeItem))
+      } else {
+        setError(json.error?.message ?? 'Failed to fetch knowledge items')
+      }
+    } catch {
+      setError('Network error fetching knowledge items')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchKnowledge() }, [fetchKnowledge])
 
   const filtered = articles.filter(a => {
     const matchesSearch = a.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -148,7 +181,36 @@ export default function KnowledgePage() {
         </CardContent>
       </Card>
 
+      {/* Loading */}
+      {loading && (
+        <div className='space-y-3'>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className='animate-pulse'>
+              <CardContent className='p-5 flex items-start gap-4'>
+                <div className='w-10 h-10 rounded-xl bg-muted shrink-0' />
+                <div className='flex-1 space-y-2'>
+                  <div className='h-4 bg-muted rounded w-2/3' />
+                  <div className='h-3 bg-muted rounded w-full' />
+                  <div className='h-3 bg-muted rounded w-1/3' />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <Card className='border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20'>
+          <CardContent className='p-4 flex items-center justify-between'>
+            <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
+            <Button variant='outline' size='sm' onClick={fetchKnowledge}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Category cards with gradient top borders */}
+      {!loading && (
       <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3'>
         {Object.entries(categoryConfig).map(([name, config]) => (
           <motion.button
@@ -167,6 +229,7 @@ export default function KnowledgePage() {
           </motion.button>
         ))}
       </div>
+      )}
 
       <div className='flex flex-col lg:flex-row gap-6'>
         {/* Main content */}

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { authFetch } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
@@ -93,296 +94,22 @@ const avatarColors = [
   'bg-pink-500/15 text-pink-600',
 ]
 
-const initialNotifications: Notification[] = [
-  {
-    id: 'n-01',
-    type: 'meeting-invite',
-    sender: { name: 'Sarah Chen', initials: 'SC', color: avatarColors[0] },
-    title: 'Meeting invitation: Q4 Product Review',
-    description: 'You are invited to join the Q4 Product Review meeting tomorrow at 2:00 PM.',
-    detail: 'Sarah Chen has invited you to the Q4 Product Review meeting. This is a recurring weekly meeting to discuss product roadmap progress, feature prioritization, and cross-team alignment. The meeting will cover sprint outcomes, upcoming milestones, and resource allocation. Please confirm your attendance so the team can plan accordingly. Meeting link will be available 15 minutes before start time.',
-    timestamp: '2m ago',
-    timeGroup: 'Today',
-    unread: true,
+const fallbackNotifications: Notification[] = []
+
+function mapApiNotification(n: { id: string; type: string; title: string; description: string; time: string; timeGroup: string; read: boolean; sender: { name: string; initials: string; color: string } }): Notification {
+  return {
+    id: n.id,
+    type: n.type as NotificationType,
+    sender: { name: n.sender.name, initials: n.sender.initials, color: n.sender.color },
+    title: n.title,
+    description: n.description,
+    detail: n.description,
+    timestamp: n.time,
+    timeGroup: n.timeGroup as TimeGroup,
+    unread: !n.read,
     pinned: false,
-    actions: [
-      { label: 'Accept', variant: 'default', onClickLabel: 'Accepted' },
-      { label: 'Decline', variant: 'outline', onClickLabel: 'Declined' },
-    ],
-  },
-  {
-    id: 'n-02',
-    type: 'mention',
-    sender: { name: 'James Wilson', initials: 'JW', color: avatarColors[1] },
-    title: '<b>@you</b> in #engineering channel',
-    description: 'James Wilson mentioned you: "Hey <b>@you</b> can you review the PR for the new API endpoint?"',
-    detail: 'James Wilson mentioned you in the #engineering channel: "Hey @you can you review the PR for the new API endpoint? It includes the authentication middleware changes we discussed yesterday. The branch is feature/api-auth-v2 and I\'ve added detailed comments on the tricky parts. Would be great to get your eyes on it before EOD."',
-    timestamp: '8m ago',
-    timeGroup: 'Today',
-    unread: true,
-    pinned: true,
-  },
-  {
-    id: 'n-03',
-    type: 'meeting-soon',
-    sender: { name: 'System', initials: 'AL', color: 'bg-emerald-500/15 text-emerald-600' },
-    title: 'Sprint Planning starts in 15 minutes',
-    description: 'Your "Sprint Planning with Engineering" meeting is starting soon.',
-    detail: 'Your Sprint Planning meeting with the Engineering team is scheduled to start in 15 minutes. This meeting will cover the upcoming sprint backlog, story point estimation, and task assignment. Make sure to have your updated task list ready. The meeting room is already open and participants are joining.',
-    timestamp: '15m ago',
-    timeGroup: 'Today',
-    unread: true,
-    pinned: false,
-  },
-  {
-    id: 'n-04',
-    type: 'recording-ready',
-    sender: { name: 'System', initials: 'AL', color: 'bg-violet-500/15 text-violet-600' },
-    title: 'Recording ready: Design Review',
-    description: 'The recording for "Design Review - Mobile App v3" is now available.',
-    detail: 'The recording for your "Design Review - Mobile App v3" meeting is now available for viewing. Duration: 47 minutes. The recording has been automatically transcribed and an AI summary has been generated. You can find both in the Recordings section.',
-    timestamp: '32m ago',
-    timeGroup: 'Today',
-    unread: true,
-    pinned: false,
-  },
-  {
-    id: 'n-05',
-    type: 'ai-summary',
-    sender: { name: 'AI Assistant', initials: 'AI', color: 'bg-violet-500/15 text-violet-600' },
-    title: 'AI Summary ready: Board Meeting',
-    description: 'Key decisions and action items from the Board Meeting have been extracted.',
-    detail: 'AI Summary for "Board Meeting - December 2024" is ready. Key highlights: 1) Q4 revenue target approved at $4.2M, 2) New enterprise tier pricing approved, 3) Hiring plan for 12 additional engineers in Q1, 4) Security audit scheduled for January. 5 action items assigned to team leads.',
-    timestamp: '1h ago',
-    timeGroup: 'Today',
-    unread: true,
-    pinned: true,
-  },
-  {
-    id: 'n-06',
-    type: 'file-shared',
-    sender: { name: 'Emily Park', initials: 'EP', color: avatarColors[2] },
-    title: 'File shared: Q4 Roadmap.pdf',
-    description: 'Emily Park shared "Q4_Roadmap_Final.pdf" in the #product channel.',
-    detail: 'Emily Park shared the file "Q4_Roadmap_Final.pdf" (2.4 MB) in the #product channel. This is the finalized Q4 product roadmap including feature timelines, resource allocation, and milestone dates. The document has been reviewed by the leadership team and is ready for team distribution.',
-    timestamp: '1h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-07',
-    type: 'mention',
-    sender: { name: 'Alex Rivera', initials: 'AR', color: avatarColors[3] },
-    title: '<b>@you</b> in #design-feedback',
-    description: 'Alex Rivera mentioned you: "<b>@you</b> the new dashboard mockups look amazing!"',
-    detail: 'Alex Rivera mentioned you in the #design-feedback channel: "@you the new dashboard mockups look amazing! Love the glassmorphism approach. One thought - maybe we could add a subtle animation on the stat cards? Also, the color palette feels cohesive with the brand. Great work!"',
-    timestamp: '2h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-08',
-    type: 'member-joined',
-    sender: { name: 'System', initials: 'AL', color: 'bg-emerald-500/15 text-emerald-600' },
-    title: 'New team member joined',
-    description: 'Marcus Thompson has joined the Engineering team.',
-    detail: 'Marcus Thompson (marcus.t@company.com) has joined the Engineering team. They have been assigned the role of Senior Frontend Engineer. Welcome them to the team! Their onboarding buddy is Sarah Chen.',
-    timestamp: '2h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-09',
-    type: 'security-alert',
-    sender: { name: 'Security', initials: 'SE', color: 'bg-rose-500/15 text-rose-600' },
-    title: 'Login from new device detected',
-    description: 'A new sign-in was detected from MacBook Pro in San Francisco, CA.',
-    detail: 'We detected a sign-in to your account from a new device: MacBook Pro (macOS Sonoma 14.2) located in San Francisco, CA, United States. If this was you, no action is needed. If you don\'t recognize this activity, please secure your account immediately by changing your password and enabling two-factor authentication.',
-    timestamp: '3h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-10',
-    type: 'message',
-    sender: { name: 'Lisa Wang', initials: 'LW', color: avatarColors[4] },
-    title: 'New message in #general',
-    description: 'Lisa Wang: "Reminder: Team lunch tomorrow at noon in the main cafe! 🍕"',
-    detail: 'Lisa Wang posted in #general: "Reminder: Team lunch tomorrow at noon in the main cafe! 🍕 We\'ll be celebrating the Q3 milestone completion. Dietary preferences have been collected - if you haven\'t submitted yours yet, please do so by EOD today. See you there!"',
-    timestamp: '4h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-11',
-    type: 'meeting-invite',
-    sender: { name: 'David Kim', initials: 'DK', color: avatarColors[5] },
-    title: 'Meeting invitation: 1:1 with David Kim',
-    description: 'Weekly 1:1 sync scheduled for Thursday at 10:00 AM.',
-    detail: 'David Kim has scheduled your weekly 1:1 sync for Thursday at 10:00 AM. Agenda items: project status update, career development discussion, and feedback exchange. Please add any topics you\'d like to discuss to the shared agenda doc.',
-    timestamp: '5h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-    actions: [
-      { label: 'Accept', variant: 'default', onClickLabel: 'Accepted' },
-      { label: 'Decline', variant: 'outline', onClickLabel: 'Declined' },
-    ],
-  },
-  {
-    id: 'n-12',
-    type: 'system-update',
-    sender: { name: 'System', initials: 'AL', color: 'bg-cyan-500/15 text-cyan-600' },
-    title: 'Platform update v3.8.2 deployed',
-    description: 'New features include improved noise cancellation and faster file uploads.',
-    detail: 'ALVISION Platform v3.8.2 has been successfully deployed. New features and improvements: 1) Enhanced AI noise cancellation with 40% better background removal, 2) File upload speed improved by 60%, 3) New virtual background options, 4) Fixed calendar sync issue with Outlook, 5) Improved mobile video quality on low-bandwidth connections.',
-    timestamp: '6h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-13',
-    type: 'recording-ready',
-    sender: { name: 'System', initials: 'AL', color: 'bg-violet-500/15 text-violet-600' },
-    title: 'Recording ready: Client Demo',
-    description: 'The recording for "Enterprise Client Demo - Acme Corp" is now available.',
-    detail: 'The recording for "Enterprise Client Demo - Acme Corp" is now available. Duration: 1 hour 12 minutes. The client showed strong interest in the enterprise tier. AI summary and key action items have been extracted automatically.',
-    timestamp: '8h ago',
-    timeGroup: 'Today',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-14',
-    type: 'maintenance',
-    sender: { name: 'System', initials: 'AL', color: 'bg-amber-500/15 text-amber-600' },
-    title: 'Scheduled maintenance tonight',
-    description: 'Platform maintenance window: 11:00 PM - 2:00 AM EST.',
-    detail: 'ALVISION will undergo scheduled maintenance tonight from 11:00 PM to 2:00 AM EST. During this window, video conferencing and file sharing services will be temporarily unavailable. Chat and notifications will remain operational. All meetings scheduled during this period have been automatically rescheduled.',
-    timestamp: '1d ago',
-    timeGroup: 'Yesterday',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-15',
-    type: 'mention',
-    sender: { name: 'Priya Sharma', initials: 'PS', color: avatarColors[6] },
-    title: '<b>@you</b> in #incidents',
-    description: 'Priya Sharma mentioned you: "<b>@you</b> can you check the API latency issue?"',
-    detail: 'Priya Sharma mentioned you in the #incidents channel: "@you can you check the API latency issue reported by the monitoring dashboard? Response times spiked to 800ms around 3 PM. Might be related to the new query we deployed yesterday."',
-    timestamp: '1d ago',
-    timeGroup: 'Yesterday',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-16',
-    type: 'file-shared',
-    sender: { name: 'Tom Bradley', initials: 'TB', color: avatarColors[7] },
-    title: 'File shared: API Documentation v2.md',
-    description: 'Tom Bradley shared "API_Documentation_v2.md" in the #engineering channel.',
-    detail: 'Tom Bradley shared "API_Documentation_v2.md" (156 KB) in the #engineering channel. This updated documentation covers the new REST API v2 endpoints including authentication flows, rate limiting, and webhook integrations.',
-    timestamp: '1d ago',
-    timeGroup: 'Yesterday',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-17',
-    type: 'meeting-soon',
-    sender: { name: 'System', initials: 'AL', color: 'bg-emerald-500/15 text-emerald-600' },
-    title: 'Team standup completed',
-    description: 'Your daily standup meeting has ended. AI summary is available.',
-    detail: 'Your daily Engineering Standup meeting has concluded. Duration: 18 minutes. AI Summary: 3 blockers were discussed, 2 have been resolved. Sprint velocity is on track. Key decision: API migration will start next sprint.',
-    timestamp: '1d ago',
-    timeGroup: 'Yesterday',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-18',
-    type: 'member-joined',
-    sender: { name: 'System', initials: 'AL', color: 'bg-emerald-500/15 text-emerald-600' },
-    title: 'New team member joined',
-    description: 'Nina Patel has joined the Design team.',
-    detail: 'Nina Patel (nina.p@company.com) has joined the Design team as a UI/UX Designer. Her onboarding has been initiated and her manager is Alex Rivera.',
-    timestamp: '2d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-19',
-    type: 'security-alert',
-    sender: { name: 'Security', initials: 'SE', color: 'bg-rose-500/15 text-rose-600' },
-    title: 'Password changed successfully',
-    description: 'Your account password was updated. If this wasn\'t you, contact support.',
-    detail: 'Your ALVISION account password was successfully changed on Dec 12, 2024 at 4:32 PM EST. The change was made from IP address 192.168.1.105. If you did not make this change, please contact support immediately.',
-    timestamp: '2d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-20',
-    type: 'system-update',
-    sender: { name: 'System', initials: 'AL', color: 'bg-cyan-500/15 text-cyan-600' },
-    title: 'New feature: AI Meeting Coach',
-    description: 'AI Meeting Coach is now available for Pro and Enterprise plans.',
-    detail: 'We\'re excited to announce AI Meeting Coach, a new feature for Pro and Enterprise subscribers. AI Meeting Coach provides real-time suggestions during meetings, helps manage speaking time, and offers post-meeting improvement tips. Enable it in Settings > AI Features.',
-    timestamp: '3d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-21',
-    type: 'meeting-invite',
-    sender: { name: 'Rachel Green', initials: 'RG', color: avatarColors[0] },
-    title: 'Meeting invitation: All-Hands Town Hall',
-    description: 'Monthly all-hands meeting scheduled for Friday at 3:00 PM.',
-    detail: 'Rachel Green has invited you to the Monthly All-Hands Town Hall on Friday at 3:00 PM. Agenda: company update, product demos, Q&A with leadership, and team spotlights. This is a mandatory meeting for all employees.',
-    timestamp: '3d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-    actions: [
-      { label: 'Accept', variant: 'default', onClickLabel: 'Accepted' },
-      { label: 'Decline', variant: 'outline', onClickLabel: 'Declined' },
-    ],
-  },
-  {
-    id: 'n-22',
-    type: 'ai-summary',
-    sender: { name: 'AI Assistant', initials: 'AI', color: 'bg-violet-500/15 text-violet-600' },
-    title: 'AI Summary ready: Architecture Review',
-    description: 'Technical decisions and architecture changes from the Architecture Review.',
-    detail: 'AI Summary for "Architecture Review - Microservices Migration" is ready. Key decisions: 1) Adopt event-driven architecture using Apache Kafka, 2) Migrate authentication service first, 3) Use circuit breaker pattern for inter-service communication, 4) Target completion: end of Q1 2025. 8 action items assigned.',
-    timestamp: '4d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-  },
-  {
-    id: 'n-23',
-    type: 'message',
-    sender: { name: 'Chris Lee', initials: 'CL', color: avatarColors[3] },
-    title: 'New message in #random',
-    description: 'Chris Lee: "Has anyone tried the new coffee machine in the 3rd floor kitchen?"',
-    detail: 'Chris Lee posted in #random: "Has anyone tried the new coffee machine in the 3rd floor kitchen? It makes an amazing flat white. Also, they stocked some great pastries today!"',
-    timestamp: '5d ago',
-    timeGroup: 'Earlier',
-    unread: false,
-    pinned: false,
-  },
-]
+  }
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -580,7 +307,29 @@ function EmptyState({ filter }: { filter: string }) {
 // ── Main Component ────────────────────────────────────────────────────
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>(fallbackNotifications)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await authFetch('/api/v1/notifications')
+      const json = await res.json()
+      if (json.success) {
+        setNotifications((json.data.notifications as ReturnType<typeof mapApiNotification>[]).map(mapApiNotification))
+      } else {
+        setError(json.error?.message ?? 'Failed to fetch notifications')
+      }
+    } catch {
+      setError('Network error')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchNotifications() }, [fetchNotifications])
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all')
   const [activeTab, setActiveTab] = useState<TabCategory>('recent')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -774,7 +523,26 @@ export default function NotificationsPage() {
 
             {/* Notification List */}
             <div className='p-4 space-y-3 max-h-[640px] overflow-y-auto custom-scrollbar'>
-              {sorted.length === 0 ? (
+              {loading ? (
+                <div className='space-y-3'>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Card key={i} className='animate-pulse'>
+                      <CardContent className='p-4 flex items-start gap-3'>
+                        <div className='w-8 h-8 rounded-lg bg-muted shrink-0' />
+                        <div className='flex-1 space-y-2'>
+                          <div className='h-4 bg-muted rounded w-2/3' />
+                          <div className='h-3 bg-muted rounded w-full' />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : error ? (
+                <div className='py-8 text-center'>
+                  <p className='text-sm text-red-500'>{error}</p>
+                  <Button variant='outline' size='sm' className='mt-2' onClick={fetchNotifications}>Retry</Button>
+                </div>
+              ) : sorted.length === 0 ? (
                 <EmptyState filter={activeFilterLabel} />
               ) : (
                 Object.entries(grouped).map(([group, items]) => {

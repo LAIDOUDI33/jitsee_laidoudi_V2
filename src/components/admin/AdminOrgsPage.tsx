@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 
 interface Org {
   id: string
@@ -51,6 +52,12 @@ interface Org {
   createdAt: string
   admin: string
   members: { name: string }[]
+}
+
+interface OrgStats {
+  totalOrgs: number
+  totalUsers: number
+  enterpriseCount: number
 }
 
 const planColors: Record<string, string> = {
@@ -71,38 +78,111 @@ const statusConfig: Record<string, { color: string; dot: string; icon: React.Rea
   suspended: { color: 'bg-red-500/10 text-red-500 border-red-200 dark:border-red-800/50', dot: 'bg-red-500', icon: <AlertCircle className='h-3 w-3' /> },
 }
 
-const mockOrgs: Org[] = [
-  { id: 'o1', name: 'ALVISION', plan: 'enterprise', users: 45, maxUsers: -1, storage: '48.2 GB', storageUsed: 72, meetings: 1240, status: 'active', createdAt: 'Jun 2024', admin: 'Sarah Chen', members: [{ name: 'Sarah C' }, { name: 'Mike J' }, { name: 'James W' }] },
-  { id: 'o2', name: 'TechStart Inc.', plan: 'pro', users: 28, maxUsers: 50, storage: '12.4 GB', storageUsed: 45, meetings: 567, status: 'active', createdAt: 'Aug 2024', admin: 'Emily Davis', members: [{ name: 'Emily D' }, { name: 'Maria G' }] },
-  { id: 'o3', name: 'Global Corp', plan: 'enterprise', users: 156, maxUsers: -1, storage: '89.3 GB', storageUsed: 56, meetings: 3420, status: 'active', createdAt: 'Mar 2024', admin: 'Tom Brown', members: [{ name: 'Tom B' }, { name: 'David K' }, { name: 'Alex R' }] },
-  { id: 'o4', name: 'Design Studio', plan: 'free', users: 5, maxUsers: 10, storage: '890 MB', storageUsed: 89, meetings: 45, status: 'trial', createdAt: 'Jan 2025', admin: 'Nina Patel', members: [{ name: 'Nina P' }] },
-  { id: 'o5', name: 'Acme Industries', plan: 'pro', users: 34, maxUsers: 50, storage: '18.7 GB', storageUsed: 37, meetings: 892, status: 'active', createdAt: 'Oct 2024', admin: 'James Lee', members: [{ name: 'James L' }, { name: 'Lisa P' }] },
-  { id: 'o6', name: 'StartupXYZ', plan: 'free', users: 3, maxUsers: 10, storage: '234 MB', storageUsed: 23, meetings: 12, status: 'suspended', createdAt: 'Nov 2024', admin: 'Alex Rivera', members: [{ name: 'Alex R' }] },
-]
-
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
 
 export default function AdminOrgsPage() {
   const [search, setSearch] = useState('')
   const [planFilter, setPlanFilter] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
+  const [orgs, setOrgs] = useState<Org[]>([])
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<OrgStats>({ totalOrgs: 0, totalUsers: 0, enterpriseCount: 0 })
+  const [newOrgName, setNewOrgName] = useState('')
+  const [newOrgPlan, setNewOrgPlan] = useState('free')
 
-  const filtered = mockOrgs.filter(o => {
-    const matchSearch = o.name.toLowerCase().includes(search.toLowerCase()) || o.admin.toLowerCase().includes(search.toLowerCase())
-    const matchPlan = planFilter === 'all' || o.plan === planFilter
-    return matchSearch && matchPlan
-  })
+  const fetchOrgs = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (planFilter !== 'all') params.set('plan', planFilter)
+      const query = params.toString() ? `?${params.toString()}` : ''
+      const res = await authFetch(`/api/v1/admin/organizations${query}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to fetch organizations' } }))
+        throw new Error(err.error?.message || 'Failed to fetch organizations')
+      }
+      const json = await res.json()
+      const { organizations, total, planCounts } = json.data
+
+      // Transform groupBy planCounts to flat record
+      const pcMap: Record<string, number> = {}
+      if (Array.isArray(planCounts)) {
+        for (const p of planCounts) { pcMap[p.plan] = p._count?.id || 0 }
+      } else if (planCounts && typeof planCounts === 'object') {
+        Object.assign(pcMap, planCounts)
+      }
+
+      const mappedOrgs: Org[] = organizations.map((o: any) => ({
+        id: o.id,
+        name: o.name,
+        plan: o.plan,
+        users: o._count?.users ?? 0,
+        maxUsers: o.maxUsers ?? 10,
+        storage: '—',
+        storageUsed: 0,
+        meetings: o._count?.meetings ?? 0,
+        status: 'active' as const,
+        createdAt: formatDate(o.createdAt),
+        admin: '',
+        members: [],
+      }))
+
+      const totalUsers = organizations.reduce((sum: number, o: any) => sum + (o._count?.users ?? 0), 0)
+      const enterpriseCount = pcMap.enterprise ?? organizations.filter((o: any) => o.plan === 'enterprise').length
+
+      setOrgs(mappedOrgs)
+      setStats({ totalOrgs: total ?? organizations.length, totalUsers, enterpriseCount })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load organizations')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, planFilter])
+
+  useEffect(() => {
+    fetchOrgs()
+  }, [fetchOrgs])
+
+  const handleCreateOrg = async () => {
+    if (!newOrgName.trim()) {
+      toast.error('Organization name is required')
+      return
+    }
+    try {
+      const res = await authFetch('/api/v1/admin/organizations', {
+        method: 'POST',
+        body: JSON.stringify({ name: newOrgName, plan: newOrgPlan }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to create organization' } }))
+        throw new Error(err.error?.message || 'Failed to create organization')
+      }
+      toast.success('Organization created')
+      setCreateOpen(false)
+      setNewOrgName('')
+      setNewOrgPlan('free')
+      fetchOrgs()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create organization')
+    }
+  }
 
   return (
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
       {/* Stats with trend indicators */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         {[
-          { label: 'Organizations', value: '23', change: '+3', trend: 'up' as const, icon: <Building2 className='h-5 w-5' />, color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
-          { label: 'Total Users', value: '271', change: '+18%', trend: 'up' as const, icon: <Users className='h-5 w-5' />, color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600' },
-          { label: 'Enterprise', value: '4', icon: <Crown className='h-5 w-5' />, color: 'from-purple-500/10 to-purple-500/5 text-purple-600' },
-          { label: 'Total Storage', value: '169 GB', change: '+12%', trend: 'up' as const, icon: <HardDrive className='h-5 w-5' />, color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
+          { label: 'Organizations', value: String(stats.totalOrgs), change: '', trend: 'up' as const, icon: <Building2 className='h-5 w-5' />, color: 'from-cyan-500/10 to-cyan-500/5 text-cyan-600' },
+          { label: 'Total Users', value: String(stats.totalUsers), change: '', trend: 'up' as const, icon: <Users className='h-5 w-5' />, color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600' },
+          { label: 'Enterprise', value: String(stats.enterpriseCount), icon: <Crown className='h-5 w-5' />, color: 'from-purple-500/10 to-purple-500/5 text-purple-600' },
+          { label: 'Total Storage', value: '—', icon: <HardDrive className='h-5 w-5' />, color: 'from-amber-500/10 to-amber-500/5 text-amber-600' },
         ].map(s => (
           <motion.div key={s.label} variants={item}>
             <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80'>
@@ -142,95 +222,106 @@ export default function AdminOrgsPage() {
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild><Button size='sm' className='gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-transform'><Plus className='h-3.5 w-3.5' /> New Org</Button></DialogTrigger>
-          <DialogContent><DialogHeader><DialogTitle>Create Organization</DialogTitle></DialogHeader><div className='space-y-4 pt-2'><div className='space-y-2'><Label>Organization Name</Label><Input placeholder='e.g. Acme Corp' /></div><div className='space-y-2'><Label>Plan</Label><Select><SelectTrigger><SelectValue placeholder='Select plan' /></SelectTrigger><SelectContent><SelectItem value='free'>Free</SelectItem><SelectItem value='pro'>Pro</SelectItem><SelectItem value='enterprise'>Enterprise</SelectItem></SelectContent></Select></div><div className='space-y-2'><Label>Admin Email</Label><Input placeholder='admin@company.com' /></div><div className='flex justify-end gap-3 pt-2'><Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button><Button onClick={() => { setCreateOpen(false); toast.success('Organization created') }}>Create</Button></div></div></DialogContent>
+          <DialogContent><DialogHeader><DialogTitle>Create Organization</DialogTitle></DialogHeader><div className='space-y-4 pt-2'><div className='space-y-2'><Label>Organization Name</Label><Input placeholder='e.g. Acme Corp' value={newOrgName} onChange={e => setNewOrgName(e.target.value)} /></div><div className='space-y-2'><Label>Plan</Label><Select value={newOrgPlan} onValueChange={setNewOrgPlan}><SelectTrigger><SelectValue placeholder='Select plan' /></SelectTrigger><SelectContent><SelectItem value='free'>Free</SelectItem><SelectItem value='pro'>Pro</SelectItem><SelectItem value='enterprise'>Enterprise</SelectItem></SelectContent></Select></div><div className='flex justify-end gap-3 pt-2'><Button variant='outline' onClick={() => setCreateOpen(false)}>Cancel</Button><Button onClick={handleCreateOrg}>Create</Button></div></div></DialogContent>
         </Dialog>
       </motion.div>
 
       {/* Org table */}
       <motion.div variants={item}>
         <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
-          <Table>
-            <TableHeader>
-              <TableRow className='divide-y divide-border/50'>
-                <TableHead>Organization</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead className='hidden md:table-cell'>Members</TableHead>
-                <TableHead className='hidden lg:table-cell'>Storage</TableHead>
-                <TableHead className='hidden xl:table-cell'>Meetings</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className='w-10' />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map(o => {
-                const sc = statusConfig[o.status]
-                return (
-                  <TableRow key={o.id} className='group even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
-                    <TableCell>
-                      <div className='flex items-center gap-3'>
-                        {/* Org logo placeholder with initial */}
-                        <div className='w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shrink-0 border border-border/50 font-bold text-sm text-primary'>
-                          {o.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className='min-w-0'>
-                          <p className='font-medium text-sm'>{o.name}</p>
-                          <p className='text-xs text-muted-foreground'>Admin: {o.admin} · Since {o.createdAt}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant='outline' className={`text-[10px] capitalize gap-1 ${planColors[o.plan]}`}>{planIcons[o.plan]}{o.plan}</Badge>
-                    </TableCell>
-                    <TableCell className='hidden md:table-cell'>
-                      <div className='flex items-center gap-2'>
-                        <div className='flex -space-x-2'>
-                          {o.members.slice(0, 3).map((m, i) => (
-                            <Avatar key={i} className='h-6 w-6 border-2 border-background'>
-                              <AvatarFallback className='text-[9px] bg-muted font-medium'>{m.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                            </Avatar>
-                          ))}
-                          {o.users > 3 && (
-                            <div className='h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[9px] font-medium text-muted-foreground'>+{o.users - 3}</div>
-                          )}
-                        </div>
-                        <span className='text-sm text-muted-foreground'>{o.users}{o.maxUsers > 0 ? `/${o.maxUsers}` : ' (∞)'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className='hidden lg:table-cell'>
-                      <div className='space-y-1.5 min-w-[120px]'>
-                        <div className='flex items-center justify-between'>
-                          <p className='text-sm'>{o.storage}</p>
-                          <p className={`text-[10px] font-medium ${o.storageUsed >= 80 ? 'text-red-500' : o.storageUsed >= 60 ? 'text-amber-600' : 'text-emerald-600'}`}>{o.storageUsed}%</p>
-                        </div>
-                        <Progress value={o.storageUsed} className={`h-1.5 ${o.storageUsed >= 80 ? '[&>div]:bg-red-500' : o.storageUsed >= 60 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`} />
-                      </div>
-                    </TableCell>
-                    <TableCell className='hidden xl:table-cell text-sm'>{o.meetings.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant='outline' className={`text-[10px] capitalize gap-1 ${sc.color}`}>{sc.icon}<span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${o.status === 'active' ? 'animate-pulse' : ''}`} />{o.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant='ghost' size='icon' className='h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-[1.1]'><MoreVertical className='h-4 w-4' /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem className='gap-2'><Settings2 className='h-4 w-4' /> Settings</DropdownMenuItem>
-                          <DropdownMenuItem className='gap-2'><Users className='h-4 w-4' /> Manage Users</DropdownMenuItem>
-                          <DropdownMenuItem className='gap-2'><ExternalLink className='h-4 w-4' /> View Details</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-          {filtered.length === 0 && (
-            <div className='text-center py-16'>
-              <Building2 className='h-16 w-16 mx-auto mb-4 opacity-20 text-muted-foreground' />
-              <p className='font-medium text-muted-foreground'>No organizations found</p>
-              <p className='text-sm text-muted-foreground/60 mt-1'>Try adjusting your search or filters</p>
-              <Button variant='outline' size='sm' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setSearch(''); setPlanFilter('all') }}>Clear Filters</Button>
+          {loading ? (
+            <div className='animate-pulse p-8 space-y-4'>
+              <div className='h-4 bg-muted rounded w-1/4' />
+              <div className='space-y-3'>
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className='h-12 bg-muted rounded' />
+                ))}
+              </div>
             </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow className='divide-y divide-border/50'>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead className='hidden md:table-cell'>Members</TableHead>
+                    <TableHead className='hidden lg:table-cell'>Storage</TableHead>
+                    <TableHead className='hidden xl:table-cell'>Meetings</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className='w-10' />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orgs.map(o => {
+                    const sc = statusConfig[o.status]
+                    return (
+                      <TableRow key={o.id} className='group even:bg-muted/30 hover:bg-muted/50 divide-y divide-border/50 transition-colors'>
+                        <TableCell>
+                          <div className='flex items-center gap-3'>
+                            {/* Org logo placeholder with initial */}
+                            <div className='w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shrink-0 border border-border/50 font-bold text-sm text-primary'>
+                              {o.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className='min-w-0'>
+                              <p className='font-medium text-sm'>{o.name}</p>
+                              <p className='text-xs text-muted-foreground'>Since {o.createdAt}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant='outline' className={`text-[10px] capitalize gap-1 ${planColors[o.plan]}`}>{planIcons[o.plan]}{o.plan}</Badge>
+                        </TableCell>
+                        <TableCell className='hidden md:table-cell'>
+                          <div className='flex items-center gap-2'>
+                            <div className='flex -space-x-2'>
+                              {o.members.slice(0, 3).map((m, i) => (
+                                <Avatar key={i} className='h-6 w-6 border-2 border-background'>
+                                  <AvatarFallback className='text-[9px] bg-muted font-medium'>{m.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                </Avatar>
+                              ))}
+                              {o.users > 3 && (
+                                <div className='h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[9px] font-medium text-muted-foreground'>+{o.users - 3}</div>
+                              )}
+                            </div>
+                            <span className='text-sm text-muted-foreground'>{o.users}{o.maxUsers > 0 ? `/${o.maxUsers}` : ' (∞)'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className='hidden lg:table-cell'>
+                          <div className='space-y-1.5 min-w-[120px]'>
+                            <div className='flex items-center justify-between'>
+                              <p className='text-sm'>{o.storage}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className='hidden xl:table-cell text-sm'>{o.meetings.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant='outline' className={`text-[10px] capitalize gap-1 ${sc.color}`}>{sc.icon}<span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${o.status === 'active' ? 'animate-pulse' : ''}`} />{o.status}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant='ghost' size='icon' className='h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-[1.1]'><MoreVertical className='h-4 w-4' /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem className='gap-2'><Settings2 className='h-4 w-4' /> Settings</DropdownMenuItem>
+                              <DropdownMenuItem className='gap-2'><Users className='h-4 w-4' /> Manage Users</DropdownMenuItem>
+                              <DropdownMenuItem className='gap-2'><ExternalLink className='h-4 w-4' /> View Details</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+              {orgs.length === 0 && (
+                <div className='text-center py-16'>
+                  <Building2 className='h-16 w-16 mx-auto mb-4 opacity-20 text-muted-foreground' />
+                  <p className='font-medium text-muted-foreground'>No organizations found</p>
+                  <p className='text-sm text-muted-foreground/60 mt-1'>Try adjusting your search or filters</p>
+                  <Button variant='outline' size='sm' className='mt-4 gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setSearch(''); setPlanFilter('all') }}>Clear Filters</Button>
+                </div>
+              )}
+            </>
           )}
         </Card>
       </motion.div>

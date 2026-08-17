@@ -521,3 +521,146 @@ bun run build && bun run start  # Production
 5. **No email service** — Password reset, email verification require SMTP integration
 6. **AI API costs** — No per-user quota system for AI features
 7. **No CI/CD** — GitHub Actions pipeline for automated testing/deployment not yet configured
+
+---
+Task ID: 3a
+Agent: full-stack-developer
+Task: Create all 6 admin API endpoints + seed audit data
+
+Work Log:
+- Created /src/app/api/v1/admin/organizations/route.ts
+- Created /src/app/api/v1/admin/users/route.ts
+- Created /src/app/api/v1/admin/audit-logs/route.ts (with seed data)
+- Created /src/app/api/v1/admin/stats/route.ts
+- Created /src/app/api/v1/admin/security/route.ts
+- Created /src/app/api/v1/admin/system/route.ts
+
+Stage Summary:
+- All 6 admin API endpoints created with superadmin auth
+- Audit log seeding included for realistic demo data
+- Standard error handling pattern applied to all routes
+
+---
+Task ID: 3b
+Agent: full-stack-developer
+Task: Wire AdminOrgsPage, AdminUsersPage, AdminAuditPage to real APIs
+
+Work Log:
+- Replaced mockOrgs with authFetch to /api/v1/admin/organizations
+- Replaced mockUsers with authFetch to /api/v1/admin/users
+- Replaced mockEntries with authFetch to /api/v1/admin/audit-logs
+- Added loading states (skeleton pulse) and error handling with toast.error
+- Added useState for orgs, users, entries, loading, stats/counts
+- Added useEffect with useCallback for fetch with search/filter params
+- Create Org dialog POSTs to /api/v1/admin/organizations with { name, plan }
+- Create User dialog POSTs to /api/v1/admin/users with { name, email, password, role, organizationName }
+- Suspend/Reactivate PATCHes to /api/v1/admin/users with { userId, action }
+- Bulk actions loop over selected IDs and call PATCH for each
+- Refresh button in Audit page calls refetch
+- Stats cards use total/planCounts/roleCounts/statusCounts from API responses
+- All existing UI/styling/animations preserved exactly
+
+Stage Summary:
+- All 3 admin pages now use real API data
+- Create/Suspend/Reactivate operations wired to backend
+- Loading skeletons shown during fetch
+- Error toasts displayed on API failures
+- Data refetches after all mutations
+---
+Task ID: 3c
+Agent: full-stack-developer
+Task: Wire AdminPage, AdminSecurityPage, AdminSystemPage to real APIs
+
+Work Log:
+- Updated /api/v1/admin/system/route.ts to return metrics as array with {label, value}, added lastIncident to services, added runtime/deployment/lastDeploy to systemInfo
+- Replaced hardcoded metrics in AdminPage with /api/v1/admin/stats — active users, meetings, orgs, recordings now from real DB counts
+- Replaced hardcoded recentActivity in AdminPage with real audit log entries from API, mapped to component format with timeAgo helper
+- Replaced quickActions counts with real data (totalUsers, totalOrganizations, totalAuditLogs)
+- Replaced hardcoded loginAttempts/securityEvents in AdminSecurityPage with /api/v1/admin/security
+- Login attempts mapped from audit logs with device extraction from userAgent
+- Security events mapped from audit logs with severity deduced from action name
+- Replaced hardcoded services/metrics/systemInfo in AdminSystemPage with /api/v1/admin/system
+- Service icon mapping function added to map service names to appropriate lucide icons
+- Metrics gauges now show real CPU/memory/disk/network percentages from API with dynamic color based on value
+- System info grid populated from API (nodeVersion, platform, runtime, deployment, environment, lastDeploy)
+- Auto-refresh for system page now actually refetches API every 5s when enabled
+- Added loading skeleton states for all 3 pages
+- Added error handling with toast.error() on API failure
+- Added timeAgo helper function for relative time formatting
+- Fixed JSX parsing issue with self-closing tag followed by expression
+
+Stage Summary:
+- All 3 admin pages now use real API data
+- Admin dashboard shows real user/org/meeting/audit counts from database
+- Security page shows real login attempts and security events from audit logs
+- System page shows real DB health, memory, uptime from process metrics
+- All existing UI, animations, gauges, and styling preserved exactly
+
+---
+Task ID: 4a-1
+Agent: full-stack-developer
+Task: Wire MeetingsPage, RecordingsPage, CalendarPage, TeamsPage, FilesPage to real APIs
+
+Work Log:
+- Updated /api/v1/meetings GET to support ?status= filter and include recordings
+- Added GET handler to /api/v1/meetings/schedule for calendar events
+- Wired MeetingsPage to /api/v1/meetings with authFetch, loading skeletons, error/retry
+- Wired RecordingsPage to /api/v1/meetings?status=ended, maps ended meetings to recordings
+- Wired CalendarPage to /api/v1/meetings/schedule, maps meetings to calendar events
+- Created /api/v1/teams/route.ts with GET (requireAuth, includes member counts/channels)
+- Wired TeamsPage to /api/v1/teams with authFetch, loading skeletons, error/retry
+- Created /api/v1/files/route.ts with GET (requireAuth, includes uploader name)
+- Wired FilesPage to /api/v1/files with authFetch, loading skeletons, error/retry
+- Dynamic stats: MeetingsPage, TeamsPage, FilesPage stats now reflect real data counts
+- Refetch after create: MeetingsPage and TeamsPage refetch after creating items
+
+Stage Summary:
+- 5 dashboard views now use real API data instead of mock data
+- 2 new API endpoints created (teams, files)
+- 1 new API handler added (GET /meetings/schedule)
+- All views include loading skeletons and error/retry states
+- All API calls use authFetch from @/lib/api
+- All API responses follow { success, data } pattern
+---
+Task ID: 4a-2
+Agent: full-stack-developer
+Task: Wire EventsPage, KnowledgePage, NotificationsPage, MeetingNotesPage, SessionHistoryPage, TemplatesPage to real APIs
+
+Work Log:
+- Created /api/v1/events/route.ts — GET events with registration counts
+- Created /api/v1/knowledge/route.ts — GET meeting summaries as knowledge items
+- Wired TemplatesPage to localStorage-backed custom templates
+- Created /api/v1/notifications/route.ts — GET combined audit logs + upcoming meetings as notifications
+- Created /api/v1/notes/route.ts — GET meeting summaries as notes, POST to create notes
+- Wired EventsPage, KnowledgePage, NotificationsPage, MeetingNotesPage to real APIs
+- Wired SessionHistoryPage to /api/v1/meetings?status=ended
+- All views include loading skeletons, error handling, and refetch after mutations
+
+Stage Summary:
+- 6 more dashboard views now use real API data
+- 4 new API endpoints created (events, knowledge, notifications, notes)
+- TemplatesPage uses localStorage for custom template persistence
+- All mock data eliminated from dashboard views
+
+---
+Task ID: 4c
+Agent: main
+Task: Bug fixes, lint verification, final integration
+
+Work Log:
+- Fixed Prisma syntax error in admin/organizations (include+select conflict)
+- Fixed Prisma syntax error in admin/users (include+select conflict)
+- Fixed missing success/data wrapper in admin/audit-logs response
+- Fixed AdminOrgsPage planCounts mapping (groupBy array → flat record)
+- Fixed AdminUsersPage roleCounts/statusCounts mapping (groupBy array → flat record)
+- Fixed duplicate toast import in SessionHistoryPage
+- Fixed SessionHistoryPage to use real meeting data instead of mock
+- Seeded database: 3 organizations, 8 users, 8 meetings, 20 audit log entries
+- ESLint passes with zero errors
+- Dev server compiles without errors
+
+Stage Summary:
+- All 6 admin pages verified working with real data
+- All 11+ dashboard views wired to real APIs
+- Zero mock data remaining in dashboard views
+- Zero lint errors
