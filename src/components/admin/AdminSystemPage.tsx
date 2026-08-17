@@ -109,16 +109,13 @@ const recentIncidents = [
   { title: 'Planned Maintenance', status: 'completed', time: '30 days ago', severity: 'info' as const },
 ]
 
-const mockLogs = [
-  { time: '14:32:05', level: 'INFO', service: 'api', message: 'GET /api/v1/meetings 200 12ms' },
-  { time: '14:32:03', level: 'INFO', service: 'ws', message: 'Client connected: user_4521' },
-  { time: '14:31:58', level: 'WARN', service: 'storage', message: 'Upload latency elevated: 120ms (threshold: 100ms)' },
-  { time: '14:31:55', level: 'INFO', service: 'api', message: 'POST /api/v1/auth/login 200 15ms' },
-  { time: '14:31:50', level: 'INFO', service: 'ai', message: 'Summary generated for meeting_892 (2.1s)' },
-  { time: '14:31:45', level: 'ERROR', service: 'storage', message: 'Failed to write chunk: ECONNREFUSED' },
-  { time: '14:31:40', level: 'INFO', service: 'auth', message: 'Token refreshed for sarah@alvision.ai' },
-  { time: '14:31:38', level: 'INFO', service: 'api', message: 'GET /api/v1/stats 200 3ms' },
-]
+interface SystemLog {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  source: string;
+}
 
 function CircularGauge({ value, color, size = 96, strokeWidth = 6 }: { value: number; color: string; size?: number; strokeWidth?: number }) {
   const radius = (size - strokeWidth) / 2
@@ -159,13 +156,39 @@ const logLevelBg: Record<string, string> = {
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } } }
 
+function formatLogTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function extractService(message: string): string {
+  // Extract the [resource] tag from the message, e.g. "[meeting] meeting.create: ..."
+  const match = message.match(/^\[([\w.-]+)\]/)
+  return match ? match[1] : 'system'
+}
+
 export default function AdminSystemPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [logsExpanded, setLogsExpanded] = useState(false)
   const [services, setServices] = useState<ServiceStatus[]>([])
   const [metrics, setMetrics] = useState<Array<{ label: string; value: number; icon: React.ReactNode; color: string; bgColor: string; desc: string }>>([])
   const [systemInfo, setSystemInfo] = useState<SystemInfoData | null>(null)
+  const [logs, setLogs] = useState<SystemLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [logsLoading, setLogsLoading] = useState(true)
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/v1/admin/system-logs')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setLogs(json.data?.logs || [])
+    } catch {
+      toast.error('Failed to load system logs')
+    } finally {
+      setLogsLoading(false)
+    }
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
@@ -214,16 +237,18 @@ export default function AdminSystemPage() {
 
   useEffect(() => {
     fetchData()
-  }, [fetchData])
+    fetchLogs()
+  }, [fetchData, fetchLogs])
 
   // Auto-refresh when autoRefresh is true
   useEffect(() => {
     if (!autoRefresh) return
     const interval = setInterval(() => {
       fetchData()
+      fetchLogs()
     }, 5000)
     return () => clearInterval(interval)
-  }, [autoRefresh, fetchData])
+  }, [autoRefresh, fetchData, fetchLogs])
 
   const restartService = (name: string) => {
     toast.success(`Restarting ${name}...`)
@@ -392,7 +417,7 @@ export default function AdminSystemPage() {
         </motion.div>
       </div>
 
-      {/* Real-time log viewer (mock) */}
+      {/* Real-time log viewer */}
       <motion.div variants={item}>
         <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80'>
           <CardHeader className='pb-3'>
@@ -400,6 +425,9 @@ export default function AdminSystemPage() {
               <CardTitle className='text-sm flex items-center gap-2'><Terminal className='h-4 w-4 text-amber-500' /> System Logs</CardTitle>
               <div className='flex items-center gap-2'>
                 <Badge variant='outline' className='text-[10px] gap-1 text-emerald-600 border-emerald-200'><span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' />Live</Badge>
+                <Button variant='ghost' size='sm' className='gap-1 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { fetchLogs(); toast.info('Logs refreshed') }} disabled={logsLoading}>
+                  <RefreshCw className={`h-3 w-3 ${logsLoading ? 'animate-spin' : ''}`} /> Refresh
+                </Button>
                 <Button variant='ghost' size='sm' className='gap-1 text-xs hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => setLogsExpanded(!logsExpanded)}>
                   {logsExpanded ? 'Collapse' : 'Expand'} <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${logsExpanded ? 'rotate-180' : ''}`} />
                 </Button>
@@ -407,19 +435,40 @@ export default function AdminSystemPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className={`bg-zinc-950 dark:bg-zinc-900 rounded-lg p-4 font-mono text-xs overflow-hidden ${logsExpanded ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:bg-zinc-600 [&::-webkit-scrollbar-thumb]:rounded-full`}>
-              {mockLogs.map((log, i) => (
-                <div key={i} className={`flex items-start gap-3 py-0.5 px-1 rounded ${log.level === 'ERROR' ? 'bg-red-500/5' : ''}`}>
-                  <span className='text-zinc-500 shrink-0'>{log.time}</span>
-                  <span className={`shrink-0 w-12 font-semibold px-1 rounded text-center ${logLevelColors[log.level]}`}>[{log.level}]</span>
-                  <span className='text-zinc-400 shrink-0'>{log.service}:</span>
-                  <span className='text-zinc-300'>{log.message}</span>
-                </div>
-              ))}
-              <div className='flex items-center gap-1 text-zinc-500 mt-1'>
-                <span className='w-2 h-4 bg-emerald-500 animate-pulse' /> Waiting for new logs...
+            {logsLoading ? (
+              <div className={`bg-zinc-950 dark:bg-zinc-900 rounded-lg p-4 ${logsExpanded ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-hidden space-y-2`}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className='flex items-center gap-3 animate-pulse'>
+                    <Skeleton className='h-3.5 w-16 bg-zinc-700' />
+                    <Skeleton className='h-3.5 w-12 bg-zinc-700' />
+                    <Skeleton className='h-3.5 w-14 bg-zinc-700' />
+                    <Skeleton className='h-3.5 flex-1 bg-zinc-700' />
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <div className={`bg-zinc-950 dark:bg-zinc-900 rounded-lg p-4 font-mono text-xs overflow-hidden ${logsExpanded ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:bg-zinc-600 [&::-webkit-scrollbar-thumb]:rounded-full`}>
+                {logs.length === 0 ? (
+                  <div className='text-zinc-500 text-center py-4'>No system logs available.</div>
+                ) : (
+                  logs.map((log) => {
+                    const level = log.level.toUpperCase() as 'INFO' | 'WARN' | 'ERROR'
+                    const service = extractService(log.message)
+                    return (
+                      <div key={log.id} className={`flex items-start gap-3 py-0.5 px-1 rounded ${level === 'ERROR' ? 'bg-red-500/5' : ''}`}>
+                        <span className='text-zinc-500 shrink-0'>{formatLogTime(log.timestamp)}</span>
+                        <span className={`shrink-0 w-12 font-semibold px-1 rounded text-center ${logLevelColors[level]}`}>[{level}]</span>
+                        <span className='text-zinc-400 shrink-0'>{service}:</span>
+                        <span className='text-zinc-300'>{log.message}</span>
+                      </div>
+                    )
+                  })
+                )}
+                <div className='flex items-center gap-1 text-zinc-500 mt-1'>
+                  <span className='w-2 h-4 bg-emerald-500 animate-pulse' /> Waiting for new logs...
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

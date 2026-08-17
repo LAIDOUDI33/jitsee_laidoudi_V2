@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video, Loader2, Shield } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Video, Loader2, Shield, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,7 +69,27 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Animated gradient mesh background (mobile visible, desktop hidden behind left panel) */}
+      <div className="absolute inset-0 -z-10 lg:hidden">
+        <div className='absolute inset-0 bg-gradient-to-br from-violet-50 via-fuchsia-50 to-pink-50 dark:from-violet-950/40 dark:via-fuchsia-950/40 dark:to-pink-950/40' />
+        <motion.div
+          className='absolute top-20 right-10 w-64 h-64 rounded-full bg-violet-200/30 dark:bg-violet-500/10 blur-3xl'
+          animate={{ y: [0, -20, 0], x: [0, 10, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' as const }}
+        />
+        <motion.div
+          className='absolute bottom-32 left-8 w-48 h-48 rounded-full bg-fuchsia-200/30 dark:bg-fuchsia-500/10 blur-3xl'
+          animate={{ y: [0, 15, 0], x: [0, -12, 0], scale: [1, 0.95, 1] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' as const, delay: 2 }}
+        />
+        <motion.div
+          className='absolute top-1/2 left-1/3 w-36 h-36 rounded-full bg-pink-200/20 dark:bg-pink-500/8 blur-3xl'
+          animate={{ y: [0, -10, 0], scale: [1, 1.15, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' as const, delay: 4 }}
+        />
+      </div>
+
       {/* Right panel on desktop (gradient) */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 order-1">
         {/* Animated floating gradient orbs - 6 orbs with varied sizes, colors, speeds */}
@@ -209,8 +229,8 @@ export default function LoginPage() {
             Back
           </Button>
 
-          <Card className="border-0 shadow-none sm:border sm:shadow-sm">
-            <CardContent className="p-0 sm:p-6">
+          <Card className="border border-border/40 sm:border-border/60 bg-background/60 backdrop-blur-xl sm:bg-card sm:backdrop-blur-none shadow-xl shadow-black/[0.04] sm:shadow-lg sm:shadow-black/[0.08] rounded-xl overflow-hidden">
+            <CardContent className="p-0 sm:p-8">
               {/* Animated gradient accent line at top */}
               <motion.div
                 className="h-1 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 mb-6"
@@ -220,17 +240,33 @@ export default function LoginPage() {
               />
 
               {/* Header */}
-              <div className="mb-8">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="mb-8"
+              >
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-violet-500/20">
+                    <Video className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="font-bold text-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent hidden sm:inline-block">ALVISION</span>
+                </div>
                 <h2 className="text-2xl font-bold tracking-tight">Sign in to your account</h2>
                 <p className="text-sm text-muted-foreground mt-1.5">
                   Enter your credentials to access your workspace
                 </p>
-              </div>
+              </motion.div>
 
               {/* Form */}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {/* Email */}
-                <div className="space-y-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.3 }}
+                  className="space-y-2"
+                >
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -254,10 +290,15 @@ export default function LoginPage() {
                       </motion.p>
                     )}
                   </AnimatePresence>
-                </div>
+                </motion.div>
 
                 {/* Password */}
-                <div className="space-y-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.4 }}
+                  className="space-y-2"
+                >
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
                     <button
@@ -298,10 +339,15 @@ export default function LoginPage() {
                       </motion.p>
                     )}
                   </AnimatePresence>
-                </div>
+                </motion.div>
 
                 {/* Remember me */}
-                <div className="flex items-center gap-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.5 }}
+                  className="flex items-center gap-2"
+                >
                   <Checkbox
                     id="remember"
                     checked={rememberMe}
@@ -311,12 +357,17 @@ export default function LoginPage() {
                   <Label htmlFor="remember" className="text-sm font-normal cursor-pointer select-none">
                     Remember me for 30 days
                   </Label>
-                </div>
+                </motion.div>
 
                 {/* Submit */}
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.6 }}
+                >
                 <Button
                   type="submit"
-                  className="w-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 gap-2 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/15"
+                  className="w-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 gap-2 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/15 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
                   disabled={loading}
                 >
                   {loading ? (
@@ -328,6 +379,7 @@ export default function LoginPage() {
                     'Sign In'
                   )}
                 </Button>
+                </motion.div>
               </form>
 
               {/* Separator */}
@@ -398,16 +450,32 @@ export default function LoginPage() {
               </div>
 
               {/* Sign up link */}
-              <p className="mt-6 text-center text-sm text-muted-foreground">
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.7 }}
+                className="mt-6 text-center text-sm text-muted-foreground"
+              >
                 Don&apos;t have an account?{' '}
                 <button
                   type="button"
-                  className="text-primary font-medium hover:underline"
+                  className="text-primary font-medium hover:underline transition-all duration-200"
                   onClick={() => setCurrentView('register')}
                 >
                   Sign up
                 </button>
-              </p>
+              </motion.p>
+
+              {/* Footer branding */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.8 }}
+                className="mt-6 pt-4 border-t border-border/40 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60"
+              >
+                <Sparkles className="h-3 w-3" />
+                <span>&copy; 2025 ALVISION. Enterprise AI conferencing.</span>
+              </motion.div>
             </CardContent>
           </Card>
         </motion.div>

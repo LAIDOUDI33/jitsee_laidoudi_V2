@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useAppStore } from '@/store/app-store'
+import { authFetch } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   Mail,
@@ -31,7 +33,35 @@ import {
   Plus,
   Loader2,
   ImagePlus,
+  RefreshCw,
 } from 'lucide-react'
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface ProfileData {
+  id: string
+  name: string
+  email: string
+  role: string
+  organization: { id: string; name: string } | null
+  avatar: string | null
+  createdAt: string
+  lastLogin: string | null
+  isActive: boolean
+}
+
+// ── Constants ──────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  'from-fuchsia-500 to-violet-600',
+  'from-emerald-500 to-teal-600',
+  'from-amber-500 to-orange-600',
+  'from-rose-500 to-pink-600',
+  'from-cyan-500 to-sky-600',
+  'from-violet-500 to-purple-600',
+  'from-teal-500 to-emerald-600',
+  'from-orange-500 to-red-500',
+]
 
 const heatmapData = [
   [0,2,1,0,3,1,0],[1,0,0,2,1,0,0],[0,1,3,2,0,1,2],[2,0,1,0,0,2,1],[0,0,0,1,3,0,1],[1,2,0,0,1,0,0],
@@ -50,22 +80,99 @@ const skills = ['React', 'TypeScript', 'Node.js', 'Video Conferencing', 'AI/ML',
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } }
 const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } } }
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  })
+}
+
+// ── Component ──────────────────────────────────────────────────────────
+
 export default function ProfilePage() {
-  const { user } = useAppStore()
+  const { user, setUser } = useAppStore()
+  const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [name, setName] = useState(user?.name || 'User')
+  const [name, setName] = useState('')
   const [bio, setBio] = useState('Platform engineering lead with a passion for building scalable video conferencing solutions.')
   const [jobTitle, setJobTitle] = useState('Engineering Lead')
   const [location, setLocation] = useState('San Francisco, CA')
   const [saved, setSaved] = useState(false)
   const [skillInput, setSkillInput] = useState('')
   const [userSkills, setUserSkills] = useState(skills)
+  const [avatarColorIndex, setAvatarColorIndex] = useState(0)
 
-  const handleSave = () => {
-    setSaved(true)
-    setEditing(false)
-    toast.success('Profile saved successfully')
-    setTimeout(() => setSaved(false), 2000)
+  // Fetch profile from API
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/v1/profile')
+      if (!res.ok) return
+      const json = await res.json()
+      if (json.success && json.data?.profile) {
+        setProfile(json.data.profile)
+        setName(json.data.profile.name)
+        // Set avatar color index based on user id hash
+        const hash = json.data.profile.id.split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)
+        setAvatarColorIndex(hash % AVATAR_COLORS.length)
+      }
+    } catch {
+      // Silent fail — fall back to store data
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await authFetch('/api/v1/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name,
+          avatar: AVATAR_COLORS[avatarColorIndex],
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        toast.error(err?.error?.message || 'Failed to save profile')
+        return
+      }
+      const json = await res.json()
+      if (json.success && json.data?.profile) {
+        setProfile(json.data.profile)
+        // Update store user to reflect new name
+        if (user) {
+          setUser({ ...user, name: json.data.profile.name, avatar: json.data.profile.avatar ?? undefined })
+        }
+        setSaved(true)
+        setEditing(false)
+        toast.success('Profile saved successfully')
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } catch {
+      toast.error('Failed to save profile')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const cycleAvatarColor = () => {
+    setAvatarColorIndex((prev) => (prev + 1) % AVATAR_COLORS.length)
+    if (!editing) setEditing(true)
   }
 
   const addSkill = () => {
@@ -79,9 +186,25 @@ export default function ProfilePage() {
     setUserSkills(userSkills.filter(s => s !== skill))
   }
 
-  const userInitials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  // Display values — prefer API data, fall back to store
+  const displayName = profile?.name || user?.name || name
+  const displayEmail = profile?.email || user?.email || ''
+  const displayRole = profile?.role || user?.role || 'participant'
+  const displayOrg = profile?.organization?.name || user?.organizationName || 'ALVISION'
+  const userInitials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const avatarGradient = profile?.avatar || AVATAR_COLORS[avatarColorIndex]
   const totalContributions = heatmapData.flat().reduce((a, b) => a + b, 0)
-  const profileCompletion = 78 // Mock profile completion percentage
+  const profileCompletion = 78
+
+  if (loading) {
+    return (
+      <div className='max-w-3xl space-y-6'>
+        <Skeleton className='h-[260px] w-full rounded-xl' />
+        <Skeleton className='h-[300px] w-full rounded-xl' />
+        <Skeleton className='h-[140px] w-full rounded-xl' />
+      </div>
+    )
+  }
 
   return (
     <motion.div className='max-w-3xl space-y-6' variants={container} initial='hidden' animate='show'>
@@ -101,9 +224,9 @@ export default function ProfilePage() {
           <CardContent className='p-6 -mt-14 relative'>
             <div className='flex flex-col sm:flex-row items-center sm:items-end gap-6'>
               {/* Avatar with edit overlay */}
-              <div className='relative group cursor-pointer -mt-2'>
+              <div className='relative group cursor-pointer -mt-2' onClick={cycleAvatarColor} title='Click to change avatar color'>
                 <Avatar className='h-28 w-28 border-4 border-background shadow-lg'>
-                  <AvatarFallback className='text-3xl bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white font-bold'>{userInitials}</AvatarFallback>
+                  <AvatarFallback className={`text-3xl bg-gradient-to-br ${avatarGradient} text-white font-bold`}>{userInitials}</AvatarFallback>
                 </Avatar>
                 <div className='absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center'>
                   <Camera className='h-6 w-6 text-white' />
@@ -115,17 +238,17 @@ export default function ProfilePage() {
               </div>
               <div className='flex-1 text-center sm:text-left pb-1'>
                 <div className='flex items-center justify-center sm:justify-start gap-2 mb-1'>
-                  <h2 className='text-xl font-bold'>{name}</h2>
-                  <Badge variant='outline' className='capitalize text-xs gap-1 bg-gradient-to-br from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-200'><Shield className='h-3 w-3' />{user?.role || 'participant'}</Badge>
+                  <h2 className='text-xl font-bold'>{editing ? name : displayName}</h2>
+                  <Badge variant='outline' className='capitalize text-xs gap-1 bg-gradient-to-br from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-200'><Shield className='h-3 w-3' />{displayRole}</Badge>
                 </div>
                 <p className='text-muted-foreground text-sm flex items-center justify-center sm:justify-start gap-1.5'><Briefcase className='h-3.5 w-3.5' />{jobTitle}</p>
                 <div className='flex items-center justify-center sm:justify-start gap-4 mt-2 text-sm text-muted-foreground'>
-                  <span className='flex items-center gap-1'><Mail className='h-3.5 w-3.5' />{user?.email || 'user@alvision.ai'}</span>
+                  <span className='flex items-center gap-1'><Mail className='h-3.5 w-3.5' />{displayEmail}</span>
                   <span className='flex items-center gap-1'><MapPin className='h-3.5 w-3.5' />{location}</span>
                 </div>
-                {user?.organizationName && <p className='text-muted-foreground text-sm flex items-center justify-center sm:justify-start gap-1 mt-0.5'><Building2 className='h-3.5 w-3.5' />{user.organizationName}</p>}
+                {displayOrg && <p className='text-muted-foreground text-sm flex items-center justify-center sm:justify-start gap-1 mt-0.5'><Building2 className='h-3.5 w-3.5' />{displayOrg}</p>}
               </div>
-              <Button variant='outline' className='gap-1.5 shrink-0 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setEditing(!editing); setSaved(false) }}>
+              <Button variant='outline' className='gap-1.5 shrink-0 hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => { setEditing(!editing); setSaved(false); if (!editing) { setName(displayName) } }}>
                 {editing ? 'Cancel' : <><Edit3 className='h-3.5 w-3.5' /> Edit</>}
               </Button>
             </div>
@@ -161,11 +284,11 @@ export default function ProfilePage() {
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
               <div className='space-y-2'>
                 <Label>Full Name</Label>
-                {editing ? <Input value={name} onChange={e => setName(e.target.value)} className='focus:ring-2 focus:ring-primary/20 transition-all duration-200' /> : <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors'>{name}</p>}
+                {editing ? <Input value={name} onChange={e => setName(e.target.value)} className='focus:ring-2 focus:ring-primary/20 transition-all duration-200' /> : <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors'>{displayName}</p>}
               </div>
               <div className='space-y-2'>
                 <Label>Email</Label>
-                <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors text-muted-foreground'>{user?.email || 'user@alvision.ai'}</p>
+                <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors text-muted-foreground'>{displayEmail}</p>
               </div>
               <div className='space-y-2'>
                 <Label>Job Title</Label>
@@ -177,12 +300,12 @@ export default function ProfilePage() {
               </div>
               <div className='space-y-2'>
                 <Label>Organization</Label>
-                <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors text-muted-foreground'>{user?.organizationName || 'ALVISION'}</p>
+                <p className='text-sm py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors text-muted-foreground'>{displayOrg}</p>
               </div>
               <div className='space-y-2'>
                 <Label>Role</Label>
                 <div className='py-2 px-3'>
-                  <Badge variant='outline' className='capitalize text-xs gap-1 bg-gradient-to-br from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-200'><Shield className='h-3 w-3' />{user?.role || 'participant'}</Badge>
+                  <Badge variant='outline' className='capitalize text-xs gap-1 bg-gradient-to-br from-violet-500/10 to-violet-500/5 text-violet-600 border-violet-200'><Shield className='h-3 w-3' />{displayRole}</Badge>
                 </div>
               </div>
             </div>
@@ -190,11 +313,32 @@ export default function ProfilePage() {
               <Label>Bio</Label>
               {editing ? <Textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} className='focus:ring-2 focus:ring-primary/20 transition-all duration-200' /> : <p className='text-sm text-muted-foreground py-2 px-3 rounded-lg border border-transparent hover:border-border/50 hover:bg-muted/30 transition-colors'>{bio}</p>}
             </div>
+
+            {/* Account details (read-only from API) */}
+            {profile && (
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/50'>
+                <div className='space-y-1'>
+                  <Label className='text-muted-foreground text-xs'>Account Created</Label>
+                  <p className='text-sm flex items-center gap-1.5'><CalendarDays className='h-3.5 w-3.5 text-muted-foreground' />{formatDate(profile.createdAt)}</p>
+                </div>
+                <div className='space-y-1'>
+                  <Label className='text-muted-foreground text-xs'>Last Login</Label>
+                  <p className='text-sm flex items-center gap-1.5'><RefreshCw className='h-3.5 w-3.5 text-muted-foreground' />{profile.lastLogin ? formatDateTime(profile.lastLogin) : 'N/A'}</p>
+                </div>
+                <div className='space-y-1'>
+                  <Label className='text-muted-foreground text-xs'>Account Status</Label>
+                  <Badge variant={profile.isActive ? 'outline' : 'destructive'} className='text-xs'>
+                    {profile.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+              </div>
+            )}
+
             {editing && (
               <div className='flex justify-end'>
-                <Button onClick={handleSave} className='gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform min-w-[130px]' disabled={saved}>
-                  {saved ? <Loader2 className='h-4 w-4 animate-spin' /> : <Save className='h-4 w-4' />}
-                  {saved ? 'Saving...' : 'Save Profile'}
+                <Button onClick={handleSave} className='gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform min-w-[130px]' disabled={saving || !name.trim()}>
+                  {saving ? <Loader2 className='h-4 w-4 animate-spin' /> : <Save className='h-4 w-4' />}
+                  {saving ? 'Saving...' : 'Save Profile'}
                 </Button>
               </div>
             )}

@@ -7,7 +7,8 @@ import {
   ArrowRight, Plus, MoreHorizontal, Mic, Monitor, Globe, Shield, ChevronRight,
   BarChart3, Activity, LayoutDashboard, FolderOpen, CircleDot, Radio,
   Settings, User, LogOut, Search, Bell, BookOpen, Pen, Bot, Puzzle,
-  HelpCircle, Webhook, LayoutTemplate, LayoutGrid, UsersRound, MessageCircle
+  HelpCircle, Webhook, LayoutTemplate, LayoutGrid, UsersRound, MessageCircle,
+  AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell
@@ -65,23 +67,6 @@ function RippleButton({ children, className, onClick }: { children: React.ReactN
   );
 }
 
-const meetingActivityData = [
-  { day: 'Mon', meetings: 4, participants: 18 },
-  { day: 'Tue', meetings: 7, participants: 32 },
-  { day: 'Wed', meetings: 5, participants: 24 },
-  { day: 'Thu', meetings: 9, participants: 45 },
-  { day: 'Fri', meetings: 6, participants: 28 },
-  { day: 'Sat', meetings: 2, participants: 8 },
-  { day: 'Sun', meetings: 1, participants: 5 },
-];
-
-const meetingTypesData = [
-  { name: 'Video', value: 40 },
-  { name: 'Audio', value: 25 },
-  { name: 'Webinar', value: 20 },
-  { name: 'Town Hall', value: 15 },
-];
-
 const PIE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#38bdf8'];
 
 interface Meeting {
@@ -93,32 +78,26 @@ interface Meeting {
   status: 'Active' | 'Ended' | 'Scheduled';
 }
 
-const mockMeetings: Meeting[] = [
-  { id: '1', title: 'Sprint Planning - Q4', date: 'Today, 10:00 AM', duration: '45 min', participants: 8, status: 'Active' },
-  { id: '2', title: 'Design Review', date: 'Today, 2:00 PM', duration: '30 min', participants: 5, status: 'Scheduled' },
-  { id: '3', title: 'Client Onboarding - Acme Corp', date: 'Yesterday, 3:00 PM', duration: '1h 12min', participants: 12, status: 'Ended' },
-  { id: '4', title: 'Engineering Standup', date: 'Yesterday, 9:30 AM', duration: '15 min', participants: 6, status: 'Ended' },
-  { id: '5', title: 'Product Roadmap Discussion', date: 'Dec 18, 11:00 AM', duration: '1h 30min', participants: 15, status: 'Scheduled' },
-];
-
-const teamActivities = [
-  { user: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', action: 'started a meeting', target: 'Sprint Planning', time: '5 min ago' },
-  { user: 'Alex Rivera', initials: 'AR', color: 'bg-blue-500', action: 'shared a recording', target: 'Client Review Q3', time: '23 min ago' },
-  { user: 'Maya Patel', initials: 'MP', color: 'bg-green-500', action: 'joined team', target: 'Engineering', time: '1h ago' },
-  { user: 'James Wilson', initials: 'JW', color: 'bg-orange-500', action: 'created an AI summary', target: 'Board Meeting Notes', time: '2h ago' },
-  { user: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', action: 'scheduled a meeting', target: 'Design Sync', time: '3h ago' },
-];
-
-const onlinePeople = [
-  { name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', status: 'In a meeting' },
-  { name: 'Alex Rivera', initials: 'AR', color: 'bg-sky-500', status: 'Available' },
-  { name: 'Maya Patel', initials: 'MP', color: 'bg-emerald-500', status: 'Editing document' },
-  { name: 'James Wilson', initials: 'JW', color: 'bg-orange-500', status: 'On a call' },
-  { name: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', status: 'Available' },
-  { name: 'David Kim', initials: 'DK', color: 'bg-teal-500', status: 'Away' },
-  { name: 'Lisa Park', initials: 'LP', color: 'bg-rose-500', status: 'In a meeting' },
-  { name: 'Ryan Foster', initials: 'RF', color: 'bg-amber-500', status: 'Available' },
-];
+interface DashboardData {
+  meetingActivity: { day: string; meetings: number; date: string }[];
+  meetingTypes: { name: string; value: number; count: number }[];
+  upcomingMeetings: Meeting[];
+  recentActivity: { user: string; initials: string; color: string; action: string; target: string; time: string }[];
+  onlineUsers: { name: string; initials: string; color: string; status: string }[];
+  quickStats: {
+    totalMeetings: number;
+    activeToday: number;
+    totalParticipants: number;
+    totalRecordings: number;
+    aiSummariesThisWeek: number;
+  };
+  bannerStats: {
+    meetingsToday: number;
+    unreadMessages: number;
+    pendingActions: number;
+    newRecordings: number;
+  };
+}
 
 export default function DashboardPage() {
   const { user, setCurrentView, currentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
@@ -129,21 +108,28 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const { data: meetingsData } = useQuery<{ success: boolean; data: { meetings: Meeting[] } }>({
-    queryKey: ['meetings'],
+  // Fetch dashboard data from API
+  const { data: dashboardResponse, isLoading, isError, error, refetch } = useQuery<{
+    success: boolean;
+    data: DashboardData;
+  }>({
+    queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      try {
-        const res = await authFetch('/api/v1/meetings');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data?.meetings) return { success: true, data: json.data };
-          return json;
-        }
-      } catch { /* fallback */ }
-      return { success: true, data: { meetings: mockMeetings } };
+      const res = await authFetch('/api/v1/stats/dashboard');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch dashboard: ${res.status}`);
+      }
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error?.message || 'Failed to load dashboard data');
+      }
+      return json;
     },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
-  const meetings = meetingsData?.data?.meetings || mockMeetings;
+
+  const dashboard = dashboardResponse?.data;
 
   useEffect(() => {
     if (!user) {
@@ -156,9 +142,9 @@ export default function DashboardPage() {
 
   const navItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={18} />, view: 'dashboard' },
-    { label: 'Meetings', icon: <Video size={18} />, view: 'meetings', badge: '3 today' },
+    { label: 'Meetings', icon: <Video size={18} />, view: 'meetings', badge: dashboard ? `${dashboard.quickStats.activeToday} today` : undefined },
     { label: 'Teams', icon: <Users size={18} />, view: 'teams' },
-    { label: 'Chat', icon: <MessageSquare size={18} />, view: 'chat', badge: '5' },
+    { label: 'Chat', icon: <MessageSquare size={18} />, view: 'chat' },
     { label: 'Files', icon: <FolderOpen size={18} />, view: 'files' },
     { label: 'Recordings', icon: <CircleDot size={18} />, view: 'recordings' },
     { label: 'AI Assistant', icon: <Brain size={18} />, view: 'ai-assistant', badge: 'AI', badgeVariant: 'secondary' as const },
@@ -308,7 +294,28 @@ export default function DashboardPage() {
           </Avatar>
         </header>
 
-        <div className="p-4 lg:p-6 space-y-6">
+        {/* Error State */}
+        {isError && (
+          <div className="p-4 lg:p-6">
+            <Card className="border-destructive/50">
+              <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <AlertTriangle size={24} className="text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">Failed to load dashboard</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{error?.message || 'An unexpected error occurred. Please try again.'}</p>
+                </div>
+                <Button onClick={() => refetch()} className="gap-2">
+                  <RefreshCw size={14} />
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <div className={`p-4 lg:p-6 space-y-6 ${isError ? 'hidden' : ''}`}>
           {/* Welcome Banner */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -323,20 +330,32 @@ export default function DashboardPage() {
               <h2 className="text-2xl lg:text-3xl font-bold mb-2">{getGreeting()}, {user?.name?.split(' ')[0] || 'Alex'}!</h2>
               <p className="text-blue-100 mb-6">Here&apos;s what&apos;s happening with your team today.</p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'Meetings Today', value: '4', icon: <Video size={16} /> },
-                  { label: 'Unread Messages', value: '12', icon: <MessageSquare size={16} /> },
-                  { label: 'Pending Actions', value: '5', icon: <Clock size={16} /> },
-                  { label: 'New Recordings', value: '3', icon: <Mic size={16} /> },
-                ].map((stat) => (
-                  <div key={stat.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{stat.icon}</div>
-                    <div>
-                      <p className="text-xl font-bold">{stat.value}</p>
-                      <p className="text-xs text-blue-200">{stat.label}</p>
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
+                      <Skeleton className="w-8 h-8 rounded-lg bg-white/20" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-5 w-8 bg-white/20" />
+                        <Skeleton className="h-3 w-20 bg-white/20" />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  [
+                    { label: 'Meetings Today', value: String(dashboard?.bannerStats.meetingsToday ?? 0), icon: <Video size={16} /> },
+                    { label: 'Unread Messages', value: String(dashboard?.bannerStats.unreadMessages ?? 0), icon: <MessageSquare size={16} /> },
+                    { label: 'Pending Actions', value: String(dashboard?.bannerStats.pendingActions ?? 0), icon: <Clock size={16} /> },
+                    { label: 'New Recordings', value: String(dashboard?.bannerStats.newRecordings ?? 0), icon: <Mic size={16} /> },
+                  ].map((stat) => (
+                    <div key={stat.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{stat.icon}</div>
+                      <div>
+                        <p className="text-xl font-bold">{stat.value}</p>
+                        <p className="text-xs text-blue-200">{stat.label}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </motion.div>
@@ -348,37 +367,55 @@ export default function DashboardPage() {
               <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
             </div>
             <motion.div variants={stagger} initial="hidden" animate="show" className="relative grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { title: 'Active Meetings', value: '12', icon: <TrendingUp size={20} />, badge: '+8%', badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', gradientFrom: 'from-emerald-500/20', gradientTo: 'to-emerald-500/0' },
-                { title: 'Total Participants', value: '248', icon: <Users size={20} />, gradientFrom: 'from-sky-500/20', gradientTo: 'to-sky-500/0' },
-                { title: 'AI Summaries', value: '47', icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', gradientFrom: 'from-violet-500/20', gradientTo: 'to-violet-500/0' },
-                { title: 'Recording Hours', value: '156h', icon: <Clock size={20} />, gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-500/0' },
-              ].map((card, idx) => (
-                <motion.div key={card.title} variants={fadeUp}>
-                  <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30 transition-all duration-[3000ms]"
-                    style={{ backgroundPosition: `${gradientPhase}% ${gradientPhase}%` }}
-                  >
-                    <Card className="relative overflow-hidden bg-card rounded-xl">
-                      <CardContent className="p-4 lg:p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                            {card.icon}
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <motion.div key={idx} variants={fadeUp}>
+                    <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30">
+                      <Card className="relative overflow-hidden bg-card rounded-xl">
+                        <CardContent className="p-4 lg:p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <Skeleton className="w-10 h-10 rounded-xl" />
                           </div>
-                          {card.badge && (
-                            <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
-                              {card.badge}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
-                      </CardContent>
-                      {/* Subtle gradient accent at bottom */}
-                      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradientFrom} ${card.gradientTo}`} />
-                    </Card>
-                  </div>
-                </motion.div>
-              ))}
+                          <Skeleton className="h-8 w-16 mb-1" />
+                          <Skeleton className="h-4 w-24" />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                [
+                  { title: 'Active Meetings', value: String(dashboard?.quickStats.totalMeetings ?? 0), icon: <TrendingUp size={20} />, badge: `${dashboard?.quickStats.activeToday ?? 0} today`, badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', gradientFrom: 'from-emerald-500/20', gradientTo: 'to-emerald-500/0' },
+                  { title: 'Total Participants', value: String(dashboard?.quickStats.totalParticipants ?? 0), icon: <Users size={20} />, gradientFrom: 'from-sky-500/20', gradientTo: 'to-sky-500/0' },
+                  { title: 'AI Summaries', value: String(dashboard?.quickStats.aiSummariesThisWeek ?? 0), icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', gradientFrom: 'from-violet-500/20', gradientTo: 'to-violet-500/0' },
+                  { title: 'Total Recordings', value: String(dashboard?.quickStats.totalRecordings ?? 0), icon: <Clock size={20} />, gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-500/0' },
+                ].map((card, idx) => (
+                  <motion.div key={card.title} variants={fadeUp}>
+                    <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30 transition-all duration-[3000ms]"
+                      style={{ backgroundPosition: `${gradientPhase}% ${gradientPhase}%` }}
+                    >
+                      <Card className="relative overflow-hidden bg-card rounded-xl">
+                        <CardContent className="p-4 lg:p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                              {card.icon}
+                            </div>
+                            {card.badge && (
+                              <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
+                                {card.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
+                        </CardContent>
+                        {/* Subtle gradient accent at bottom */}
+                        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradientFrom} ${card.gradientTo}`} />
+                      </Card>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </motion.div>
           </div>
 
@@ -400,20 +437,26 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={meetingActivityData}>
-                        <defs>
-                          <linearGradient id="meetingGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                        <Area type="monotone" dataKey="meetings" stroke="#3b82f6" strokeWidth={2} fill="url(#meetingGrad)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {isLoading ? (
+                      <div className="h-full flex items-center justify-center">
+                        <Skeleton className="h-full w-full rounded-lg" />
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={dashboard?.meetingActivity || []}>
+                          <defs>
+                            <linearGradient id="meetingGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                          <Area type="monotone" dataKey="meetings" stroke="#3b82f6" strokeWidth={2} fill="url(#meetingGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -426,33 +469,54 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64 flex items-center">
-                    <ResponsiveContainer width="50%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={meetingTypesData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={55}
-                          outerRadius={80}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {meetingTypesData.map((_, index) => (
-                            <Cell key={index} fill={PIE_COLORS[index]} />
+                    {isLoading ? (
+                      <div className="w-full flex items-center justify-center gap-6">
+                        <Skeleton className="w-40 h-40 rounded-full" />
+                        <div className="space-y-3 flex-1">
+                          {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-3">
+                              <Skeleton className="w-3 h-3 rounded-full" />
+                              <Skeleton className="h-4 flex-1" />
+                              <Skeleton className="h-4 w-8" />
+                            </div>
                           ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex-1 space-y-3">
-                      {meetingTypesData.map((item, i) => (
-                        <div key={item.name} className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i] }} />
-                          <span className="text-sm flex-1">{item.name}</span>
-                          <span className="text-sm font-semibold">{item.value}%</span>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ) : (dashboard?.meetingTypes && dashboard.meetingTypes.length > 0) ? (
+                      <>
+                        <ResponsiveContainer width="50%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={dashboard.meetingTypes}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={55}
+                              outerRadius={80}
+                              paddingAngle={3}
+                              dataKey="value"
+                            >
+                              {dashboard.meetingTypes.map((_, index) => (
+                                <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex-1 space-y-3">
+                          {dashboard.meetingTypes.map((item, i) => (
+                            <div key={item.name} className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                              <span className="text-sm flex-1">{item.name}</span>
+                              <span className="text-sm font-semibold">{item.value}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full flex items-center justify-center text-muted-foreground text-sm">
+                        No meeting type data yet
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -465,69 +529,89 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">Recent Meetings</CardTitle>
+                    <CardTitle className="text-base font-semibold">Upcoming Meetings</CardTitle>
                     <Button variant="ghost" size="sm" onClick={() => setCurrentView('meetings')} className="text-sm">
                       View All <ChevronRight size={14} className="ml-1" />
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b text-left text-muted-foreground">
-                          <th className="px-4 lg:px-6 py-3 font-medium">Meeting</th>
-                          <th className="px-4 lg:px-6 py-3 font-medium hidden md:table-cell">Date</th>
-                          <th className="px-4 lg:px-6 py-3 font-medium hidden sm:table-cell">Duration</th>
-                          <th className="px-4 lg:px-6 py-3 font-medium hidden lg:table-cell">Participants</th>
-                          <th className="px-4 lg:px-6 py-3 font-medium">Status</th>
-                          <th className="px-4 lg:px-6 py-3 font-medium text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {meetings.map((meeting) => (
-                          <tr key={meeting.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                            <td className="px-4 lg:px-6 py-3.5">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                  <Video size={14} className="text-primary" />
-                                </div>
-                                <span className="font-medium truncate max-w-[200px]">{meeting.title}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden md:table-cell">{meeting.date}</td>
-                            <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden sm:table-cell">{meeting.duration}</td>
-                            <td className="px-4 lg:px-6 py-3.5 hidden lg:table-cell">
-                              <div className="flex items-center gap-1.5 text-muted-foreground">
-                                <Users size={14} /> {meeting.participants}
-                              </div>
-                            </td>
-                            <td className="px-4 lg:px-6 py-3.5">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(meeting.status)}`}>
-                                {meeting.status === 'Active' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />}
-                                {meeting.status}
-                              </span>
-                            </td>
-                            <td className="px-4 lg:px-6 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                {meeting.status === 'Active' && (
-                                  <Button size="sm" className="h-7 text-xs" onClick={handleJoinMeeting}>Join</Button>
-                                )}
-                                {meeting.status === 'Ended' && (
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCurrentView('recordings')}>
-                                    <CircleDot size={12} className="mr-1" /> Recording
-                                  </Button>
-                                )}
-                                {meeting.status === 'Scheduled' && (
-                                  <Button variant="outline" size="sm" className="h-7 text-xs">Details</Button>
-                                )}
-                              </div>
-                            </td>
+                  {isLoading ? (
+                    <div className="p-4 lg:p-6 space-y-4">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-4">
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                          <Skeleton className="h-4 flex-1" />
+                          <Skeleton className="h-4 w-24 hidden md:block" />
+                          <Skeleton className="h-4 w-16 hidden sm:block" />
+                          <Skeleton className="h-4 w-16 hidden lg:block" />
+                          <Skeleton className="h-5 w-16" />
+                          <Skeleton className="h-7 w-16" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : dashboard?.upcomingMeetings && dashboard.upcomingMeetings.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="px-4 lg:px-6 py-3 font-medium">Meeting</th>
+                            <th className="px-4 lg:px-6 py-3 font-medium hidden md:table-cell">Date</th>
+                            <th className="px-4 lg:px-6 py-3 font-medium hidden sm:table-cell">Duration</th>
+                            <th className="px-4 lg:px-6 py-3 font-medium hidden lg:table-cell">Participants</th>
+                            <th className="px-4 lg:px-6 py-3 font-medium">Status</th>
+                            <th className="px-4 lg:px-6 py-3 font-medium text-right">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {dashboard.upcomingMeetings.map((meeting) => (
+                            <tr key={meeting.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                              <td className="px-4 lg:px-6 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                    <Video size={14} className="text-primary" />
+                                  </div>
+                                  <span className="font-medium truncate max-w-[200px]">{meeting.title}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden md:table-cell">{meeting.date}</td>
+                              <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden sm:table-cell">{meeting.duration}</td>
+                              <td className="px-4 lg:px-6 py-3.5 hidden lg:table-cell">
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Users size={14} /> {meeting.participants}
+                                </div>
+                              </td>
+                              <td className="px-4 lg:px-6 py-3.5">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(meeting.status)}`}>
+                                  {meeting.status === 'Active' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />}
+                                  {meeting.status}
+                                </span>
+                              </td>
+                              <td className="px-4 lg:px-6 py-3.5 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {meeting.status === 'Active' && (
+                                    <Button size="sm" className="h-7 text-xs" onClick={handleJoinMeeting}>Join</Button>
+                                  )}
+                                  {meeting.status === 'Ended' && (
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCurrentView('recordings')}>
+                                      <CircleDot size={12} className="mr-1" /> Recording
+                                    </Button>
+                                  )}
+                                  {meeting.status === 'Scheduled' && (
+                                    <Button variant="outline" size="sm" className="h-7 text-xs">Details</Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      No upcoming meetings scheduled
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -546,17 +630,27 @@ export default function DashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {[
-                    { text: '47 meetings summarized this week', icon: <FileText size={14} /> },
-                    { text: '12 action items pending', icon: <Clock size={14} /> },
-                    { text: '3 meetings need follow-up', icon: <MessageSquare size={14} /> },
-                  ].map((item) => (
-                    <div key={item.text} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                      <div className="text-muted-foreground">{item.icon}</div>
-                      <span className="text-sm flex-1">{item.text}</span>
-                      <ChevronRight size={14} className="text-muted-foreground" />
-                    </div>
-                  ))}
+                  {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+                        <Skeleton className="w-4 h-4" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="w-4 h-4" />
+                      </div>
+                    ))
+                  ) : (
+                    [
+                      { text: `${dashboard?.quickStats.aiSummariesThisWeek ?? 0} meetings summarized this week`, icon: <FileText size={14} /> },
+                      { text: `${dashboard?.quickStats.totalMeetings ?? 0} total meetings in your workspace`, icon: <Clock size={14} /> },
+                      { text: `${dashboard?.quickStats.totalParticipants ?? 0} active participants`, icon: <MessageSquare size={14} /> },
+                    ].map((item) => (
+                      <div key={item.text} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+                        <div className="text-muted-foreground">{item.icon}</div>
+                        <span className="text-sm flex-1">{item.text}</span>
+                        <ChevronRight size={14} className="text-muted-foreground" />
+                      </div>
+                    ))
+                  )}
                   <Button variant="ghost" className="w-full text-sm text-primary" onClick={() => setCurrentView('ai-assistant')}>
                     View All Insights <ArrowRight size={14} className="ml-1" />
                   </Button>
@@ -626,35 +720,49 @@ export default function DashboardPage() {
                       </span>
                       Who&apos;s Online
                     </CardTitle>
-                    <Badge variant="secondary" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">{onlinePeople.length} online</Badge>
+                    <Badge variant="secondary" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">{isLoading ? '...' : (dashboard?.onlineUsers?.length ?? 0)} online</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
-                    {onlinePeople.map((person, i) => (
-                      <motion.div
-                        key={person.name}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.65 + i * 0.05 }}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer"
-                      >
-                        <div className="relative">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className={`${person.color} text-white text-[10px] font-bold`}>{person.initials}</AvatarFallback>
-                          </Avatar>
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-emerald-500" />
+                    {isLoading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg">
+                          <Skeleton className="w-8 h-8 rounded-full" />
+                          <div className="flex-1 space-y-1">
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{person.name}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">{person.status}</p>
-                        </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentView('chat')}><MessageCircle size={13} /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setMeetingTitle('Call with ' + person.name); setCurrentMeetingId('new-' + Date.now()); setCurrentView('meeting-room'); }}><Video size={13} /></Button>
-                        </div>
-                      </motion.div>
-                    ))}
+                      ))
+                    ) : dashboard?.onlineUsers && dashboard.onlineUsers.length > 0 ? (
+                      dashboard.onlineUsers.map((person, i) => (
+                        <motion.div
+                          key={person.name}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.65 + i * 0.05 }}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer"
+                        >
+                          <div className="relative">
+                            <Avatar className="w-8 h-8">
+                              <AvatarFallback className={`${person.color} text-white text-[10px] font-bold`}>{person.initials}</AvatarFallback>
+                            </Avatar>
+                            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{person.name}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{person.status}</p>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentView('chat')}><MessageCircle size={13} /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setMeetingTitle('Call with ' + person.name); setCurrentMeetingId('new-' + Date.now()); setCurrentView('meeting-room'); }}><Video size={13} /></Button>
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No users online right now</div>
+                    )}
                   </div>
                 </CardContent>
                 <div className="h-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
@@ -671,27 +779,42 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
-                    {teamActivities.map((activity, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 + i * 0.06 }}
-                        className="flex items-center gap-3"
-                      >
-                        <Avatar className="w-8 h-8 shrink-0">
-                          <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>{activity.initials}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm">
-                            <span className="font-medium">{activity.user}</span>{' '}
-                            <span className="text-muted-foreground">{activity.action}</span>{' '}
-                            <span className="font-medium">{activity.target}</span>
-                          </p>
+                    {isLoading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                          <div className="flex-1 space-y-1">
+                            <Skeleton className="h-4 w-48" />
+                            <Skeleton className="h-3 w-32" />
+                          </div>
+                          <Skeleton className="h-3 w-14 shrink-0" />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
-                      </motion.div>
-                    ))}
+                      ))
+                    ) : dashboard?.recentActivity && dashboard.recentActivity.length > 0 ? (
+                      dashboard.recentActivity.map((activity, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.7 + i * 0.06 }}
+                          className="flex items-center gap-3"
+                        >
+                          <Avatar className="w-8 h-8 shrink-0">
+                            <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>{activity.initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              <span className="font-medium">{activity.user}</span>{' '}
+                              <span className="text-muted-foreground">{activity.action}</span>{' '}
+                              {activity.target && <span className="font-medium">{activity.target}</span>}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-sm text-muted-foreground">No recent activity</div>
+                    )}
                   </div>
                 </CardContent>
                 <div className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-500" />

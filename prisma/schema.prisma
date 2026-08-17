@@ -30,6 +30,7 @@ model User {
   actionItems  ActionItem[]
   files        File[]
   apiKeys      ApiKey[]
+  templates    Template[]
 
   @@index([organizationId])
   @@index([role])
@@ -52,6 +53,7 @@ model Organization {
   teams       Team[]
   meetings    Meeting[]
   events      Event[]
+  templates   Template[]
 }
 
 model Team {
@@ -133,6 +135,7 @@ model Meeting {
   recordingEnabled  Boolean  @default(true)
   transcriptionEnabled Boolean @default(true)
   aiAssistantEnabled Boolean @default(true)
+  notes             String   @default("{}") // JSON: { title, content (HTML) }
   startTime         DateTime?
   endTime           DateTime?
   createdAt         DateTime @default(now())
@@ -339,4 +342,27 @@ model ApiKey {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Template {
+  id              String   @id @default(uuid())
+  name            String
+  description     String   @default("")
+  duration        String   @default("30m")
+  maxParticipants Int      @default(10)
+  settings        String   @default("[]")  // JSON array of enabled features
+  agenda          String   @default("")
+  gradient        String   @default("from-sky-500 to-blue-500")
+  iconBg          String   @default("from-sky-500 to-blue-600")
+  isBuiltin       Boolean  @default(false)
+  createdById     String
+  organizationId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@index([organizationId])
 }

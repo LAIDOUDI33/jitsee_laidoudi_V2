@@ -142,14 +142,14 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
                 'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 relative group',
                 active
                   ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-medium shadow-sm'
-                  : 'text-muted-foreground hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent hover:text-foreground hover:shadow-sm',
+                  : 'text-muted-foreground hover:bg-gradient-to-r hover:from-primary/8 hover:to-transparent hover:text-foreground hover:shadow-sm hover:pl-4',
                 collapsed && 'justify-center px-2'
               )}
             >
               {active && (
                 <motion.div
                   layoutId='sidebar-active-indicator'
-                  className='absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full'
+                  className='absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-primary via-violet-500 to-fuchsia-500'
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -158,7 +158,7 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
               )}
               <span className={cn(
                 'shrink-0 transition-all duration-200',
-                active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                active ? 'text-primary drop-shadow-sm' : 'text-muted-foreground group-hover:text-foreground'
               )}>
                 {item.icon}
               </span>
@@ -197,11 +197,14 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
       <div className='h-[2px] w-full shrink-0 bg-gradient-to-r from-primary via-violet-500 to-transparent animate-[shimmer_3s_ease-in-out_infinite]' />
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 h-16 border-b shrink-0', collapsed && 'justify-center px-2')}>
-        <div className='w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0'>
+        <div className='w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-md shadow-primary/20 animate-pulse-glow'>
           <Activity className='h-4 w-4 text-white' />
         </div>
         {!collapsed && (
-          <span className='text-lg font-bold gradient-text tracking-tight'>ALVISION</span>
+          <div className='flex items-center gap-2'>
+            <span className='text-lg font-bold gradient-text tracking-tight'>ALVISION</span>
+            <span className='text-[8px] font-bold text-primary/60 bg-primary/10 rounded-md px-1.5 py-0.5 leading-none'>PRO</span>
+          </div>
         )}
       </div>
 
@@ -242,17 +245,20 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className={cn('flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-all duration-200', collapsed && 'justify-center')}>
+              <div className={cn('flex items-center gap-3 rounded-xl p-2 hover:bg-muted/80 cursor-pointer transition-all duration-200 group', collapsed && 'justify-center')}>
                 <div className='relative shrink-0'>
-                  <div className='rounded-full p-[2px] bg-gradient-to-br from-primary/30 to-violet-500/30'>
-                    <Avatar className='h-8 w-8 ring-1 ring-card'>
+                  <div className='rounded-full p-[2px] bg-gradient-to-br from-primary/40 via-violet-500/30 to-fuchsia-500/30 group-hover:from-primary/60 group-hover:via-violet-500/50 group-hover:to-fuchsia-500/50 transition-all duration-300'>
+                    <Avatar className='h-8 w-8 ring-2 ring-card'>
                       <AvatarFallback className='bg-primary/10 text-primary text-xs font-semibold'>
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
                   </div>
-                  {/* Online status indicator */}
-                  <span className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card' />
+                  {/* Online status indicator with pulse ring */}
+                  <span className='absolute -bottom-0.5 -right-0.5 flex h-3 w-3'>
+                    <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50' />
+                    <span className='relative inline-flex h-3 w-3 rounded-full bg-emerald-500 border-2 border-card' />
+                  </span>
                 </div>
                 {!collapsed && (
                   <div className='flex-1 min-w-0'>

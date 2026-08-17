@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAppStore } from '@/store/app-store'
+import { authFetch } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -54,8 +56,11 @@ import {
   GraduationCap,
   ShieldCheck,
   HeadphonesIcon,
+  Loader2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+
+// ── Types ──────────────────────────────────────────────────────────────
 
 interface Template {
   id: string
@@ -64,9 +69,12 @@ interface Template {
   duration: string
   maxParticipants: string
   settings: string[]
-  icon: React.ReactNode
+  agenda: string
   gradient: string
   iconBg: string
+  isBuiltin: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 interface FeaturedTemplate {
@@ -76,6 +84,23 @@ interface FeaturedTemplate {
   participants: string
   gradient: string
   favorited: boolean
+}
+
+// ── Icon map for template names ──────────────────────────────────────
+
+const templateIconMap: Record<string, React.ReactNode> = {
+  'weekly team sync': <RefreshCcw className='h-5 w-5 text-white' />,
+  'design review': <Presentation className='h-5 w-5 text-white' />,
+  'client demo': <MessageSquare className='h-5 w-5 text-white' />,
+  'brainstorm session': <Lightbulb className='h-5 w-5 text-white' />,
+  'retrospective': <UserCheck className='h-5 w-5 text-white' />,
+  'training workshop': <GraduationCap className='h-5 w-5 text-white' />,
+  'board meeting': <ShieldCheck className='h-5 w-5 text-white' />,
+  'office hours': <HeadphonesIcon className='h-5 w-5 text-white' />,
+}
+
+function getTemplateIcon(name: string): React.ReactNode {
+  return templateIconMap[name.toLowerCase()] || <LayoutTemplate className='h-5 w-5 text-white' />
 }
 
 const container = {
@@ -94,45 +119,43 @@ const initialFeatured: FeaturedTemplate[] = [
   { id: 'f4', name: 'All Hands', duration: '60min', participants: '20+', gradient: 'from-amber-500 to-orange-600', favorited: false },
 ]
 
-const initialTemplates: Template[] = [
-  { id: 't1', name: 'Weekly Team Sync', description: 'Regular weekly alignment for team updates and blockers.', duration: '30min', maxParticipants: '15', settings: ['Recording ON', 'AI Assistant'], icon: <RefreshCcw className='h-5 w-5 text-white' />, gradient: 'from-sky-500 to-blue-500', iconBg: 'from-sky-500 to-blue-600' },
-  { id: 't2', name: 'Design Review', description: 'Collaborate on designs, mockups, and visual assets.', duration: '45min', maxParticipants: '8', settings: ['Recording ON', 'AI Assistant', 'Screen Share'], icon: <Presentation className='h-5 w-5 text-white' />, gradient: 'from-violet-500 to-purple-500', iconBg: 'from-violet-500 to-purple-600' },
-  { id: 't3', name: 'Client Demo', description: 'Present product demos to clients and prospects.', duration: '30min', maxParticipants: '10', settings: ['Recording ON', 'Waiting Room', 'AI Assistant'], icon: <MessageSquare className='h-5 w-5 text-white' />, gradient: 'from-emerald-500 to-teal-500', iconBg: 'from-emerald-500 to-teal-600' },
-  { id: 't4', name: 'Brainstorm Session', description: 'Creative ideation with real-time whiteboarding.', duration: '45min', maxParticipants: '12', settings: ['AI Assistant', 'Recording ON'], icon: <Lightbulb className='h-5 w-5 text-white' />, gradient: 'from-amber-500 to-orange-500', iconBg: 'from-amber-500 to-orange-600' },
-  { id: 't5', name: 'Retrospective', description: 'Reflect on sprint outcomes and process improvements.', duration: '60min', maxParticipants: '10', settings: ['Recording ON', 'Transcription', 'AI Assistant'], icon: <UserCheck className='h-5 w-5 text-white' />, gradient: 'from-rose-500 to-pink-500', iconBg: 'from-rose-500 to-pink-600' },
-  { id: 't6', name: 'Training Workshop', description: 'Structured learning sessions with material sharing.', duration: '90min', maxParticipants: '25', settings: ['Recording ON', 'Waiting Room', 'Mute on Entry'], icon: <GraduationCap className='h-5 w-5 text-white' />, gradient: 'from-indigo-500 to-blue-500', iconBg: 'from-indigo-500 to-blue-600' },
-  { id: 't7', name: 'Board Meeting', description: 'Formal governance meetings with strict access control.', duration: '60min', maxParticipants: '15', settings: ['Recording ON', 'Waiting Room', 'Mute on Entry', 'Transcription'], icon: <ShieldCheck className='h-5 w-5 text-white' />, gradient: 'from-zinc-600 to-zinc-800', iconBg: 'from-zinc-600 to-zinc-800' },
-  { id: 't8', name: 'Office Hours', description: 'Open drop-in sessions for questions and support.', duration: '60min', maxParticipants: '20', settings: ['AI Assistant'], icon: <HeadphonesIcon className='h-5 w-5 text-white' />, gradient: 'from-teal-500 to-cyan-500', iconBg: 'from-teal-500 to-cyan-600' },
-]
-
-const STORAGE_KEY = 'alvision_custom_templates'
-
-function loadCustomTemplates(): Template[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-function saveCustomTemplates(templates: Template[]) {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
-  } catch { /* ignore */ }
-}
+// ── Component ──────────────────────────────────────────────────────────
 
 export default function TemplatesPage() {
   const { setCurrentView } = useAppStore()
   const [featured, setFeatured] = useState<FeaturedTemplate[]>(initialFeatured)
-  const [templates, setTemplates] = useState<Template[]>([...initialTemplates, ...loadCustomTemplates()])
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '', description: '', duration: '30m', maxParticipants: '10',
     recording: true, transcription: false, aiAssistant: true, waitingRoom: false, muteOnEntry: false,
     agenda: '',
   })
+
+  // Fetch templates from API
+  const fetchTemplates = useCallback(async () => {
+ setLoading(true)
+    try {
+      const res = await authFetch('/api/v1/templates')
+      if (!res.ok) return
+      const json = await res.json()
+      if (json.success && json.data?.templates) {
+        setTemplates(json.data.templates)
+      }
+    } catch {
+      toast.error('Failed to load templates')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
 
   const resetForm = () => setForm({ name: '', description: '', duration: '30m', maxParticipants: '10', recording: true, transcription: false, aiAssistant: true, waitingRoom: false, muteOnEntry: false, agenda: '' })
 
@@ -144,7 +167,7 @@ export default function TemplatesPage() {
           name: t.name, description: t.description, duration: t.duration, maxParticipants: t.maxParticipants,
           recording: t.settings.includes('Recording ON'), transcription: t.settings.includes('Transcription'),
           aiAssistant: t.settings.includes('AI Assistant'), waitingRoom: t.settings.includes('Waiting Room'),
-          muteOnEntry: t.settings.includes('Mute on Entry'), agenda: '',
+          muteOnEntry: t.settings.includes('Mute on Entry'), agenda: t.agenda || '',
         })
         setEditId(id)
       }
@@ -155,8 +178,10 @@ export default function TemplatesPage() {
     setBuilderOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return
+    setSaving(true)
+
     const settings: string[] = []
     if (form.recording) settings.push('Recording ON')
     if (form.transcription) settings.push('Transcription')
@@ -164,47 +189,126 @@ export default function TemplatesPage() {
     if (form.waitingRoom) settings.push('Waiting Room')
     if (form.muteOnEntry) settings.push('Mute on Entry')
 
-    if (editId) {
-      const isBuiltin = initialTemplates.some(t => t.id === editId)
-      const updated = templates.map(t => t.id === editId ? { ...t, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings } : t)
-      setTemplates(updated)
-      if (!isBuiltin) saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
-      toast.success(`Template "${form.name}" updated!`)
-    } else {
-      const newTemplate: Template = {
-        id: `custom-${Date.now()}`, name: form.name, description: form.description, duration: form.duration, maxParticipants: form.maxParticipants, settings,
-        icon: <LayoutTemplate className='h-5 w-5 text-white' />, gradient: 'from-sky-500 to-blue-500', iconBg: 'from-sky-500 to-blue-600',
+    try {
+      const body = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        duration: form.duration,
+        maxParticipants: parseInt(form.maxParticipants) || 10,
+        settings,
+        agenda: form.agenda.trim(),
       }
-      const updated = [...templates, newTemplate]
-      setTemplates(updated)
-      saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
-      toast.success(`Template "${form.name}" created!`)
+
+      if (editId) {
+        // For edit: create a new version (templates API doesn't have PUT)
+        // Instead, create a new template and delete the old one
+        const t = templates.find(x => x.id === editId)
+        const bodyWithStyle = {
+          ...body,
+          gradient: t?.gradient || 'from-sky-500 to-blue-500',
+          iconBg: t?.iconBg || 'from-sky-500 to-blue-600',
+        }
+
+        if (t?.isBuiltin) {
+          // Builtin templates: create a copy instead of editing
+          const res = await authFetch('/api/v1/templates', {
+            method: 'POST',
+            body: JSON.stringify({ ...bodyWithStyle, name: form.name.trim() }),
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => null)
+            toast.error(err?.error?.message || 'Failed to update template')
+            return
+          }
+          toast.success(`Created copy: "${form.name.trim()}" (built-in templates cannot be modified directly)`)
+        } else {
+          // Custom template: delete old and create new
+          await authFetch(`/api/v1/templates?id=${editId}`, { method: 'DELETE' })
+          const res = await authFetch('/api/v1/templates', {
+            method: 'POST',
+            body: JSON.stringify(bodyWithStyle),
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => null)
+            toast.error(err?.error?.message || 'Failed to update template')
+            return
+          }
+          toast.success(`Template "${form.name.trim()}" updated!`)
+        }
+      } else {
+        const res = await authFetch('/api/v1/templates', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          toast.error(err?.error?.message || 'Failed to create template')
+          return
+        }
+        toast.success(`Template "${form.name.trim()}" created!`)
+      }
+
+      setBuilderOpen(false)
+      resetForm()
+      fetchTemplates()
+    } catch {
+      toast.error('Failed to save template')
+    } finally {
+      setSaving(false)
     }
-    setBuilderOpen(false)
-    resetForm()
   }
 
-  const handleDuplicate = (id: string) => {
+  const handleDuplicate = async (id: string) => {
     const t = templates.find(x => x.id === id)
     if (!t) return
-    const isBuiltin = initialTemplates.some(b => b.id === t.id)
-    const dup: Template = { ...t, id: `custom-${Date.now()}`, name: `${t.name} (Copy)` }
-    const updated = [...templates, dup]
-    setTemplates(updated)
-    if (!isBuiltin) saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
-    toast.success(`Template duplicated!`)
+
+    try {
+      const res = await authFetch('/api/v1/templates', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `${t.name} (Copy)`,
+          description: t.description,
+          duration: t.duration,
+          maxParticipants: parseInt(t.maxParticipants) || 10,
+          settings: t.settings,
+          agenda: t.agenda || '',
+          gradient: t.gradient,
+          iconBg: t.iconBg,
+        }),
+      })
+      if (!res.ok) {
+        toast.error('Failed to duplicate template')
+        return
+      }
+      toast.success('Template duplicated!')
+      fetchTemplates()
+    } catch {
+      toast.error('Failed to duplicate template')
+    }
   }
 
-  const handleDelete = (id: string) => {
-    const isBuiltin = initialTemplates.some(t => t.id === id)
-    if (isBuiltin) {
+  const handleDelete = async (id: string) => {
+    const t = templates.find(x => x.id === id)
+    if (!t) return
+    if (t.isBuiltin) {
       toast.error('Cannot delete built-in templates')
       return
     }
-    const updated = templates.filter(t => t.id !== id)
-    setTemplates(updated)
-    saveCustomTemplates(updated.filter(t => !initialTemplates.some(b => b.id === t.id)))
-    toast.success('Template deleted.')
+    setDeletingId(id)
+    try {
+      const res = await authFetch(`/api/v1/templates?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        toast.error(err?.error?.message || 'Failed to delete template')
+        return
+      }
+      toast.success('Template deleted.')
+      fetchTemplates()
+    } catch {
+      toast.error('Failed to delete template')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const toggleFavorite = (id: string) => {
@@ -295,7 +399,8 @@ export default function TemplatesPage() {
                   </div>
                   <div className='flex justify-end gap-3 pt-2'>
                     <Button variant='outline' onClick={() => setBuilderOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={!form.name.trim()} className='bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 hover:scale-[1.02] active:scale-[0.98] transition-all'>
+                    <Button onClick={handleSave} disabled={!form.name.trim() || saving} className='bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 hover:scale-[1.02] active:scale-[0.98] transition-all'>
+                      {saving ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
                       {editId ? 'Save Changes' : 'Create Template'}
                     </Button>
                   </div>
@@ -338,41 +443,65 @@ export default function TemplatesPage() {
       {/* Template Grid */}
       <div>
         <h3 className='text-lg font-semibold mb-3 flex items-center gap-2'><LayoutTemplate className='h-4 w-4 text-primary' /> All Templates</h3>
-        <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
-          {templates.map(t => (
-            <motion.div key={t.id} variants={item}>
-              <Card className='group border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 h-full flex flex-col overflow-hidden relative'>
-                <div className={`h-0.5 w-full bg-gradient-to-r ${t.gradient}`} />
-                <CardContent className='p-4 flex flex-col flex-1'>
-                  <div className='flex items-start justify-between mb-3'>
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.iconBg} flex items-center justify-center shadow-sm`}>{t.icon}</div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant='ghost' size='icon' className='h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity'><MoreVertical className='h-4 w-4' /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem className='gap-2' onClick={() => openBuilder(t.id)}><Pencil className='h-4 w-4' /> Edit</DropdownMenuItem>
-                        <DropdownMenuItem className='gap-2' onClick={() => handleDuplicate(t.id)}><Copy className='h-4 w-4' /> Duplicate</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className='gap-2 text-red-600' onClick={() => handleDelete(t.id)}><Trash2 className='h-4 w-4' /> Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <h4 className='font-semibold text-sm mb-1'>{t.name}</h4>
-                  <p className='text-xs text-muted-foreground line-clamp-2 mb-3 flex-1'>{t.description}</p>
-                  <div className='flex items-center gap-1.5 mb-3 flex-wrap'>
-                    <Badge variant='outline' className='text-[10px] gap-1 px-1.5 py-0'><Clock className='h-2.5 w-2.5' />{t.duration}</Badge>
-                    <Badge variant='outline' className='text-[10px] gap-1 px-1.5 py-0'><Users className='h-2.5 w-2.5' />{t.maxParticipants}</Badge>
-                  </div>
-                  <div className='flex flex-wrap gap-1 mb-4'>
-                    {t.settings.map(s => (
-                      <span key={s} className='text-[10px] px-1.5 py-0.5 rounded-full bg-primary/5 text-primary border border-primary/10'>{s}</span>
-                    ))}
-                  </div>
-                  <Button size='sm' variant='outline' className='w-full gap-1.5 mt-auto hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleUseTemplate(t.name)}>Use</Button>
+        {loading ? (
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <Card key={i} className='border border-border/50 h-[280px]'>
+                <CardContent className='p-4 space-y-3'>
+                  <Skeleton className='h-10 w-10 rounded-xl' />
+                  <Skeleton className='h-4 w-2/3' />
+                  <Skeleton className='h-3 w-full' />
+                  <Skeleton className='h-3 w-1/2' />
+                  <div className='flex gap-2 mt-2'><Skeleton className='h-5 w-16' /><Skeleton className='h-5 w-16' /></div>
+                  <Skeleton className='h-8 w-full mt-4' />
                 </CardContent>
               </Card>
-            </motion.div>
-          ))}
-        </motion.div>
+            ))}
+          </div>
+        ) : (
+          <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+            {templates.map(t => (
+              <motion.div key={t.id} variants={item}>
+                <Card className='group border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 h-full flex flex-col overflow-hidden relative'>
+                  <div className={`h-0.5 w-full bg-gradient-to-r ${t.gradient}`} />
+                  <CardContent className='p-4 flex flex-col flex-1'>
+                    <div className='flex items-start justify-between mb-3'>
+                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.iconBg} flex items-center justify-center shadow-sm`}>{getTemplateIcon(t.name)}</div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant='ghost' size='icon' className='h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity'><MoreVertical className='h-4 w-4' /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem className='gap-2' onClick={() => openBuilder(t.id)}><Pencil className='h-4 w-4' /> Edit</DropdownMenuItem>
+                          <DropdownMenuItem className='gap-2' onClick={() => handleDuplicate(t.id)}><Copy className='h-4 w-4' /> Duplicate</DropdownMenuItem>
+                          {!t.isBuiltin && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className='gap-2 text-red-600' onClick={() => handleDelete(t.id)} disabled={deletingId === t.id}>
+                                {deletingId === t.id ? <Loader2 className='h-4 w-4 animate-spin' /> : <Trash2 className='h-4 w-4' />}
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <h4 className='font-semibold text-sm mb-1'>{t.name}</h4>
+                    <p className='text-xs text-muted-foreground line-clamp-2 mb-3 flex-1'>{t.description}</p>
+                    <div className='flex items-center gap-1.5 mb-3 flex-wrap'>
+                      <Badge variant='outline' className='text-[10px] gap-1 px-1.5 py-0'><Clock className='h-2.5 w-2.5' />{t.duration}</Badge>
+                      <Badge variant='outline' className='text-[10px] gap-1 px-1.5 py-0'><Users className='h-2.5 w-2.5' />{t.maxParticipants}</Badge>
+                    </div>
+                    <div className='flex flex-wrap gap-1 mb-4'>
+                      {t.settings.map(s => (
+                        <span key={s} className='text-[10px] px-1.5 py-0.5 rounded-full bg-primary/5 text-primary border border-primary/10'>{s}</span>
+                      ))}
+                    </div>
+                    <Button size='sm' variant='outline' className='w-full gap-1.5 mt-auto hover:scale-[1.02] active:scale-[0.98] transition-transform' onClick={() => handleUseTemplate(t.name)}>Use</Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
       </div>
 
       <Separator />

@@ -102,23 +102,32 @@ function mapApiMeeting(m: ApiMeeting): Meeting {
 
 function SkeletonCard() {
   return (
-    <div className='border border-border/50 bg-card rounded-lg p-4 space-y-3 animate-pulse'>
+    <div className='border border-border/50 bg-card rounded-xl p-4 space-y-3 animate-pulse'>
       <div className='flex items-center gap-2'>
-        <div className='h-4 w-4 rounded bg-muted' />\n        <div className='h-4 w-40 rounded bg-muted' />\n        <div className='h-5 w-16 rounded-full bg-muted ml-auto' />\n      </div>
+        <div className='h-4 w-4 rounded bg-muted' />
+        <div className='h-4 w-40 rounded bg-muted' />
+        <div className='h-5 w-16 rounded-full bg-muted ml-auto' />
+      </div>
       <div className='flex items-center gap-3'>
-        <div className='h-3 w-20 rounded bg-muted' />\n        <div className='h-3 w-16 rounded bg-muted' />\n        <div className='h-3 w-10 rounded bg-muted' />\n      </div>
+        <div className='h-3 w-20 rounded bg-muted' />
+        <div className='h-3 w-16 rounded bg-muted' />
+        <div className='h-3 w-10 rounded bg-muted' />
+      </div>
       <div className='flex items-center gap-3'>
-        <div className='h-6 w-6 rounded-full bg-muted' />\n        <div className='h-6 w-6 rounded-full bg-muted' />\n        <div className='h-1 flex-1 rounded-full bg-muted' />\n      </div>
+        <div className='h-6 w-6 rounded-full bg-muted' />
+        <div className='h-6 w-6 rounded-full bg-muted' />
+        <div className='h-1 flex-1 rounded-full bg-muted' />
+      </div>
     </div>
   )
 }
 
-const statusConfig: Record<string, { color: string; label: string; pulse?: boolean }> = {
-  active: { color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800', label: 'Active', pulse: true },
-  upcoming: { color: 'bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800', label: 'Upcoming' },
-  scheduled: { color: 'bg-violet-500/10 text-violet-600 border-violet-200 dark:border-violet-800', label: 'Scheduled' },
-  ended: { color: 'bg-zinc-500/10 text-zinc-500 border-zinc-200 dark:border-zinc-800', label: 'Ended' },
-  recurring: { color: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800', label: 'Recurring' },
+const statusConfig: Record<string, { color: string; label: string; pulse?: boolean; dotColor: string }> = {
+  active: { color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800', label: 'Active', pulse: true, dotColor: 'bg-emerald-500' },
+  upcoming: { color: 'bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800', label: 'Upcoming', dotColor: 'bg-sky-500' },
+  scheduled: { color: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800', label: 'Scheduled', dotColor: 'bg-amber-500' },
+  ended: { color: 'bg-zinc-500/10 text-zinc-500 border-zinc-200 dark:border-zinc-800', label: 'Ended', dotColor: 'bg-zinc-400' },
+  recurring: { color: 'bg-violet-500/10 text-violet-600 border-violet-200 dark:border-violet-800', label: 'Recurring', dotColor: 'bg-violet-500' },
 }
 
 const typeBorderColors: Record<string, string> = {
@@ -290,7 +299,7 @@ export default function MeetingsPage() {
 
     return (
       <motion.div variants={item} layout>
-        <Card className={`group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 border-l-4 before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0 ${typeBorderColors[m.type]}`}>
+        <Card className={`group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-xl hover:shadow-primary/8 transition-all duration-300 hover:-translate-y-1 rounded-xl border-l-4 before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0 ${typeBorderColors[m.type]}`}>
           <CardContent className='p-4'>
             <div className='flex items-start justify-between gap-3'>
               <div className='flex-1 min-w-0'>
@@ -298,19 +307,16 @@ export default function MeetingsPage() {
                   <span className='text-muted-foreground'>{typeIcons[m.type]}</span>
                   <h3 className='font-semibold text-sm truncate'>{m.title}</h3>
                   <Badge variant='outline' className={`text-[10px] gap-1.5 shrink-0 ${statusConfig[m.status]?.color || ''}`}>
-                    {statusConfig[m.status]?.pulse && (
-                      <span className='relative flex h-2 w-2'>
-                        <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75' />
-                        <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500' />
-                      </span>
-                    )}
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusConfig[m.status]?.dotColor || 'bg-zinc-400'} ${statusConfig[m.status]?.pulse ? 'animate-breathe' : ''}`} />
                     {statusConfig[m.status]?.label || m.status}
                   </Badge>
                 </div>
                 <div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground'>
                   <span className='flex items-center gap-1'><CalendarDays className='h-3 w-3' />{m.date}</span>
                   <span className='flex items-center gap-1'><Clock className='h-3 w-3' />{m.time}</span>
-                  <span className='flex items-center gap-1'>{m.duration}</span>
+                  <span className='flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-muted/80 text-muted-foreground font-medium'>
+                    <Clock className='h-2.5 w-2.5' />{m.duration}
+                  </span>
                 </div>
                 {m.description && <p className='text-xs text-muted-foreground mt-1.5 line-clamp-1'>{m.description}</p>}
                 {/* Duration progress bar for active meetings */}

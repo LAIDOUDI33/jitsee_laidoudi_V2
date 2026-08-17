@@ -194,7 +194,7 @@ function TiltCard({ children, className }: { children: React.ReactNode; classNam
 function AdminPageSkeleton() {
   return (
     <div className='space-y-6'>
-      <Card className='border border-border/50'>
+      <Card className='border border-border/50 rounded-xl'>
         <CardContent className='p-5 flex items-center gap-4'>
           <Skeleton className='h-12 w-12 rounded-xl' />
           <div className='flex-1 space-y-2'>
@@ -205,7 +205,7 @@ function AdminPageSkeleton() {
       </Card>
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className='border border-border/50'>
+          <Card key={i} className='border border-border/50 rounded-xl'>
             <CardContent className='p-4 space-y-3'>
               <div className='flex justify-between'><Skeleton className='h-9 w-9 rounded-lg' /><Skeleton className='h-4 w-12' /></div>
               <Skeleton className='h-7 w-24' />
@@ -316,7 +316,7 @@ export default function AdminPage() {
     <motion.div className='space-y-6' variants={container} initial='hidden' animate='show'>
       {/* Dynamic system health banner - green/yellow/red */}
       <motion.div variants={item}>
-        <Card className={`bg-gradient-to-r ${banner.gradient} ${banner.border} hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden`}>
+        <Card className={`bg-gradient-to-r ${banner.gradient} ${banner.border} hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 relative overflow-hidden rounded-xl`}>
           <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${overallStatus === 'green' ? 'from-emerald-500 via-cyan-500 to-teal-500' : overallStatus === 'yellow' ? 'from-amber-500 via-orange-500 to-yellow-500' : 'from-red-500 via-rose-500 to-pink-500'}`} />
           <CardContent className='p-5 flex items-center gap-4'>
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${overallStatus === 'green' ? 'from-emerald-500 to-cyan-600' : overallStatus === 'yellow' ? 'from-amber-500 to-orange-600' : 'from-red-500 to-rose-600'} flex items-center justify-center shrink-0 shadow-lg ${overallStatus === 'green' ? 'shadow-emerald-500/20' : overallStatus === 'yellow' ? 'shadow-amber-500/20' : 'shadow-red-500/20'}`}>
@@ -341,7 +341,8 @@ export default function AdminPage() {
           const cm = colorMap[m.color]
           return (
             <motion.div key={m.label} variants={item} custom={idx}>
-              <Card className='hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300 border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80'>
+              <Card className='hover:shadow-xl hover:shadow-primary/8 hover:-translate-y-0.5 transition-all duration-300 border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 rounded-xl relative overflow-hidden'>
+                <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${m.color === 'emerald' ? 'from-emerald-500 to-teal-400' : m.color === 'violet' ? 'from-violet-500 to-fuchsia-400' : m.color === 'amber' ? 'from-amber-500 to-orange-400' : 'from-rose-500 to-pink-400'}`} />
                 <CardContent className='p-4'>
                   <div className='flex items-center justify-between mb-3'>
                     <div className={`p-2 rounded-lg bg-gradient-to-br ${cm.iconBg} ${cm.iconText}`}>{m.icon}</div>
@@ -369,10 +370,17 @@ export default function AdminPage() {
         })}
       </div>
 
+      {/* Section divider */}
+      <div className='flex items-center gap-3 pt-2'>
+        <div className='h-px flex-1 bg-gradient-to-r from-border via-border to-transparent' />
+        <span className='text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest'>Insights &amp; Activity</span>
+        <div className='h-px flex-1 bg-gradient-to-l from-border via-border to-transparent' />
+      </div>
+
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* Quick Actions Grid */}
         <motion.div variants={item}>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+          <Card className='hover:shadow-xl hover:shadow-primary/8 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative rounded-xl'>
             <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500' />
             <CardHeader className='pb-3'>
               <CardTitle className='text-sm flex items-center gap-2'><Zap className='h-4 w-4 text-amber-500' /> Quick Actions</CardTitle>
@@ -401,7 +409,7 @@ export default function AdminPage() {
 
         {/* System Health with dynamic status */}
         <motion.div variants={item}>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+          <Card className='hover:shadow-xl hover:shadow-primary/8 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative rounded-xl'>
             <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-400' />
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>
@@ -444,7 +452,7 @@ export default function AdminPage() {
 
         {/* Recent Activity Timeline with avatars */}
         <motion.div variants={item} className='lg:col-span-2'>
-          <Card className='hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative'>
+          <Card className='hover:shadow-xl hover:shadow-primary/8 transition-all duration-300 border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden relative rounded-xl'>
             <div className='absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500/80 to-orange-400/80' />
             <CardHeader className='pb-3'>
               <div className='flex items-center justify-between'>

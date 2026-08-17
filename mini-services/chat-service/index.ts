@@ -16,9 +16,16 @@
  *   { type: "message",   channel: string, payload: { id?, content, avatar? } }
  *   { type: "typing",    channel: string, payload: { isTyping } }
  *   { type: "presence"  }   // request full presence list
+ *   { type: "reaction",  channel: string, payload: { emoji } }
+ *   { type: "hand_raise", channel: string }
+ *   { type: "hand_lower", channel: string }
+ *   { type: "poll_create", channel: string, payload: { question, options: string[] } }
+ *   { type: "poll_vote",  channel: string, payload: { pollId, optionLabel } }
+ *   { type: "caption",    channel: string, payload: { speaker, text } }
+ *   { type: "participant_update", channel: string, payload: { micOn, videoOn } }
  *
  * Message types (server → client):
- *   { type: "joined",    channel, payload: { userId, members, history } }
+ *   { type: "joined",    channel, payload: { userId, members, history, handRaised, polls } }
  *   { type: "left",      channel, payload: { userId } }
  *   { type: "message",   channel, payload: <ChatMessage> }
  *   { type: "typing",    channel, payload: { userId, userName, isTyping } }
@@ -26,6 +33,13 @@
  *   { type: "error",     payload: { message } }
  *   { type: "user_joined_channel", channel, payload: { userId, userName } }
  *   { type: "user_left_channel",  channel, payload: { userId, userName } }
+ *   { type: "reaction",  channel, payload: { userId, userName, emoji } }
+ *   { type: "hand_raised", channel, payload: { userId, userName } }
+ *   { type: "hand_lowered", channel, payload: { userId, userName } }
+ *   { type: "poll_created", channel, payload: <PollData> }
+ *   { type: "poll_voted",  channel, payload: <PollData> }
+ *   { type: "caption",    channel, payload: { userId, userName, speaker, text } }
+ *   { type: "participant_updated", channel, payload: { userId, userName, micOn, videoOn } }
  */
 
 import { jwtVerify } from 'jose';
@@ -99,6 +113,22 @@ interface PresenceUser {
   channels: string[]
 }
 
+interface PollOption {
+  label: string;
+  votes: number;
+  percentage: number;
+  voters: string[]; // userIds who voted for this option
+}
+
+interface PollData {
+  id: string;
+  question: string;
+  options: PollOption[];
+  totalVotes: number;
+  createdBy: string;
+  createdByName: string;
+}
+
 interface IncomingMessage {
   type: string
   channel?: string
@@ -114,6 +144,15 @@ const MAX_HISTORY = 500
 
 // Track typing per channel
 const typingUsers = new Map<string, Map<string, { userName: string; timer: ReturnType<typeof setTimeout> }>>()
+
+// Meeting room state: hand-raised users per channel
+const handRaisedUsers = new Map<string, Set<string>>() // channelId → Set<userId>
+
+// Meeting room state: polls per channel
+const channelPolls = new Map<string, PollData[]>() // channelId → PollData[]
+
+// Meeting room state: participant media state per channel
+const participantMediaState = new Map<string, Map<string, { micOn: boolean; videoOn: boolean }>>() // channelId → Map<userId, mediaState>
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -158,6 +197,10 @@ function removeClient(userId: string) {
   // Remove from all channels
   for (const ch of client.channels) {
     channelMembers.get(ch)?.delete(userId)
+    // Clean up hand-raised state
+    handRaisedUsers.get(ch)?.delete(userId)
+    // Clean up participant media state
+    participantMediaState.get(ch)?.delete(userId)
     broadcastToChannel(ch, {
       type: 'user_left_channel',
       channel: ch,
@@ -227,7 +270,12 @@ function handleMessage(ws: WebSocket, raw: string) {
       if (!channelMembers.has(channel)) channelMembers.set(channel, new Set())
       channelMembers.get(channel)!.add(client.userId)
 
-      // Send join confirmation with history
+      // Ensure meeting-room state structures exist for this channel
+      if (!handRaisedUsers.has(channel)) handRaisedUsers.set(channel, new Set())
+      if (!channelPolls.has(channel)) channelPolls.set(channel, [])
+      if (!participantMediaState.has(channel)) participantMediaState.set(channel, new Map())
+
+      // Send join confirmation with history + meeting room state
       send(ws, {
         type: 'joined',
         channel,
@@ -235,6 +283,9 @@ function handleMessage(ws: WebSocket, raw: string) {
           userId: client.userId,
           members: Array.from(channelMembers.get(channel) || []),
           history: getChannelHistory(channel),
+          // Meeting room state
+          handRaised: Array.from(handRaisedUsers.get(channel) || []),
+          polls: channelPolls.get(channel) || [],
         },
       })
 
@@ -252,6 +303,9 @@ function handleMessage(ws: WebSocket, raw: string) {
       if (!channel) return
       client.channels.delete(channel)
       channelMembers.get(channel)?.delete(client.userId)
+      // Clean up hand-raised state
+      handRaisedUsers.get(channel)?.delete(client.userId)
+      participantMediaState.get(channel)?.delete(client.userId)
       send(ws, { type: 'left', channel, payload: { userId: client.userId } })
       broadcastToChannel(channel, {
         type: 'user_left_channel',
@@ -339,6 +393,200 @@ function handleMessage(ws: WebSocket, raw: string) {
     // ── Request full presence ───────────────────────────────────────────
     case 'presence': {
       send(ws, { type: 'presence', payload: { users: getPresenceList() } })
+      break
+    }
+
+    // ── Emoji reaction (meeting room floating reaction) ────────────────
+    case 'reaction': {
+      if (!channel) {
+        send(ws, { type: 'error', payload: { message: 'Missing channel' } })
+        return
+      }
+      if (!client.channels.has(channel)) {
+        send(ws, { type: 'error', payload: { message: 'Not in channel' } })
+        return
+      }
+      const emoji = (payload.emoji as string) || '👍'
+      broadcastToChannel(channel, {
+        type: 'reaction',
+        channel,
+        payload: {
+          userId: client.userId,
+          userName: client.userName,
+          emoji,
+        },
+      })
+      break
+    }
+
+    // ── Hand raise ─────────────────────────────────────────────────────
+    case 'hand_raise': {
+      if (!channel) return
+      if (!client.channels.has(channel)) return
+      if (!handRaisedUsers.has(channel)) handRaisedUsers.set(channel, new Set())
+      handRaisedUsers.get(channel)!.add(client.userId)
+      broadcastToChannel(channel, {
+        type: 'hand_raised',
+        channel,
+        payload: { userId: client.userId, userName: client.userName },
+      })
+      break
+    }
+
+    // ── Hand lower ─────────────────────────────────────────────────────
+    case 'hand_lower': {
+      if (!channel) return
+      if (!client.channels.has(channel)) return
+      handRaisedUsers.get(channel)?.delete(client.userId)
+      broadcastToChannel(channel, {
+        type: 'hand_lowered',
+        channel,
+        payload: { userId: client.userId, userName: client.userName },
+      })
+      break
+    }
+
+    // ── Poll creation ──────────────────────────────────────────────────
+    case 'poll_create': {
+      if (!channel) {
+        send(ws, { type: 'error', payload: { message: 'Missing channel' } })
+        return
+      }
+      if (!client.channels.has(channel)) {
+        send(ws, { type: 'error', payload: { message: 'Not in channel' } })
+        return
+      }
+      const question = (payload.question as string) || ''
+      const options = (payload.options as string[]) || []
+      if (!question || options.length < 2) {
+        send(ws, { type: 'error', payload: { message: 'Poll must have a question and at least 2 options' } })
+        return
+      }
+
+      const poll: PollData = {
+        id: `poll-${Date.now()}`,
+        question,
+        options: options.map(label => ({
+          label,
+          votes: 0,
+          percentage: 0,
+          voters: [],
+        })),
+        totalVotes: 0,
+        createdBy: client.userId,
+        createdByName: client.userName,
+      }
+
+      if (!channelPolls.has(channel)) channelPolls.set(channel, [])
+      channelPolls.get(channel)!.push(poll)
+
+      broadcastToChannel(channel, {
+        type: 'poll_created',
+        channel,
+        payload: poll,
+      })
+      break
+    }
+
+    // ── Poll voting ────────────────────────────────────────────────────
+    case 'poll_vote': {
+      if (!channel) {
+        send(ws, { type: 'error', payload: { message: 'Missing channel' } })
+        return
+      }
+      if (!client.channels.has(channel)) return
+
+      const pollId = (payload.pollId as string) || ''
+      const optionLabel = (payload.optionLabel as string) || ''
+      const polls = channelPolls.get(channel)
+      if (!polls) return
+
+      const poll = polls.find(p => p.id === pollId)
+      if (!poll) {
+        send(ws, { type: 'error', payload: { message: 'Poll not found' } })
+        return
+      }
+
+      // Check if user already voted in this poll — remove previous vote
+      for (const opt of poll.options) {
+        const idx = opt.voters.indexOf(client.userId)
+        if (idx !== -1) {
+          opt.voters.splice(idx, 1)
+          opt.votes--
+        }
+      }
+
+      // Add new vote
+      const targetOption = poll.options.find(o => o.label === optionLabel)
+      if (targetOption) {
+        targetOption.voters.push(client.userId)
+        targetOption.votes++
+      }
+
+      // Recalculate totals and percentages
+      poll.totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0)
+      for (const opt of poll.options) {
+        opt.percentage = poll.totalVotes > 0 ? Math.round((opt.votes / poll.totalVotes) * 100) : 0
+      }
+
+      broadcastToChannel(channel, {
+        type: 'poll_voted',
+        channel,
+        payload: poll,
+      })
+      break
+    }
+
+    // ── Live caption broadcast ─────────────────────────────────────────
+    case 'caption': {
+      if (!channel) return
+      if (!client.channels.has(channel)) return
+
+      const speaker = (payload.speaker as string) || client.userName
+      const text = (payload.text as string) || ''
+
+      broadcastToChannel(channel, {
+        type: 'caption',
+        channel,
+        payload: {
+          userId: client.userId,
+          userName: client.userName,
+          speaker,
+          text,
+        },
+      })
+      break
+    }
+
+    // ── Participant media state update (mic/video toggle) ──────────────
+    case 'participant_update': {
+      if (!channel) return
+      if (!client.channels.has(channel)) return
+
+      const micOn = payload.micOn as boolean | undefined
+      const videoOn = payload.videoOn as boolean | undefined
+
+      // Only accept boolean values (not undefined)
+      if (micOn === undefined && videoOn === undefined) return
+
+      if (!participantMediaState.has(channel)) participantMediaState.set(channel, new Map())
+      const mediaMap = participantMediaState.get(channel)!
+
+      const existing = mediaMap.get(client.userId) || { micOn: true, videoOn: true }
+      if (micOn !== undefined) existing.micOn = micOn
+      if (videoOn !== undefined) existing.videoOn = videoOn
+      mediaMap.set(client.userId, existing)
+
+      broadcastToChannel(channel, {
+        type: 'participant_updated',
+        channel,
+        payload: {
+          userId: client.userId,
+          userName: client.userName,
+          micOn: existing.micOn,
+          videoOn: existing.videoOn,
+        },
+      })
       break
     }
 

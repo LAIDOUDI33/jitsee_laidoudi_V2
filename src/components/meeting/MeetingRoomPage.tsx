@@ -1,14 +1,16 @@
 'use client';
 
 import { useAppStore } from '@/store/app-store';
+import { useMeetingRoom, type PollData as WSPollData } from '@/hooks/useMeetingRoom';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
-  Hand, MoreHorizontal, Phone, Shield, CircleDot, Sparkles, Send, X,
+  Hand, Phone, Shield, CircleDot, Sparkles, Send, X,
   ArrowLeft, ArrowRight, Copy, Check, Plus, Pin, PinOff, LayoutGrid, UserCircle,
   Maximize2, Minimize2, Search, Pencil, CheckCircle2, Pen, LayoutDashboard,
-  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen, BarChart3, ImageIcon, FileText
+  Wifi, Signal, Subtitles, SmilePlus, Shuffle, Clock, ChevronDown, UserPlus, DoorOpen, BarChart3, ImageIcon, FileText,
+  WifiOff, Loader2,
 } from 'lucide-react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -75,7 +77,7 @@ interface FloatingReaction {
   x: number;
 }
 
-// ─── Data ─────────────────────────────────────────────────────
+// ─── Mock Data (video grid only — no real WebRTC) ─────────────
 const mockParticipants: Participant[] = [
   { id: '1', name: 'Alex Johnson', initials: 'AJ', color: 'bg-blue-500', role: 'Host', micOn: true, videoOn: true, online: true },
   { id: '2', name: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', role: 'Co-host', micOn: true, videoOn: true, online: true, handRaised: true },
@@ -87,44 +89,12 @@ const mockParticipants: Participant[] = [
   { id: '8', name: 'Tom Garcia', initials: 'TG', color: 'bg-amber-500', role: 'Participant', micOn: false, videoOn: true, online: true },
 ];
 
-const initialChatMessages: ChatMessage[] = [
-  { id: 'sys-1', sender: 'System', initials: '', color: '', text: 'Meeting started by Alex Johnson', time: '10:00 AM', isSystem: true },
-  { id: 'msg-1', sender: 'Sarah Chen', initials: 'SC', color: 'bg-pink-500', text: 'Hi everyone! Ready to start the sprint planning?', time: '10:01 AM', reactions: ['👍', '🚀'] },
-  { id: 'msg-2', sender: 'Maya Patel', initials: 'MP', color: 'bg-emerald-500', text: 'Yes, I have the updated backlog items ready.', time: '10:02 AM' },
-  { id: 'msg-3', sender: 'James Wilson', initials: 'JW', color: 'bg-orange-500', text: 'Great. Let me share the velocity report from last sprint.', time: '10:03 AM' },
-  { id: 'msg-4', sender: 'Emily Zhang', initials: 'EZ', color: 'bg-violet-500', text: 'Should we also discuss the tech debt items?', time: '10:04 AM', reactions: ['❤️'] },
-];
-
 const aiSuggestions = [
   'Summarize this meeting',
   'List action items',
   'Key decisions made',
   'Translate to French',
   'Identify risks',
-];
-
-const mockPolls: PollData[] = [
-  {
-    id: 'poll-1',
-    question: 'What should be the priority for this sprint?',
-    options: [
-      { label: 'New features', votes: 5, percentage: 45 },
-      { label: 'Bug fixes', votes: 3, percentage: 27 },
-      { label: 'Tech debt', votes: 2, percentage: 18 },
-      { label: 'Documentation', votes: 1, percentage: 10 },
-    ],
-    totalVotes: 11,
-  },
-  {
-    id: 'poll-2',
-    question: 'Preferred meeting time for daily standups?',
-    options: [
-      { label: '9:00 AM', votes: 6, percentage: 55, voted: true },
-      { label: '9:30 AM', votes: 3, percentage: 27 },
-      { label: '10:00 AM', votes: 2, percentage: 18 },
-    ],
-    totalVotes: 11,
-  },
 ];
 
 const aiResponses: { [key: string]: string } = {
@@ -136,15 +106,6 @@ const aiResponses: { [key: string]: string } = {
 };
 
 const reactionEmojis = ['👍', '❤️', '😂', '🎉', '🤔', '👏'];
-const reactionEmojiLabels = ['👍', '❤️', '😂', '🎉', '🤔', '👏'];
-
-const mockCaptions = [
-  { speaker: 'Alex Johnson', text: 'Let me share the updated roadmap for Q4...' },
-  { speaker: 'Sarah Chen', text: 'I think we should prioritize the mobile app features.' },
-  { speaker: 'Maya Patel', text: 'The API redesign is almost complete, just need to finalize the endpoints.' },
-  { speaker: 'James Wilson', text: 'Can we schedule a follow-up for the technical review?' },
-  { speaker: 'Emily Zhang', text: "I'll take the action item for the documentation update." },
-];
 
 const initialBreakoutRooms: BreakoutRoom[] = [
   { id: 'br-1', name: 'Backend Architecture', participantIds: ['2', '3', '4'], timerSeconds: 600 },
@@ -189,6 +150,45 @@ function getRoleBadgeClass(role: string) {
     case 'Co-host': return 'bg-violet-500/20 text-violet-300 border-violet-500/30';
     default: return 'bg-white/10 text-white/50 border-white/10';
   }
+}
+
+// Deterministic color from name (for WS-sourced messages)
+const nameColors = ['bg-blue-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500', 'bg-violet-500', 'bg-cyan-500', 'bg-rose-500', 'bg-amber-500'];
+function nameToColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return nameColors[Math.abs(hash) % nameColors.length];
+}
+
+function nameToInitials(name: string): string {
+  return name.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2);
+}
+
+// Map WS ChatMessage to local ChatMessage format
+function wsMsgToLocal(msg: { id: string; senderId: string; senderName: string; content: string; timestamp: string }): ChatMessage {
+  const color = nameToColor(msg.senderName);
+  return {
+    id: msg.id,
+    sender: msg.senderName,
+    initials: nameToInitials(msg.senderName),
+    color,
+    text: msg.content,
+    time: msg.timestamp,
+  };
+}
+
+// Map WS PollData to local PollData format
+function wsPollToLocal(poll: WSPollData): PollData {
+  return {
+    id: poll.id,
+    question: poll.question,
+    options: poll.options.map(o => ({
+      label: o.label,
+      votes: o.votes,
+      percentage: o.percentage,
+    })),
+    totalVotes: poll.totalVotes,
+  };
 }
 
 // ─── Audio Level Bars ─────────────────────────────────────────
@@ -309,12 +309,78 @@ function NetworkQualityIndicator() {
   );
 }
 
+// ─── Connection Status Indicator (Meeting Room) ───────────────
+function MeetingConnectionIndicator({ status }: { status: string }) {
+  if (status === 'connected') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] text-emerald-400">
+            <Wifi size={11} />
+            <span className="hidden sm:inline">Live</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="bg-slate-800 text-white border-slate-700 text-xs">Connected to meeting room</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (status === 'connecting' || status === 'reconnecting') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] text-amber-400">
+            <Loader2 size={11} className="animate-spin" />
+            <span className="hidden sm:inline">{status === 'reconnecting' ? 'Reconnecting' : 'Connecting'}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="bg-slate-800 text-white border-slate-700 text-xs">{status === 'reconnecting' ? 'Reconnecting to meeting room...' : 'Connecting to meeting room...'}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] text-red-400">
+          <WifiOff size={11} />
+          <span className="hidden sm:inline">Offline</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="bg-slate-800 text-white border-slate-700 text-xs">Meeting chat unavailable</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function MeetingRoomPage() {
   const {
     meetingTitle, setMeetingTitle, meetingSidebarTab, setMeetingSidebarTab,
     setCurrentView, currentMeetingId, user
   } = useAppStore();
+
+  // ── Real-time meeting room WebSocket ─────────────────────────
+  const meetingId = currentMeetingId || 'alv-mtg-001';
+  const {
+    status: wsStatus,
+    chatMessages: wsChatMessages,
+    typingUsers: wsTypingUsers,
+    handRaisedUsers: wsHandRaisedUsers,
+    polls: wsPolls,
+    currentCaption: wsCaption,
+    sendMessage: wsSendMessage,
+    setTyping: wsSetTyping,
+    sendReaction: wsSendReaction,
+    raiseHand: wsRaiseHand,
+    lowerHand: wsLowerHand,
+    createPoll: wsCreatePoll,
+    votePoll: wsVotePoll,
+    reconnect: wsReconnect,
+    disconnect: wsDisconnect,
+    setOnReaction,
+  } = useMeetingRoom({
+    meetingId,
+    userId: user?.id || 'local-user',
+    userName: user?.name || 'You',
+  });
 
   // --- State ---
   const [micOn, setMicOn] = useState(true);
@@ -325,7 +391,6 @@ export default function MeetingRoomPage() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [copied, setCopied] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [chatInput, setChatInput] = useState('');
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const [aiInput, setAiInput] = useState('');
@@ -346,12 +411,9 @@ export default function MeetingRoomPage() {
   const [virtualBg, setVirtualBg] = useState<string>('none');
   const [captionsVisible, setCaptionsVisible] = useState(true);
   const [transcriptionOpen, setTranscriptionOpen] = useState(false);
-  const [currentCaptionIndex, setCurrentCaptionIndex] = useState(0);
-  const [captionKey, setCaptionKey] = useState(0);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const [enhancedReactionsOpen, setEnhancedReactionsOpen] = useState(false);
-  const enhancedReactionsRef = useRef<HTMLDivElement>(null);
-
+  const [captionKey, setCaptionKey] = useState(0);
   // --- Breakout Rooms state ---
   const [breakoutRooms, setBreakoutRooms] = useState<BreakoutRoom[]>(initialBreakoutRooms);
   const [breakoutTimerActive, setBreakoutTimerActive] = useState(false);
@@ -369,6 +431,52 @@ export default function MeetingRoomPage() {
   const chatInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const meetingContainerRef = useRef<HTMLDivElement>(null);
+  const enhancedReactionsRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Derive display state from WebSocket ───────────────────────
+  // Chat messages: map WS messages to local format
+  const chatMessages = useMemo<ChatMessage[]>(() => {
+    return wsChatMessages.map(wsMsgToLocal);
+  }, [wsChatMessages]);
+
+  // Typing user names (map userIds to display names)
+  const typingUserNames = useMemo(() => {
+    return wsTypingUsers.map(uid => {
+      const p = mockParticipants.find(mp => mp.id === uid);
+      if (p) return p.name;
+      // Try to find from chat messages sender info
+      const msg = wsChatMessages.find(m => m.senderId === uid);
+      return msg?.senderName || uid;
+    });
+  }, [wsTypingUsers, wsChatMessages]);
+
+  // Polls: map WS polls to local format
+  const displayPolls = useMemo<PollData[]>(() => {
+    return wsPolls.map(wsPollToLocal);
+  }, [wsPolls]);
+
+  // Current caption for display
+  const displayCaption = useMemo<{ speaker: string; text: string } | null>(() => {
+    return wsCaption;
+  }, [wsCaption]);
+
+  // Track caption key for animation
+  useEffect(() => {
+    if (wsCaption) setCaptionKey(prev => prev + 1);
+  }, [wsCaption]);
+
+  // ── Handle incoming reactions for floating UI ──────────────────
+  const handleIncomingReaction = useCallback((data: { userId: string; userName: string; emoji: string }) => {
+    const id = `reaction-${Date.now()}-${Math.random()}`;
+    const x = 150 + Math.random() * (window.innerWidth - 300);
+    setFloatingReactions(prev => [...prev, { id, emoji: data.emoji, x }]);
+    setReactionCounts(prev => ({ ...prev, [data.emoji]: (prev[data.emoji] || 0) + 1 }));
+  }, []);
+
+  useEffect(() => {
+    setOnReaction(handleIncomingReaction);
+  }, [handleIncomingReaction, setOnReaction]);
 
   // --- Meeting elapsed timer (always running) ---
   const [elapsed, setElapsed] = useState(0);
@@ -427,16 +535,6 @@ export default function MeetingRoomPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [roleDropdownOpen]);
 
-  // --- Cycle mock captions every 3-4 seconds ---
-  useEffect(() => {
-    if (!captionsVisible) return;
-    const interval = setInterval(() => {
-      setCurrentCaptionIndex(prev => (prev + 1) % mockCaptions.length);
-      setCaptionKey(prev => prev + 1);
-    }, 3000 + Math.random() * 1000);
-    return () => clearInterval(interval);
-  }, [captionsVisible]);
-
   // --- Focus title input when editing ---
   useEffect(() => { if (isEditingTitle) titleInputRef.current?.focus(); }, [isEditingTitle]);
 
@@ -479,37 +577,40 @@ export default function MeetingRoomPage() {
   }, []);
 
   const handleSendReaction = (emoji: string) => {
+    // Send through WebSocket (broadcasts to all participants)
+    wsSendReaction(emoji);
+    // Also show locally for the sender
     const id = `reaction-${Date.now()}-${Math.random()}`;
     const x = 100 + Math.random() * (window.innerWidth - 200);
     setFloatingReactions(prev => [...prev, { id, emoji, x }]);
     setEnhancedReactionsOpen(false);
     setReactionCounts(prev => ({ ...prev, [emoji]: (prev[emoji] || 0) + 1 }));
-    // Also simulate someone else reacting
-    setTimeout(() => {
-      const id2 = `reaction-${Date.now()}-${Math.random()}`;
-      const x2 = 150 + Math.random() * (window.innerWidth - 300);
-      setFloatingReactions(prev => [...prev, { id: id2, emoji, x: x2 }]);
-    }, 800);
   };
 
   const handleSendChat = () => {
     if (!chatInput.trim()) return;
-    const msg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      sender: user?.name || 'You',
-      initials: (user?.name || 'Y').split(' ').map(n => n[0]).join(''),
-      color: 'bg-blue-500',
-      text: chatInput.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      reactions: [],
-    };
-    setChatMessages(prev => [...prev, msg]);
+    // Send through WebSocket
+    wsSendMessage(chatInput.trim());
     setChatInput('');
     setShowMentionList(false);
+    // Clear typing
+    wsSetTyping(false);
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
   };
 
   const handleChatInputChange = (value: string) => {
     setChatInput(value);
+    // Send typing indicator through WebSocket
+    wsSetTyping(true);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      wsSetTyping(false);
+      typingTimerRef.current = null;
+    }, 3000);
+
     const atIndex = value.lastIndexOf('@');
     if (atIndex >= 0) {
       const query = value.slice(atIndex + 1).split(/\s/)[0];
@@ -563,6 +664,7 @@ export default function MeetingRoomPage() {
   };
 
   const handleLeaveMeeting = () => {
+    wsDisconnect();
     toast.success('You left the meeting');
     setCurrentView('dashboard');
   };
@@ -582,11 +684,16 @@ export default function MeetingRoomPage() {
   };
 
   const handleVotePoll = (pollId: string, optionLabel: string) => {
+    if (votedPolls[pollId]) return;
+    // Vote through WebSocket
+    wsVotePoll(pollId, optionLabel);
     setVotedPolls(prev => ({ ...prev, [pollId]: optionLabel }));
     toast.success('Vote recorded!', { description: `You voted for "${optionLabel}"` });
   };
 
   const handleCreatePoll = (config: PollConfig) => {
+    // Create poll through WebSocket
+    wsCreatePoll(config.question, config.options);
     toast.success(`Poll "${config.question}" created with ${config.options.length} options`);
   };
 
@@ -597,6 +704,30 @@ export default function MeetingRoomPage() {
   const handleTogglePin = (id: string) => {
     setPinnedParticipant(prev => prev === id ? null : id);
     toast(pinnedParticipant === id ? 'Unpinned participant' : 'Pinned participant');
+  };
+
+  // Hand raise/lower through WebSocket
+  const handleToggleHand = () => {
+    if (handRaised) {
+      wsLowerHand();
+      setHandRaised(false);
+      toast('Hand lowered');
+    } else {
+      wsRaiseHand();
+      setHandRaised(true);
+      toast('\u{1F64B} Hand raised');
+    }
+  };
+
+  // Mic/video toggle — broadcast through WebSocket
+  const handleToggleMic = () => {
+    const next = !micOn;
+    setMicOn(next);
+  };
+
+  const handleToggleCamera = () => {
+    const next = !cameraOn;
+    setCameraOn(next);
   };
 
   // --- Breakout Rooms Handlers ---
@@ -697,6 +828,13 @@ export default function MeetingRoomPage() {
     return mockParticipants.slice(0, 4);
   }, [gridLayout, pinnedParticipant]);
 
+  // Merge hand raised state: local handRaised + WS handRaisedUsers
+  const effectiveHandRaisedIds = useMemo(() => {
+    const ids = new Set(wsHandRaisedUsers);
+    if (handRaised) ids.add(user?.id || 'local-user');
+    return ids;
+  }, [wsHandRaisedUsers, handRaised, user?.id]);
+
   const onlineCount = mockParticipants.filter(p => p.online !== false).length;
 
   // ─── Render ─────────────────────────────────────────────────
@@ -771,6 +909,8 @@ export default function MeetingRoomPage() {
 
             {/* Right: Info pills */}
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Connection Status */}
+              <MeetingConnectionIndicator status={wsStatus} />
               {/* Meeting Timer */}
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] font-mono text-white/70">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -818,7 +958,7 @@ export default function MeetingRoomPage() {
 
           {/* ── Live Captions Panel ── */}
           <AnimatePresence mode="wait">
-            {captionsVisible && (
+            {captionsVisible && displayCaption && (
               <motion.div
                 key={captionKey}
                 initial={{ opacity: 0, y: 8 }}
@@ -829,8 +969,8 @@ export default function MeetingRoomPage() {
               >
                 <div className="flex flex-col gap-1 px-5 py-2.5 rounded-xl bg-black/60 backdrop-blur-xl border border-white/10">
                   <p className="text-sm text-white/90 leading-relaxed text-center line-clamp-2">
-                    <span className="font-bold text-white">{mockCaptions[currentCaptionIndex].speaker}:</span>{' '}
-                    {mockCaptions[currentCaptionIndex].text}
+                    <span className="font-bold text-white">{displayCaption.speaker}:</span>{' '}
+                    {displayCaption.text}
                   </p>
                 </div>
               </motion.div>
@@ -852,7 +992,7 @@ export default function MeetingRoomPage() {
                       participant={displayParticipants[0]}
                       isSpeaker
                       isPinned={pinnedParticipant === displayParticipants[0].id}
-                      isHandRaised={handRaised && displayParticipants[0].id === '1'}
+                      isHandRaised={effectiveHandRaisedIds.has(displayParticipants[0].id)}
                       onPin={() => handleTogglePin(displayParticipants[0].id)}
                     />
                 </div>
@@ -864,7 +1004,7 @@ export default function MeetingRoomPage() {
                         participant={p}
                         index={i + 1}
                         isPinned={pinnedParticipant === p.id}
-                        isHandRaised={p.handRaised === true}
+                        isHandRaised={effectiveHandRaisedIds.has(p.id)}
                         onPin={() => handleTogglePin(p.id)}
                         compact
                       />
@@ -887,7 +1027,7 @@ export default function MeetingRoomPage() {
                     participant={p}
                     index={i}
                     isPinned={pinnedParticipant === p.id}
-                    isHandRaised={p.handRaised === true || (handRaised && p.id === '1')}
+                    isHandRaised={effectiveHandRaisedIds.has(p.id)}
                     onPin={() => handleTogglePin(p.id)}
                   />
                 ))}
@@ -936,7 +1076,7 @@ export default function MeetingRoomPage() {
               active={micOn}
               icon={micOn ? <Mic size={20} /> : <MicOff size={20} />}
               label={micOn ? 'Mute' : 'Unmute'}
-              onClick={() => setMicOn(!micOn)}
+              onClick={handleToggleMic}
               glowColor="emerald"
             />
             {/* Camera */}
@@ -944,7 +1084,7 @@ export default function MeetingRoomPage() {
               active={cameraOn}
               icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
               label={cameraOn ? 'Stop Camera' : 'Start Camera'}
-              onClick={() => setCameraOn(!cameraOn)}
+              onClick={handleToggleCamera}
               glowColor="emerald"
             />
             {/* Screen Share */}
@@ -960,7 +1100,7 @@ export default function MeetingRoomPage() {
               active={handRaised}
               icon={<Hand size={20} />}
               label={handRaised ? 'Lower Hand' : 'Raise Hand'}
-              onClick={() => { setHandRaised(!handRaised); toast(handRaised ? 'Hand lowered' : '\u{1F64B} Hand raised'); }}
+              onClick={handleToggleHand}
               glowColor="amber"
             />
             {/* Recording */}
@@ -1149,6 +1289,11 @@ export default function MeetingRoomPage() {
                 <div className="flex flex-col h-full">
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-3">
+                      {chatMessages.length === 0 && (
+                        <div className="py-8 text-center">
+                          <p className="text-sm text-white/30">No messages yet. Start the conversation!</p>
+                        </div>
+                      )}
                       {chatMessages.map((msg) => (
                         <div key={msg.id}>
                           {msg.isSystem ? (
@@ -1191,6 +1336,16 @@ export default function MeetingRoomPage() {
                           )}
                         </div>
                       ))}
+                      {/* Typing indicator */}
+                      {typingUserNames.length > 0 && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-white/30">
+                          <motion.span
+                            className="w-1.5 h-1.5 rounded-full bg-white/40"
+                            animate={{ opacity: [1, 0.3, 1] }}
+                            transition={{ duration: 0.8, repeat: Infinity }}
+                          />\n                          <span>{typingUserNames.join(', ')} {typingUserNames.length === 1 ? 'is' : 'are'} typing...</span>
+                        </div>
+                      )}
                       <div ref={chatEndRef} />
                     </div>
                   </ScrollArea>
@@ -1281,14 +1436,14 @@ export default function MeetingRoomPage() {
                   </div>
 
                   {/* Hand Raised Queue */}
-                  {mockParticipants.filter(p => p.handRaised).length > 0 && (
+                  {effectiveHandRaisedIds.size > 0 && (
                     <div className="px-3 py-2 border-b border-amber-500/20 bg-amber-500/5">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Hand size={11} className="text-amber-400" />
-                        <span className="text-[10px] font-semibold text-amber-300">Raised Hands ({mockParticipants.filter(p => p.handRaised).length})</span>
+                        <span className="text-[10px] font-semibold text-amber-300">Raised Hands ({effectiveHandRaisedIds.size})</span>
                       </div>
                       <div className="space-y-0.5">
-                        {mockParticipants.filter(p => p.handRaised).map(p => (
+                        {mockParticipants.filter(p => effectiveHandRaisedIds.has(p.id)).map(p => (
                           <div key={`hr-${p.id}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-amber-500/10">
                             <Avatar className="w-6 h-6 shrink-0">
                               <AvatarFallback className={`${p.color} text-white text-[8px] font-bold`}>{p.initials}</AvatarFallback>
@@ -1326,86 +1481,54 @@ export default function MeetingRoomPage() {
                                 <AvatarFallback className={`${p.color} text-white text-xs font-bold`}>{p.initials}</AvatarFallback>
                               </Avatar>
                               {/* Online indicator */}
-                              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
-                                p.online === false ? 'bg-slate-500' : 'bg-emerald-400'
-                              }`} />
-                              {/* Hand raised indicator */}
-                              {p.handRaised && (
-                                <motion.span
-                                  className="absolute -top-1 -right-1 text-sm"
-                                  animate={{ y: [0, -3, 0] }}
-                                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' as const }}
-                                >
-                                  {'✋'}
-                                </motion.span>
+                              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${p.online !== false ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                              {/* Hand raised badge */}
+                              {effectiveHandRaisedIds.has(p.id) && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
+                                  <Hand size={8} className="text-white" />
+                                </span>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium truncate">{p.name}</span>
-                                {/* Role dropdown */}
-                                <div className="relative">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setRoleDropdownOpen(roleDropdownOpen === p.id ? null : p.id); }}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${getRoleBadgeClass(currentRole)} hover:opacity-80 transition-opacity flex items-center gap-0.5`}
-                                  >
-                                    {currentRole} <ChevronDown size={9} />
-                                  </button>
-                                  <AnimatePresence>
-                                    {roleDropdownOpen === p.id && (
-                                      <motion.div
-                                        initial={{ opacity: 0, y: -4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -4 }}
-                                        className="absolute top-full left-0 mt-1 w-32 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden shadow-2xl z-50"
-                                      >
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium truncate">{p.name}</span>
+                                {p.id === '1' && <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-300">You</span>}
+                              </div>
+                              <span className="text-[10px] text-white/30">{currentRole}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!p.micOn && <MicOff size={12} className="text-red-400" />}
+                              {!p.videoOn && <VideoOff size={12} className="text-white/30" />}
+                              <div className="relative">
+                                <button
+                                  onClick={() => setRoleDropdownOpen(roleDropdownOpen === p.id ? null : p.id)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded flex items-center justify-center hover:bg-white/10"
+                                >
+                                  <ChevronDown size={12} className="text-white/40" />
+                                </button>
+                                <AnimatePresence>
+                                  {roleDropdownOpen === p.id && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      className="absolute right-0 top-full mt-1 w-36 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
+                                    >
+                                      <div className="p-1">
                                         {(['Host', 'Co-host', 'Presenter', 'Participant'] as const).map(role => (
                                           <button
                                             key={role}
                                             onClick={() => handleChangeRole(p.id, role)}
-                                            className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
-                                              currentRole === role ? 'bg-violet-500/20 text-violet-300' : 'text-white/70 hover:bg-white/10 hover:text-white'
-                                            }`}
+                                            className={`w-full px-3 py-1.5 text-left text-[11px] rounded-lg transition-colors ${currentRole === role ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'}`}
                                           >
                                             {role}
                                           </button>
                                         ))}
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
-                              <span className={`text-[10px] ${p.online === false ? 'text-slate-500' : 'text-white/30'}`}>
-                                {p.online === false ? 'Offline' : 'In meeting'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.micOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-red-400 hover:bg-red-500/10'}`}>
-                                    {p.micOn ? <Mic size={14} /> : <MicOff size={14} />}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.micOn ? 'Muted' : 'Unmuted'}</TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${p.videoOn ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/20 hover:bg-white/10'}`}>
-                                    {p.videoOn ? <Video size={14} /> : <VideoOff size={14} />}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">{p.videoOn ? 'Camera on' : 'Camera off'}</TooltipContent>
-                              </Tooltip>
-                              {currentRole !== 'Host' && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/20 hover:bg-white/10 hover:text-white/50 opacity-0 group-hover:opacity-100 transition-all">
-                                      <MicOff size={12} />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="bg-slate-800 text-white border-slate-700 text-xs">Mute participant</TooltipContent>
-                                </Tooltip>
-                              )}
                             </div>
                           </div>
                         );
@@ -1413,29 +1536,34 @@ export default function MeetingRoomPage() {
                     </div>
                   </ScrollArea>
 
-                  {/* Waiting Room Section */}
+                  {/* Waiting Room */}
                   {waitingParticipants.length > 0 && (
-                    <div className="border-t border-white/10 bg-white/[0.02]">
-                      <div className="px-4 py-2 flex items-center gap-1.5">
-                        <DoorOpen size={11} className="text-white/40" />
-                        <span className="text-[10px] font-semibold text-white/50">Waiting Room ({waitingParticipants.length})</span>
+                    <div className="border-t border-white/10">
+                      <div className="px-3 py-2 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <DoorOpen size={11} className="text-amber-400" />
+                          <span className="text-xs font-semibold">Waiting Room ({waitingParticipants.length})</span>
+                        </div>
+                        <Button size="sm" onClick={() => { waitingParticipants.forEach(wp => handleAdmitParticipant(wp.id)); toast.success('All participants admitted'); }} className="h-6 text-[10px] bg-emerald-600 hover:bg-emerald-700 rounded-md px-2">
+                          Admit All
+                        </Button>
                       </div>
-                      <div className="px-1.5 pb-2 space-y-0.5">
+                      <div className="p-2 space-y-1">
                         {waitingParticipants.map(wp => (
                           <motion.div
                             key={wp.id}
-                            initial={{ opacity: 0, x: 10 }}
+                            initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-white/5 transition-colors"
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5"
                           >
-                            <Avatar className="w-8 h-8 shrink-0">
-                              <AvatarFallback className={`${wp.color} text-white text-[10px] font-bold`}>{wp.initials}</AvatarFallback>
+                            <Avatar className="w-6 h-6 shrink-0">
+                              <AvatarFallback className={`${wp.color} text-white text-[8px] font-bold`}>{wp.initials}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium truncate block">{wp.name}</span>
-                              <span className="text-[10px] text-white/30">Waiting {wp.joinTime}</span>
+                              <span className="text-[11px] font-medium truncate block">{wp.name}</span>
+                              <span className="text-[9px] text-white/25">Joined {wp.joinTime}</span>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex gap-1 shrink-0">
                               <Button
                                 size="sm"
                                 onClick={() => handleAdmitParticipant(wp.id)}
@@ -1578,7 +1706,16 @@ export default function MeetingRoomPage() {
                   </div>
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-4">
-                      {mockPolls.map((poll) => (
+                      {displayPolls.length === 0 && (
+                        <div className="py-10 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-3">
+                            <BarChart3 size={24} className="text-white/20" />
+                          </div>
+                          <p className="text-sm text-white/40 mb-1">No polls yet</p>
+                          <p className="text-[11px] text-white/20">Create a poll to gather feedback</p>
+                        </div>
+                      )}
+                      {displayPolls.map((poll) => (
                         <motion.div
                           key={poll.id}
                           initial={{ opacity: 0, y: 8 }}
@@ -1953,9 +2090,7 @@ function BreakoutRoomsPanel({
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       {/* Timer */}
-                      <span className={`text-[11px] font-mono ${getTimerColor(room.timerSeconds)}`}>
-                        {formatCountdown(room.timerSeconds)}
-                      </span>
+                      <span className={`text-[11px] font-mono ${getTimerColor(room.timerSeconds)}`}>{formatCountdown(room.timerSeconds)}</span>
                       <button
                         onClick={() => onDeleteRoom(room.id)}
                         className="w-6 h-6 rounded-md flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"

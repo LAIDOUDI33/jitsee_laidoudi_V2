@@ -22,8 +22,9 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/api'
 
-// ── Mock Data ──────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 interface TranscriptEntry {
   id: string
@@ -45,7 +46,9 @@ interface ActionItem {
   done: boolean
 }
 
-const mockTranscript: TranscriptEntry[] = [
+// ── Fallback data (standalone mode when no meetingId) ─────────────────────
+
+const fallbackTranscript: TranscriptEntry[] = [
   { id: 't1', speaker: 'Sarah Chen', initials: 'SC', color: 'bg-emerald-500', time: '00:00:15', text: 'Good morning everyone. Let\'s start with the sprint review. We had a productive two weeks.' },
   { id: 't2', speaker: 'Mike Johnson', initials: 'MJ', color: 'bg-violet-500', time: '00:00:42', text: 'I\'ll walk through the product metrics first. User engagement is up 23% since the last release.' },
   { id: 't3', speaker: 'Sarah Chen', initials: 'SC', color: 'bg-emerald-500', time: '00:01:18', text: 'That\'s great. Can you share the breakdown by feature area?' },
@@ -60,7 +63,7 @@ const mockTranscript: TranscriptEntry[] = [
   { id: 't12', speaker: 'Emily Davis', initials: 'ED', color: 'bg-amber-500', time: '00:05:20', text: 'The only concern is the mobile responsive issues on the calendar view. It\'s in the backlog for next sprint.' },
 ]
 
-const initialActionItems: ActionItem[] = [
+const fallbackActionItems: ActionItem[] = [
   { id: 'a1', text: 'Optimize WebSocket reconnection backoff strategy', assignee: 'Alex Turner', assigneeInitials: 'AT', assigneeColor: 'bg-sky-500', dueDate: 'Jan 20', priority: 'high', done: false },
   { id: 'a2', text: 'Prepare enterprise demo environment for Thursday', assignee: 'Mike Johnson', assigneeInitials: 'MJ', assigneeColor: 'bg-violet-500', dueDate: 'Jan 18', priority: 'high', done: false },
   { id: 'a3', text: 'Draft and schedule launch blog post', assignee: 'Lisa Park', assigneeInitials: 'LP', assigneeColor: 'bg-rose-500', dueDate: 'Jan 22', priority: 'medium', done: false },
@@ -86,15 +89,66 @@ const tabContentVariants = {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function MeetingNotesEditor() {
-  const [title, setTitle] = useState('Q4 Sprint Review & Planning')
+interface MeetingNotesEditorProps {
+  meetingId?: string
+}
+
+export default function MeetingNotesEditor({ meetingId }: MeetingNotesEditorProps) {
+  const isApiMode = !!meetingId
+
+  const [title, setTitle] = useState(isApiMode ? '' : 'Q4 Sprint Review & Planning')
   const [activeTab, setActiveTab] = useState('notes')
-  const [notesHtml, setNotesHtml] = useState('<p>Key discussion points from today\'s sprint review:</p><ul><li>User engagement increased by 23% this sprint</li><li>AI transcription feature is the top growth driver</li><li>Real-time collaboration engine shipped successfully</li><li>Mobile calendar responsive issues flagged for next sprint</li></ul><p><b>Next Steps:</b></p><p>Coordinate enterprise demo and launch materials for next week.</p>')
+  const [notesHtml, setNotesHtml] = useState(
+    isApiMode
+      ? ''
+      : '<p>Key discussion points from today\'s sprint review:</p><ul><li>User engagement increased by 23% this sprint</li><li>AI transcription feature is the top growth driver</li><li>Real-time collaboration engine shipped successfully</li><li>Mobile calendar responsive issues flagged for next sprint</li></ul><p><b>Next Steps:</b></p><p>Coordinate enterprise demo and launch materials for next week.</p>'
+  )
   const editorRef = useRef<HTMLDivElement>(null)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved')
   const [copied, setCopied] = useState(false)
-  const [actionItems, setActionItems] = useState<ActionItem[]>(initialActionItems)
+  const [actionItems, setActionItems] = useState<ActionItem[]>(isApiMode ? [] : fallbackActionItems)
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>(isApiMode ? [] : fallbackTranscript)
+  const [loading, setLoading] = useState(isApiMode)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingNotesRef = useRef(false)
+
+  // ── Fetch notes from API on mount ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!meetingId) return
+
+    let cancelled = false
+
+    async function fetchNotes() {
+      try {
+        const res = await authFetch(`/api/v1/meeting-notes?meetingId=${meetingId}`)
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          toast.error(err?.error?.message || 'Failed to load meeting notes')
+          return
+        }
+        const json = await res.json()
+        if (cancelled || !json.success) return
+
+        const data = json.data
+        if (data.title) setTitle(data.title)
+        if (data.content) setNotesHtml(data.content)
+        if (Array.isArray(data.transcript) && data.transcript.length > 0) {
+          setTranscript(data.transcript)
+        }
+        if (Array.isArray(data.actionItems)) {
+          setActionItems(data.actionItems)
+        }
+      } catch {
+        toast.error('Failed to load meeting notes')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchNotes()
+    return () => { cancelled = true }
+  }, [meetingId])
 
   // Count words/chars from editor content
   const { wordCount, charCount } = (() => {
@@ -105,14 +159,49 @@ export default function MeetingNotesEditor() {
     return { wordCount: words, charCount: text.length }
   })()
 
-  // Auto-save simulation
+  // ── Save notes to API ─────────────────────────────────────────────────
+
+  const saveNotesToApi = useCallback(async (html: string, ttl: string) => {
+    if (!meetingId || isSavingNotesRef.current) return
+    isSavingNotesRef.current = true
+    setSaveStatus('saving')
+    try {
+      const res = await authFetch('/api/v1/meeting-notes', {
+        method: 'POST',
+        body: JSON.stringify({ meetingId, title: ttl, content: html }),
+      })
+      if (!res.ok) {
+        toast.error('Failed to save notes')
+      }
+    } catch {
+      toast.error('Failed to save notes')
+    } finally {
+      isSavingNotesRef.current = false
+      setSaveStatus('saved')
+    }
+  }, [meetingId])
+
+  // Auto-save (debounced)
   const triggerAutoSave = useCallback(() => {
+    if (!isApiMode) {
+      // Standalone mode: simulate save
+      setSaveStatus('saving')
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = setTimeout(() => {
+        setSaveStatus('saved')
+      }, 1200)
+      return
+    }
+
+    // API mode: debounce and save
     setSaveStatus('saving')
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     saveTimeoutRef.current = setTimeout(() => {
-      setSaveStatus('saved')
-    }, 1200)
-  }, [])
+      const currentHtml = editorRef.current?.innerHTML || notesHtml
+      const currentTitle = title
+      saveNotesToApi(currentHtml, currentTitle)
+    }, 1500)
+  }, [isApiMode, saveNotesToApi, notesHtml, title])
 
   // Editor commands
   const execFormat = useCallback((command: string, value?: string) => {
@@ -129,9 +218,23 @@ export default function MeetingNotesEditor() {
     triggerAutoSave()
   }, [triggerAutoSave])
 
+  // ── Persist title change to API ───────────────────────────────────────
+
+  const handleTitleChange = useCallback((newTitle: string) => {
+    setTitle(newTitle)
+    if (isApiMode && meetingId) {
+      // Debounce title save
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = setTimeout(() => {
+        saveNotesToApi(notesHtml, newTitle)
+      }, 1500)
+    }
+  }, [isApiMode, meetingId, notesHtml, saveNotesToApi])
+
   // Copy transcript
   const handleCopyTranscript = useCallback(() => {
-    const text = mockTranscript
+    const src = transcript
+    const text = src
       .map((e) => `[${e.time}] ${e.speaker}: ${e.text}`)
       .join('\n')
     navigator.clipboard.writeText(text).then(() => {
@@ -139,16 +242,43 @@ export default function MeetingNotesEditor() {
       toast.success('Transcript copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
     })
-  }, [])
+  }, [transcript])
 
-  // Toggle action item
+  // ── Toggle action item ────────────────────────────────────────────────
+
   const toggleActionItem = useCallback((id: string) => {
     setActionItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
     )
-  }, [])
 
-  // Add action item
+    if (isApiMode && meetingId) {
+      // Immediately sync to API
+      setActionItems((prev) => {
+        // We need the updated array, so schedule after state update
+        setTimeout(() => {
+          // Re-read via a fresh state read approach — use functional update capture
+        }, 0)
+        return prev
+      })
+      // Use a microtask to read the updated state
+      queueMicrotask(async () => {
+        const updated = actionItems.map((item) =>
+          item.id === id ? { ...item, done: !item.done } : item
+        )
+        try {
+          await authFetch('/api/v1/meeting-notes', {
+            method: 'PUT',
+            body: JSON.stringify({ meetingId, actionItems: updated }),
+          })
+        } catch {
+          // Silent — the local state already toggled
+        }
+      })
+    }
+  }, [isApiMode, meetingId, actionItems])
+
+  // ── Add action item ──────────────────────────────────────────────────
+
   const addActionItem = useCallback(() => {
     const newItem: ActionItem = {
       id: `a${Date.now()}`,
@@ -162,7 +292,27 @@ export default function MeetingNotesEditor() {
     }
     setActionItems((prev) => [...prev, newItem])
     toast.success('Action item added')
-  }, [])
+
+    if (isApiMode && meetingId) {
+      const updatedItems = [...actionItems, newItem]
+      setTimeout(async () => {
+        try {
+          const res = await authFetch('/api/v1/meeting-notes', {
+            method: 'PUT',
+            body: JSON.stringify({ meetingId, actionItems: updatedItems }),
+          })
+          if (res.ok) {
+            const json = await res.json()
+            if (json.success && json.data?.actionItems) {
+              setActionItems(json.data.actionItems)
+            }
+          }
+        } catch {
+          // Silent
+        }
+      }, 50)
+    }
+  }, [isApiMode, meetingId, actionItems])
 
   // Cleanup
   useEffect(() => {
@@ -171,6 +321,27 @@ export default function MeetingNotesEditor() {
     }
   }, [])
 
+  // ── Loading state ─────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm overflow-hidden">
+        <div className="px-6 pt-5 pb-3 border-b border-border/50">
+          <div className="h-6 w-64 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="p-6 flex items-center justify-center min-h-[320px]">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            Loading notes…
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm overflow-hidden">
       {/* ── Title ─────────────────────────────────────────────────────── */}
@@ -178,7 +349,7 @@ export default function MeetingNotesEditor() {
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => handleTitleChange(e.target.value)}
           className="w-full text-lg font-semibold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:ring-0 p-0"
           placeholder="Meeting title..."
         />
@@ -305,7 +476,7 @@ export default function MeetingNotesEditor() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="flex items-center justify-between py-2 border-b border-border/50">
-                  <span className="text-xs text-muted-foreground">{mockTranscript.length} entries</span>
+                  <span className="text-xs text-muted-foreground">{transcript.length} entries</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -321,7 +492,12 @@ export default function MeetingNotesEditor() {
                   </Button>
                 </div>
                 <div className="max-h-[420px] overflow-y-auto">
-                  {mockTranscript.map((entry, idx) => (
+                  {transcript.length === 0 && (
+                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                      No transcript entries yet
+                    </div>
+                  )}
+                  {transcript.map((entry, idx) => (
                     <motion.div
                       key={entry.id}
                       initial={{ opacity: 0, y: 6 }}
