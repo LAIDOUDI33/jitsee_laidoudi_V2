@@ -3,78 +3,45 @@
  * Port: 3010
  * Protocol: JSON over WebSocket (Bun native WebSocket)
  *
+ * Persistence: All channels, messages, and channel memberships are stored in
+ * SQLite via Prisma (shared database with the main Next.js project).
+ * In-memory maps are kept only for ephemeral real-time state (connected
+ * clients, typing indicators, hand-raises, polls, media state).
+ *
  * Authentication: JWT token required via query parameter `?token=xxx`
- *   - Tokens are verified using jose (HS256, issuer: 'alvision')
- *   - JWT_SECRET read from environment (same as main project)
- *   - Authenticated user identity (userId, email, role, orgId) is stored on
- *     the socket and used for all message handling — client-sent senderId
- *     and senderName are IGNORED to prevent impersonation.
- *
- * Message types (client → server):
- *   { type: "join",      channel: string, payload: { userName? } }
- *   { type: "leave",     channel: string }
- *   { type: "message",   channel: string, payload: { id?, content, avatar? } }
- *   { type: "typing",    channel: string, payload: { isTyping } }
- *   { type: "presence"  }   // request full presence list
- *   { type: "reaction",  channel: string, payload: { emoji } }
- *   { type: "hand_raise", channel: string }
- *   { type: "hand_lower", channel: string }
- *   { type: "poll_create", channel: string, payload: { question, options: string[] } }
- *   { type: "poll_vote",  channel: string, payload: { pollId, optionLabel } }
- *   { type: "caption",    channel: string, payload: { speaker, text } }
- *   { type: "participant_update", channel: string, payload: { micOn, videoOn } }
- *
- * Message types (server → client):
- *   { type: "joined",    channel, payload: { userId, members, history, handRaised, polls } }
- *   { type: "left",      channel, payload: { userId } }
- *   { type: "message",   channel, payload: <ChatMessage> }
- *   { type: "typing",    channel, payload: { userId, userName, isTyping } }
- *   { type: "presence",  payload: { users: PresenceUser[] } }
- *   { type: "error",     payload: { message } }
- *   { type: "user_joined_channel", channel, payload: { userId, userName } }
- *   { type: "user_left_channel",  channel, payload: { userId, userName } }
- *   { type: "reaction",  channel, payload: { userId, userName, emoji } }
- *   { type: "hand_raised", channel, payload: { userId, userName } }
- *   { type: "hand_lowered", channel, payload: { userId, userName } }
- *   { type: "poll_created", channel, payload: <PollData> }
- *   { type: "poll_voted",  channel, payload: <PollData> }
- *   { type: "caption",    channel, payload: { userId, userName, speaker, text } }
- *   { type: "participant_updated", channel, payload: { userId, userName, micOn, videoOn } }
  */
 
-import { jwtVerify } from 'jose';
+import { jwtVerify } from 'jose'
+import { db } from './src/db'
 
 // ── JWT Configuration ───────────────────────────────────────────────────
 
 const JWT_SECRET = (() => {
-  const secret = process.env.JWT_SECRET;
+  const secret = process.env.JWT_SECRET
   if (!secret && process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable is required in production');
+    throw new Error('JWT_SECRET environment variable is required in production')
   }
-  // Development: use the same fallback as the main project's env.ts
-  return secret || 'alvision-default-secret-change-in-production';
-})();
+  return secret || 'alvision-default-secret-change-in-production'
+})()
 
 interface TokenPayload {
-  userId: string;
-  email: string;
-  role: string;
-  organizationId?: string | null;
+  userId: string
+  email: string
+  role: string
+  organizationId?: string | null
 }
 
 interface AuthenticatedUser extends TokenPayload {
-  userName: string;
+  userName: string
 }
 
 async function verifyJwtToken(token: string): Promise<TokenPayload | null> {
   try {
-    const secret = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret, {
-      issuer: 'alvision',
-    });
-    return payload as unknown as TokenPayload;
+    const secret = new TextEncoder().encode(JWT_SECRET)
+    const { payload } = await jwtVerify(token, secret, { issuer: 'alvision' })
+    return payload as unknown as TokenPayload
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -114,19 +81,19 @@ interface PresenceUser {
 }
 
 interface PollOption {
-  label: string;
-  votes: number;
-  percentage: number;
-  voters: string[]; // userIds who voted for this option
+  label: string
+  votes: number
+  percentage: number
+  voters: string[]
 }
 
 interface PollData {
-  id: string;
-  question: string;
-  options: PollOption[];
-  totalVotes: number;
-  createdBy: string;
-  createdByName: string;
+  id: string
+  question: string
+  options: PollOption[]
+  totalVotes: number
+  createdBy: string
+  createdByName: string
 }
 
 interface IncomingMessage {
@@ -135,24 +102,147 @@ interface IncomingMessage {
   payload?: Record<string, unknown>
 }
 
-// ── In-memory stores ────────────────────────────────────────────────────
+// ── In-memory stores (ephemeral / real-time only) ───────────────────────
 
-const clients = new Map<string, ClientInfo>()        // userId → ClientInfo
-const channelMembers = new Map<string, Set<string>>() // channelId → Set<userId>
-const messageHistory: ChatMessage[] = []
-const MAX_HISTORY = 500
-
-// Track typing per channel
+const clients = new Map<string, ClientInfo>()          // userId → ClientInfo
+const channelMembers = new Map<string, Set<string>>()  // channelId → Set<userId> (online members)
 const typingUsers = new Map<string, Map<string, { userName: string; timer: ReturnType<typeof setTimeout> }>>()
-
-// Meeting room state: hand-raised users per channel
 const handRaisedUsers = new Map<string, Set<string>>() // channelId → Set<userId>
+const channelPolls = new Map<string, PollData[]>()     // channelId → PollData[]
+const participantMediaState = new Map<string, Map<string, { micOn: boolean; videoOn: boolean }>>()
 
-// Meeting room state: polls per channel
-const channelPolls = new Map<string, PollData[]>() // channelId → PollData[]
+// In-memory cache of known channels (id → name) — synced from DB at startup
+const channelNames = new Map<string, string>()
 
-// Meeting room state: participant media state per channel
-const participantMediaState = new Map<string, Map<string, { micOn: boolean; videoOn: boolean }>>() // channelId → Map<userId, mediaState>
+// ── DB helpers ──────────────────────────────────────────────────────────
+
+/** Load the 50 most recent messages for a channel from the database */
+async function getChannelHistory(channelId: string, limit = 50): Promise<ChatMessage[]> {
+  const rows = await db.chatMessage.findMany({
+    where: { channelId },
+    orderBy: { createdAt: 'asc' },
+    take: limit,
+  })
+  return rows.map(r => ({
+    id: r.id,
+    channelId: r.channelId,
+    senderId: r.senderId,
+    senderName: r.senderName,
+    content: r.content,
+    timestamp: r.timestamp,
+    avatar: r.avatar || undefined,
+    status: r.status as ChatMessage['status'],
+    reactions: (typeof r.reactions === 'string' ? JSON.parse(r.reactions) : r.reactions) as Record<string, number>,
+  }))
+}
+
+/** Ensure a channel row exists in the DB, create if missing, return id */
+async function ensureChannel(channelId: string, name?: string): Promise<void> {
+  if (channelNames.has(channelId)) return
+  const existing = await db.chatChannel.findUnique({ where: { id: channelId } })
+  if (existing) {
+    channelNames.set(channelId, existing.name)
+    return
+  }
+  const created = await db.chatChannel.create({
+    data: { id: channelId, name: name || channelId },
+  })
+  channelNames.set(channelId, created.name)
+}
+
+/** Persist a message to the database */
+async function persistMessage(msg: ChatMessage): Promise<void> {
+  await ensureChannel(msg.channelId)
+  await db.chatMessage.create({
+    data: {
+      id: msg.id,
+      channelId: msg.channelId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      avatar: msg.avatar || null,
+      status: msg.status,
+      reactions: JSON.stringify(msg.reactions || {}),
+    },
+  })
+}
+
+/** Record a user joining a channel in the DB */
+async function persistJoin(channelId: string, userId: string): Promise<void> {
+  await ensureChannel(channelId)
+  await db.chatChannelMember.upsert({
+    where: { channelId_userId: { channelId, userId } },
+    create: { channelId, userId },
+    update: {},
+  })
+}
+
+/** Remove a user's channel membership from the DB */
+async function persistLeave(channelId: string, userId: string): Promise<void> {
+  await db.chatChannelMember.deleteMany({ where: { channelId, userId } }).catch(() => {})
+}
+
+/** Count total persisted messages (for health check) */
+async function getMessageCount(): Promise<number> {
+  return db.chatMessage.count()
+}
+
+/** Count total persisted channels (for health check) */
+async function getChannelCount(): Promise<number> {
+  return db.chatChannel.count()
+}
+
+// ── Seed demo data (runs once when DB has no channels) ─────────────────
+
+const DEMO_SEED_KEY = 'c1' // if this channel doesn't exist, seed everything
+
+const demoChannels = [
+  { id: 'c1', name: 'General' },
+  { id: 'c2', name: 'Engineering' },
+  { id: 'c3', name: 'Random' },
+  { id: 'c5', name: 'Announcements' },
+]
+
+const demoMessages: Omit<ChatMessage, 'timestamp'>[] = [
+  { id: 'msg1', channelId: 'c1', senderId: 'u6', senderName: 'Alex Turner', content: 'Good morning team! Quick update on the roadmap.', status: 'read', reactions: { '👍': 2 } },
+  { id: 'msg2', channelId: 'c1', senderId: 'u1', senderName: 'Sarah Chen', content: 'Morning! The new build is deployed to staging. Can everyone test?', status: 'read', reactions: { '🚀': 3 } },
+  { id: 'msg3', channelId: 'c1', senderId: 'u2', senderName: 'Mike Johnson', content: 'Testing now. The video quality improvements are noticeable!', status: 'read' },
+  { id: 'msg4', channelId: 'c1', senderId: 'u5', senderName: 'Lisa Park', content: 'Confirmed! The AI summaries are much better too. Great work on the prompt engineering.', status: 'read', reactions: { '❤️': 1, '🔥': 2 } },
+  { id: 'msg5', channelId: 'c1', senderId: 'u3', senderName: 'Emily Davis', content: 'The new UI is clean. One small thing - the participant grid could use better spacing on mobile.', status: 'delivered' },
+  { id: 'msg6', channelId: 'c2', senderId: 'u2', senderName: 'Mike Johnson', content: 'PR ready for review: refactor/auth-service', status: 'read' },
+  { id: 'msg7', channelId: 'c2', senderId: 'u1', senderName: 'Sarah Chen', content: 'Looking at it now. The JWT handling looks clean.', status: 'read' },
+  { id: 'msg8', channelId: 'c5', senderId: 'u6', senderName: 'Alex Turner', content: 'Team offsite next Friday — please RSVP by Wednesday.', status: 'read', reactions: { '👍': 4 } },
+  { id: 'msg9', channelId: 'c3', senderId: 'u5', senderName: 'Lisa Park', content: 'Check out this article on WebRTC optimisation.', status: 'read' },
+]
+
+async function seedDemoData(): Promise<void> {
+  const existing = await db.chatChannel.findUnique({ where: { id: DEMO_SEED_KEY } })
+  if (existing) {
+    // DB already has data — just load channel names
+    const channels = await db.chatChannel.findMany()
+    for (const ch of channels) channelNames.set(ch.id, ch.name)
+    console.log(`[chat] DB already seeded — loaded ${channels.length} channels`)
+    return
+  }
+
+  console.log('[chat] Seeding demo data into DB…')
+  for (const ch of demoChannels) {
+    await db.chatChannel.create({ data: ch })
+    channelNames.set(ch.id, ch.name)
+  }
+  for (const dm of demoMessages) {
+    await db.chatMessage.create({
+      data: {
+        ...dm,
+        timestamp: new Date(Date.now() - Math.random() * 3600_000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        reactions: JSON.stringify(dm.reactions || {}),
+        avatar: null,
+      },
+    })
+  }
+  console.log(`[chat] Seeded ${demoChannels.length} channels and ${demoMessages.length} messages`)
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -173,12 +263,6 @@ function broadcastToChannel(channel: string, data: Record<string, unknown>, excl
   }
 }
 
-function getChannelHistory(channel: string, limit = 50): ChatMessage[] {
-  return messageHistory
-    .filter(m => m.channelId === channel)
-    .slice(-limit)
-}
-
 function getPresenceList(): PresenceUser[] {
   const now = Date.now()
   return Array.from(clients.values()).map(c => ({
@@ -194,13 +278,12 @@ function getPresenceList(): PresenceUser[] {
 function removeClient(userId: string) {
   const client = clients.get(userId)
   if (!client) return
-  // Remove from all channels
   for (const ch of client.channels) {
     channelMembers.get(ch)?.delete(userId)
-    // Clean up hand-raised state
     handRaisedUsers.get(ch)?.delete(userId)
-    // Clean up participant media state
     participantMediaState.get(ch)?.delete(userId)
+    // Persist leave to DB (fire-and-forget)
+    persistLeave(ch, userId)
     broadcastToChannel(ch, {
       type: 'user_left_channel',
       channel: ch,
@@ -208,7 +291,6 @@ function removeClient(userId: string) {
     })
   }
   clients.delete(userId)
-  // Broadcast updated presence
   broadcastPresence()
 }
 
@@ -217,27 +299,6 @@ function broadcastPresence() {
   for (const client of clients.values()) {
     send(client.ws, { type: 'presence', payload: { users: presence } })
   }
-}
-
-// ── Seed some demo history ──────────────────────────────────────────────
-
-const demoMessages: Omit<ChatMessage, 'timestamp'>[] = [
-  { id: 'msg1', channelId: 'c1', senderId: 'u6', senderName: 'Alex Turner', content: 'Good morning team! Quick update on the roadmap.', status: 'read', reactions: { '👍': 2 } },
-  { id: 'msg2', channelId: 'c1', senderId: 'u1', senderName: 'Sarah Chen', content: 'Morning! The new build is deployed to staging. Can everyone test?', status: 'read', reactions: { '🚀': 3 } },
-  { id: 'msg3', channelId: 'c1', senderId: 'u2', senderName: 'Mike Johnson', content: 'Testing now. The video quality improvements are noticeable!', status: 'read' },
-  { id: 'msg4', channelId: 'c1', senderId: 'u5', senderName: 'Lisa Park', content: 'Confirmed! The AI summaries are much better too. Great work on the prompt engineering.', status: 'read', reactions: { '❤️': 1, '🔥': 2 } },
-  { id: 'msg5', channelId: 'c1', senderId: 'u3', senderName: 'Emily Davis', content: 'The new UI is clean. One small thing - the participant grid could use better spacing on mobile.', status: 'delivered' },
-  { id: 'msg6', channelId: 'c2', senderId: 'u2', senderName: 'Mike Johnson', content: 'PR ready for review: refactor/auth-service', status: 'read' },
-  { id: 'msg7', channelId: 'c2', senderId: 'u1', senderName: 'Sarah Chen', content: 'Looking at it now. The JWT handling looks clean.', status: 'read' },
-  { id: 'msg8', channelId: 'c5', senderId: 'u6', senderName: 'Alex Turner', content: 'Team offsite next Friday — please RSVP by Wednesday.', status: 'read', reactions: { '👍': 4 } },
-  { id: 'msg9', channelId: 'c3', senderId: 'u5', senderName: 'Lisa Park', content: 'Check out this article on WebRTC optimisation.', status: 'read' },
-]
-
-for (const dm of demoMessages) {
-  messageHistory.push({
-    ...dm,
-    timestamp: new Date(Date.now() - Math.random() * 3600_000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-  })
 }
 
 // ── Message handler ─────────────────────────────────────────────────────
@@ -260,7 +321,7 @@ function handleMessage(ws: WebSocket, raw: string) {
   const { type, channel, payload = {} } = msg
 
   switch (type) {
-    // ── Join a channel ──────────────────────────────────────────────────
+    // ── Join a channel ────────────────────────────────────────────────
     case 'join': {
       if (!channel) {
         send(ws, { type: 'error', payload: { message: 'Missing channel' } })
@@ -270,23 +331,27 @@ function handleMessage(ws: WebSocket, raw: string) {
       if (!channelMembers.has(channel)) channelMembers.set(channel, new Set())
       channelMembers.get(channel)!.add(client.userId)
 
-      // Ensure meeting-room state structures exist for this channel
+      // Ensure meeting-room state structures exist
       if (!handRaisedUsers.has(channel)) handRaisedUsers.set(channel, new Set())
       if (!channelPolls.has(channel)) channelPolls.set(channel, [])
       if (!participantMediaState.has(channel)) participantMediaState.set(channel, new Map())
 
-      // Send join confirmation with history + meeting room state
-      send(ws, {
-        type: 'joined',
-        channel,
-        payload: {
-          userId: client.userId,
-          members: Array.from(channelMembers.get(channel) || []),
-          history: getChannelHistory(channel),
-          // Meeting room state
-          handRaised: Array.from(handRaisedUsers.get(channel) || []),
-          polls: channelPolls.get(channel) || [],
-        },
+      // Persist membership to DB (fire-and-forget)
+      persistJoin(channel, client.userId)
+
+      // Fetch history from DB and send join confirmation
+      getChannelHistory(channel).then(history => {
+        send(ws, {
+          type: 'joined',
+          channel,
+          payload: {
+            userId: client.userId,
+            members: Array.from(channelMembers.get(channel) || []),
+            history,
+            handRaised: Array.from(handRaisedUsers.get(channel) || []),
+            polls: channelPolls.get(channel) || [],
+          },
+        })
       })
 
       // Notify others in channel
@@ -298,14 +363,15 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Leave a channel ─────────────────────────────────────────────────
+    // ── Leave a channel ───────────────────────────────────────────────
     case 'leave': {
       if (!channel) return
       client.channels.delete(channel)
       channelMembers.get(channel)?.delete(client.userId)
-      // Clean up hand-raised state
       handRaisedUsers.get(channel)?.delete(client.userId)
       participantMediaState.get(channel)?.delete(client.userId)
+      // Persist leave to DB (fire-and-forget)
+      persistLeave(channel, client.userId)
       send(ws, { type: 'left', channel, payload: { userId: client.userId } })
       broadcastToChannel(channel, {
         type: 'user_left_channel',
@@ -315,7 +381,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Send a message ──────────────────────────────────────────────────
+    // ── Send a message ────────────────────────────────────────────────
     case 'message': {
       if (!channel) {
         send(ws, { type: 'error', payload: { message: 'Missing channel' } })
@@ -325,8 +391,6 @@ function handleMessage(ws: WebSocket, raw: string) {
         send(ws, { type: 'error', payload: { message: 'Not in channel' } })
         return
       }
-      // SECURITY: Force senderId and senderName from authenticated user,
-      // ignoring any client-sent values to prevent impersonation
       const chatMsg: ChatMessage = {
         id: (payload.id as string) || `srv-${Date.now()}`,
         channelId: channel,
@@ -339,13 +403,10 @@ function handleMessage(ws: WebSocket, raw: string) {
         reactions: {},
       }
 
-      // Store in history
-      messageHistory.push(chatMsg)
-      if (messageHistory.length > MAX_HISTORY) {
-        messageHistory.splice(0, messageHistory.length - MAX_HISTORY)
-      }
+      // Persist to DB (fire-and-forget, don't block broadcast)
+      persistMessage(chatMsg)
 
-      // Broadcast to channel (including sender so they get the server timestamp)
+      // Broadcast to channel (including sender)
       broadcastToChannel(channel, {
         type: 'message',
         channel,
@@ -354,7 +415,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Typing indicator ────────────────────────────────────────────────
+    // ── Typing indicator ──────────────────────────────────────────────
     case 'typing': {
       if (!channel) return
       const isTyping = payload.isTyping as boolean
@@ -362,7 +423,6 @@ function handleMessage(ws: WebSocket, raw: string) {
       if (!typingUsers.has(channel)) typingUsers.set(channel, new Map())
       const channelTyping = typingUsers.get(channel)!
 
-      // Clear existing timer
       const existing = channelTyping.get(client.userId)
       if (existing?.timer) clearTimeout(existing.timer)
 
@@ -390,13 +450,13 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Request full presence ───────────────────────────────────────────
+    // ── Request full presence ─────────────────────────────────────────
     case 'presence': {
       send(ws, { type: 'presence', payload: { users: getPresenceList() } })
       break
     }
 
-    // ── Emoji reaction (meeting room floating reaction) ────────────────
+    // ── Emoji reaction ────────────────────────────────────────────────
     case 'reaction': {
       if (!channel) {
         send(ws, { type: 'error', payload: { message: 'Missing channel' } })
@@ -410,16 +470,12 @@ function handleMessage(ws: WebSocket, raw: string) {
       broadcastToChannel(channel, {
         type: 'reaction',
         channel,
-        payload: {
-          userId: client.userId,
-          userName: client.userName,
-          emoji,
-        },
+        payload: { userId: client.userId, userName: client.userName, emoji },
       })
       break
     }
 
-    // ── Hand raise ─────────────────────────────────────────────────────
+    // ── Hand raise ────────────────────────────────────────────────────
     case 'hand_raise': {
       if (!channel) return
       if (!client.channels.has(channel)) return
@@ -433,7 +489,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Hand lower ─────────────────────────────────────────────────────
+    // ── Hand lower ────────────────────────────────────────────────────
     case 'hand_lower': {
       if (!channel) return
       if (!client.channels.has(channel)) return
@@ -446,7 +502,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       break
     }
 
-    // ── Poll creation ──────────────────────────────────────────────────
+    // ── Poll creation ─────────────────────────────────────────────────
     case 'poll_create': {
       if (!channel) {
         send(ws, { type: 'error', payload: { message: 'Missing channel' } })
@@ -466,12 +522,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       const poll: PollData = {
         id: `poll-${Date.now()}`,
         question,
-        options: options.map(label => ({
-          label,
-          votes: 0,
-          percentage: 0,
-          voters: [],
-        })),
+        options: options.map(label => ({ label, votes: 0, percentage: 0, voters: [] })),
         totalVotes: 0,
         createdBy: client.userId,
         createdByName: client.userName,
@@ -480,15 +531,11 @@ function handleMessage(ws: WebSocket, raw: string) {
       if (!channelPolls.has(channel)) channelPolls.set(channel, [])
       channelPolls.get(channel)!.push(poll)
 
-      broadcastToChannel(channel, {
-        type: 'poll_created',
-        channel,
-        payload: poll,
-      })
+      broadcastToChannel(channel, { type: 'poll_created', channel, payload: poll })
       break
     }
 
-    // ── Poll voting ────────────────────────────────────────────────────
+    // ── Poll voting ───────────────────────────────────────────────────
     case 'poll_vote': {
       if (!channel) {
         send(ws, { type: 'error', payload: { message: 'Missing channel' } })
@@ -507,71 +554,50 @@ function handleMessage(ws: WebSocket, raw: string) {
         return
       }
 
-      // Check if user already voted in this poll — remove previous vote
+      // Remove previous vote
       for (const opt of poll.options) {
         const idx = opt.voters.indexOf(client.userId)
-        if (idx !== -1) {
-          opt.voters.splice(idx, 1)
-          opt.votes--
-        }
+        if (idx !== -1) { opt.voters.splice(idx, 1); opt.votes-- }
       }
 
       // Add new vote
       const targetOption = poll.options.find(o => o.label === optionLabel)
-      if (targetOption) {
-        targetOption.voters.push(client.userId)
-        targetOption.votes++
-      }
+      if (targetOption) { targetOption.voters.push(client.userId); targetOption.votes++ }
 
-      // Recalculate totals and percentages
+      // Recalculate totals
       poll.totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0)
       for (const opt of poll.options) {
         opt.percentage = poll.totalVotes > 0 ? Math.round((opt.votes / poll.totalVotes) * 100) : 0
       }
 
-      broadcastToChannel(channel, {
-        type: 'poll_voted',
-        channel,
-        payload: poll,
-      })
+      broadcastToChannel(channel, { type: 'poll_voted', channel, payload: poll })
       break
     }
 
-    // ── Live caption broadcast ─────────────────────────────────────────
+    // ── Live caption ──────────────────────────────────────────────────
     case 'caption': {
       if (!channel) return
       if (!client.channels.has(channel)) return
-
       const speaker = (payload.speaker as string) || client.userName
       const text = (payload.text as string) || ''
-
       broadcastToChannel(channel, {
         type: 'caption',
         channel,
-        payload: {
-          userId: client.userId,
-          userName: client.userName,
-          speaker,
-          text,
-        },
+        payload: { userId: client.userId, userName: client.userName, speaker, text },
       })
       break
     }
 
-    // ── Participant media state update (mic/video toggle) ──────────────
+    // ── Participant media state ───────────────────────────────────────
     case 'participant_update': {
       if (!channel) return
       if (!client.channels.has(channel)) return
-
       const micOn = payload.micOn as boolean | undefined
       const videoOn = payload.videoOn as boolean | undefined
-
-      // Only accept boolean values (not undefined)
       if (micOn === undefined && videoOn === undefined) return
 
       if (!participantMediaState.has(channel)) participantMediaState.set(channel, new Map())
       const mediaMap = participantMediaState.get(channel)!
-
       const existing = mediaMap.get(client.userId) || { micOn: true, videoOn: true }
       if (micOn !== undefined) existing.micOn = micOn
       if (videoOn !== undefined) existing.videoOn = videoOn
@@ -580,12 +606,7 @@ function handleMessage(ws: WebSocket, raw: string) {
       broadcastToChannel(channel, {
         type: 'participant_updated',
         channel,
-        payload: {
-          userId: client.userId,
-          userName: client.userName,
-          micOn: existing.micOn,
-          videoOn: existing.videoOn,
-        },
+        payload: { userId: client.userId, userName: client.userName, micOn: existing.micOn, videoOn: existing.videoOn },
       })
       break
     }
@@ -595,114 +616,109 @@ function handleMessage(ws: WebSocket, raw: string) {
   }
 }
 
-// ── Bun WebSocket server ────────────────────────────────────────────────
+// ── Startup: seed DB and load channels before serving ──────────────────
 
 const PORT = 3010
 
-const server = Bun.serve({
-  port: PORT,
-  fetch(req, server) {
-    const url = new URL(req.url)
+async function start() {
+  // Seed demo data if DB is empty, otherwise load existing channels
+  await seedDemoData()
 
-    // Health check (no auth required)
-    if (url.pathname === '/health') {
-      return Response.json({
-        status: 'ok',
-        service: 'alvision-chat',
-        connections: clients.size,
-        channels: channelMembers.size,
-        messages: messageHistory.length,
-        uptime: process.uptime(),
-      })
-    }
+  const server = Bun.serve({
+    port: PORT,
+    fetch(req, server) {
+      const url = new URL(req.url)
 
-    // WebSocket upgrade — JWT authentication required
-    if (url.pathname === '/' || url.pathname === '/ws') {
-      const token = url.searchParams.get('token')
-
-      if (!token) {
-        return new Response(
-          JSON.stringify({ error: 'Authentication required', message: 'Missing JWT token. Provide ?token=<jwt> in the WebSocket URL.' }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
-        )
+      // Health check (no auth required)
+      if (url.pathname === '/health') {
+        return (async () => {
+          const [msgCount, chCount] = await Promise.all([getMessageCount(), getChannelCount()])
+          return Response.json({
+            status: 'ok',
+            service: 'alvision-chat',
+            connections: clients.size,
+            channels: chCount,
+            messages: msgCount,
+            uptime: process.uptime(),
+          })
+        })()
       }
 
-      // Verify JWT asynchronously
-      // We need to handle this in fetch since jwtVerify is async
-      return (async () => {
-        const payload = await verifyJwtToken(token)
-
-        if (!payload) {
+      // WebSocket upgrade — JWT authentication required
+      if (url.pathname === '/' || url.pathname === '/ws') {
+        const token = url.searchParams.get('token')
+        if (!token) {
           return new Response(
-            JSON.stringify({ error: 'Authentication failed', message: 'Invalid or expired JWT token.' }),
-            { status: 401, headers: { 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Authentication required', message: 'Missing JWT token. Provide ?token=<jwt> in the WebSocket URL.' }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } },
           )
         }
 
-        // Build authenticated user info — userName derived from email
-        const authUser: AuthenticatedUser = {
-          userId: payload.userId,
-          email: payload.email,
-          role: payload.role,
-          organizationId: payload.organizationId,
-          // Derive display name from email if not available elsewhere
-          userName: payload.email.split('@')[0] || 'User',
-        }
+        return (async () => {
+          const payload = await verifyJwtToken(token)
+          if (!payload) {
+            return new Response(
+              JSON.stringify({ error: 'Authentication failed', message: 'Invalid or expired JWT token.' }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
 
-        // Upgrade with authenticated user data attached to the websocket
-        if (server.upgrade(req, { data: authUser })) {
-          return undefined // upgrade successful
-        }
-        return new Response('WebSocket upgrade failed', { status: 500 })
-      })()
-    }
+          const authUser: AuthenticatedUser = {
+            userId: payload.userId,
+            email: payload.email,
+            role: payload.role,
+            organizationId: payload.organizationId,
+            userName: payload.email.split('@')[0] || 'User',
+          }
 
-    return new Response('Not Found', { status: 404 })
-  },
-  websocket: {
-    open(ws) {
-      const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
-      const { userId, userName, email, role, organizationId } = authUser
-
-      // Register authenticated client
-      clients.set(userId, {
-        ws,
-        userId,
-        userName,
-        email,
-        role,
-        organizationId,
-        channels: new Set(),
-        lastSeen: Date.now(),
-      })
-
-      console.log(`[chat] Connected: ${userName} (${userId}, role: ${role}) — ${clients.size} total`)
-
-      // Send welcome message
-      send(ws, {
-        type: 'presence',
-        payload: { users: getPresenceList() },
-      })
-    },
-    message(ws, message) {
-      // Bun sends message as string for text frames
-      if (typeof message === 'string') {
-        handleMessage(ws, message)
+          if (server.upgrade(req, { data: authUser })) {
+            return undefined
+          }
+          return new Response('WebSocket upgrade failed', { status: 500 })
+        })()
       }
+
+      return new Response('Not Found', { status: 404 })
     },
-    close(ws, code, reason) {
-      const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
-      if (authUser) {
-        console.log(`[chat] Disconnected: ${authUser.userName} (${authUser.userId}, code: ${code})`)
-        removeClient(authUser.userId)
-      }
+    websocket: {
+      open(ws) {
+        const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
+        const { userId, userName, email, role, organizationId } = authUser
+
+        clients.set(userId, {
+          ws, userId, userName, email, role, organizationId,
+          channels: new Set(),
+          lastSeen: Date.now(),
+        })
+
+        console.log(`[chat] Connected: ${userName} (${userId}, role: ${role}) — ${clients.size} total`)
+        send(ws, { type: 'presence', payload: { users: getPresenceList() } })
+      },
+      message(ws, message) {
+        if (typeof message === 'string') {
+          handleMessage(ws, message)
+        }
+      },
+      close(ws, code, reason) {
+        const authUser = (ws as WebSocket & { data: AuthenticatedUser }).data
+        if (authUser) {
+          console.log(`[chat] Disconnected: ${authUser.userName} (${authUser.userId}, code: ${code})`)
+          removeClient(authUser.userId)
+        }
+      },
+      drain(ws) {
+        // backpressure handled
+      },
     },
-    drain(ws) {
-      // backpressure handled
-    },
-  },
+  })
+
+  console.log(`\n🚀 ALVISION Chat Service running on ws://localhost:${PORT}`)
+  console.log(`   Health: http://localhost:${PORT}/health`)
+  console.log(`   Auth: JWT required via ?token=<jwt> query parameter`)
+  console.log(`   DB: SQLite (persisted — messages survive restarts)\n`)
+}
+
+start().catch(err => {
+  console.error('[chat] Fatal startup error:', err)
+  process.exit(1)
 })
-
-console.log(`\n🚀 ALVISION Chat Service running on ws://localhost:${PORT}`)
-console.log(`   Health: http://localhost:${PORT}/health`)
-console.log(`   Auth: JWT required via ?token=<jwt> query parameter\n`)

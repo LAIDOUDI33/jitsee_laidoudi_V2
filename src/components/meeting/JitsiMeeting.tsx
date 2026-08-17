@@ -9,7 +9,7 @@ interface JitsiMeetingProps {
   roomName: string
   displayName: string
   onMeetingEnd: () => void
-  configOverwrite?: Record<string, any>
+  configOverwrite?: Record<string, string | boolean | string[]>
   domain?: string
 }
 
@@ -17,7 +17,11 @@ type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
 
 declare global {
   interface Window {
-    JitsiMeetExternalAPI: any
+    JitsiMeetExternalAPI: new (...args: unknown[]) => {
+      dispose: () => void
+      addEventListener: (event: string, callback: () => void) => void
+      removeEventListener: (event: string, callback: () => void) => void
+    }
   }
 }
 
@@ -30,7 +34,7 @@ export default function JitsiMeeting({
 }: JitsiMeetingProps) {
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [errorMessage, setErrorMessage] = useState<string>('')
-  const jitsiRef = useRef<any>(null)
+  const jitsiRef = useRef<ReturnType<typeof window.JitsiMeetExternalAPI> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const loadScript = useCallback(() => {

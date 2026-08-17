@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { isBlacklisted } from './token-blacklist';
+import { ROLES_HIERARCHY, hasMinimumRole } from './roles';
 import type { TokenPayload } from './jwt-edge';
 
 /**
@@ -87,19 +88,7 @@ export async function requireAuth() {
 export async function requireRole(minimumRole: string) {
   const user = await requireAuth();
 
-  const ROLE_LEVELS: Record<string, number> = {
-    superadmin: 100,
-    orgadmin: 80,
-    teamadmin: 60,
-    host: 40,
-    participant: 20,
-    guest: 10,
-  };
-
-  const userLevel = ROLE_LEVELS[user.role] ?? 0;
-  const requiredLevel = ROLE_LEVELS[minimumRole] ?? 0;
-
-  if (userLevel < requiredLevel) {
+  if (!hasMinimumRole(user.role, minimumRole)) {
     throw new AuthError('FORBIDDEN', 'Insufficient permissions', 403);
   }
 
@@ -116,4 +105,16 @@ export class AuthError extends Error {
     this.statusCode = statusCode;
     this.name = 'AuthError';
   }
+}
+
+/**
+ * Build an organization-scoped where clause for Prisma queries.
+ * Superadmins bypass org filtering and receive an empty filter (see all data).
+ * All other roles with an organizationId are scoped to their org.
+ */
+export function getOrgFilter(user: { role: string; organizationId: string | null }): Record<string, string> {
+  if (user.role === 'superadmin') return {};
+  if (user.organizationId) return { organizationId: user.organizationId };
+  // User has no org — return empty filter (only their own data will match)
+  return {};
 }

@@ -95,6 +95,17 @@ export async function POST(request: NextRequest) {
       createRefreshToken(tokenPayload),
     ]);
 
+    // ─── Create Login Session Record ───────────────────────────────────
+    const sessionExpiry = new Date(Date.now() + 8 * 60 * 60 * 1000); // matches access token TTL
+    await db.session.create({
+      data: {
+        userId: user.id,
+        deviceInfo: request.headers.get('user-agent') || null,
+        ipAddress: clientIp,
+        expiresAt: sessionExpiry,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       data: {

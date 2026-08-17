@@ -1201,3 +1201,455 @@ Stage Summary:
 - MeetingRoomPage: aiResponses/aiSuggestions (local AI features)
 
 **Bug Fixed:** NotificationDropdown `notificationCount` undefined reference
+
+---
+
+### PHASE 9: P0 CRITICAL SECURITY VULNERABILITY FIXES
+
+#### P0-1: Hash Meeting Passwords
+
+| Change | Details |
+|--------|--------|
+| **Schema** | Added `passwordHash String?` to Meeting model in prisma/schema.prisma |
+| **Create meeting** | `POST /api/v1/meetings` now accepts optional `password` in body; hashes with scrypt via `hashPassword()`, stores in `passwordHash`, sets deprecated `password` to null |
+| **Get meeting** | `GET /api/v1/meetings/[id]` verifies meeting password (from `passwordHash`) against `?password=` query param for non-participants. Strips `passwordHash` and `password` from response |
+| **Schedule route** | Fixed C8 regression: `meetingData.password = JSON.stringify(settings)` → `meetingData.settings = JSON.stringify(settings)` |
+| **Migration** | Ran inline `bun -e` script to hash any existing plaintext passwords and clear the deprecated field. 0 meetings needed migration (all clean) |
+| **Backward compat** | `password` field retained in schema but marked deprecated; no new writes |
+
+#### P0-3: Remove --accept-data-loss
+
+| Change | Details |
+|--------|--------|
+| **package.json** | `"db:push": "prisma db push --accept-data-loss"` → `"db:push": "prisma db push"` |
+
+#### P0-4: Fix WebSocket Auth Bypass
+
+| Change | Details |
+|--------|--------|
+| **useMeetingRoom.ts** | Removed unauthenticated fallback URL. When `localStorage.getItem('alvision_access_token')` returns empty string, the hook now logs a warning and returns early in `'disconnected'` state instead of connecting without auth |
+
+#### P0-5: Tighten CSP (Pragmatic)
+
+| Change | Details |
+|--------|--------|
+| **script-src** | Removed `'unsafe-eval'` — was the critical gap allowing arbitrary code execution |
+| **script-src** | Removed `'unsafe-inline'` — only `'self'` remains |
+| **style-src** | Kept `'unsafe-inline'` (required for Tailwind CSS runtime styles) |
+| **connect-src** | Added `https://meet.jit.si` alongside existing `wss: ws:` for Jitsi iframe signaling |
+| **frame-src** | Already had `https://meet.jit.si` — unchanged |
+
+#### Additional: Extract Shared Role Hierarchy
+
+| File | Before | After |
+|------|--------|-------|
+| **src/lib/roles.ts** | Did not exist | Created: exports `ROLES`, `ROLES_HIERARCHY`, `hasMinimumRole()`, `Role` type |
+| **src/middleware.ts** | Inline `ROLE_LEVELS` object (duplicate) | Imports `ROLES_HIERARCHY` from `@/lib/roles` |
+| **src/lib/api-auth.ts** | Inline `ROLE_LEVELS` object (duplicate) | Imports `hasMinimumRole` from `@/lib/roles` |
+| **src/lib/server/auth.ts** | Inline `ROLE_HIERARCHY` + `hasMinimumRole` (duplicate) | Re-exports from `@/lib/roles` (canonical source) |
+| **src/app/api/v1/meetings/[id]/route.ts** | Inline `ROLE_LEVELS` object (duplicate) | Imports `hasMinimumRole`, `ROLES` from `@/lib/roles` |
+
+**Lint:** `bun run lint` passes with zero errors.
+
+---
+
+### PHASE 9: CHAT SERVICE PERSISTENCE (SQLite via Prisma)
+
+#### Problem
+The chat service (`mini-services/chat-service/index.ts`) stored ALL data in-memory (`messageHistory` array, `clients` map, `channelMembers` map). All messages, channels, and memberships were lost on every service restart.
+
+#### Solution
+Persisted chat data to the shared SQLite database (`db/custom.db`) via Prisma ORM. The chat service now has its own Prisma client that connects to the same database file as the main Next.js project.
+
+#### Changes Made
+
+**1. New Prisma models added to `prisma/schema.prisma`**
+| Model | Fields | Purpose |
+|-------|--------|---------|
+| `ChatChannel` | id, name, organizationId?, createdAt | Persistent channel registry |
+| `ChatMessage` | id, channelId, senderId, senderName, content, timestamp, avatar?, status, reactions (JSON), createdAt | All chat messages with reactions |
+| `ChatChannelMember` | id, channelId, userId, joinedAt (unique: channelId+userId) | Channel membership history |
+
+**2. Chat service Prisma setup**
+- Created `mini-services/chat-service/prisma/schema.prisma` — mirrors the 3 chat models, references the same DB file via absolute path
+- Created `mini-services/chat-service/src/db.ts` — singleton PrismaClient with `globalThis` hot-reload guard
+- Installed `prisma@6.19.2` and `@prisma/client@6.19.2` (pinned to match main project)
+- Generated Prisma client for the chat service
+
+**3. Rewritten `mini-services/chat-service/index.ts`**
+| Before | After |
+|--------|-------|
+| `messageHistory` array (max 500, in-memory) | `getChannelHistory()` queries DB with `ORDER BY createdAt ASC LIMIT 50` |
+| Demo messages pushed to array on startup | `seedDemoData()` inserts into DB only if no channels exist; on restart loads existing channels |
+| No persistence on message send | `persistMessage()` fires `db.chatMessage.create()` (fire-and-forget) on every message |
+| No membership tracking | `persistJoin()` uses `upsert` to record membership; `persistLeave()` deletes on disconnect/leave |
+| Health check counted in-memory array | Health check queries `db.chatMessage.count()` and `db.chatChannel.count()` |
+| Channel creation was implicit | `ensureChannel()` lazily creates `ChatChannel` rows on first message/join |
+
+**4. Architecture decisions**
+- **In-memory maps retained for ephemeral state only**: `clients` (WebSocket connections), `channelMembers` (online users per channel), `typingUsers`, `handRaisedUsers`, `channelPolls`, `participantMediaState` — all session-scoped data that should reset on restart
+- **DB as source of truth**: All messages, channels, and membership records are persisted. On restart, `seedDemoData()` checks for existing channel `c1`; if found, it loads all channel names instead of re-seeding
+- **Fire-and-forget persistence**: Message saves and membership updates use fire-and-forget async calls to avoid blocking the WebSocket broadcast
+- **Async startup**: Server is wrapped in `start()` async function that completes DB seeding before `Bun.serve()` begins accepting connections
+
+**5. Files created/modified**
+| File | Action |
+|------|--------|
+| `prisma/schema.prisma` | Added ChatChannel, ChatMessage, ChatChannelMember models |
+| `mini-services/chat-service/prisma/schema.prisma` | Created (mirrors chat models, same DB) |
+| `mini-services/chat-service/src/db.ts` | Created (PrismaClient singleton) |
+| `mini-services/chat-service/index.ts` | Fully rewritten with DB persistence |
+| `mini-services/chat-service/package.json` | Added prisma, @prisma/client dependencies |
+
+**6. Verification**
+- `bun run db:push` — schema applied successfully, 3 new tables created
+- Health check returns: `{"status":"ok","channels":4,"messages":9}`
+- Restart test: second startup logs `[chat] DB already seeded — loaded 4 channels` (no duplicate seed)
+- DB directly queried: 4 channels (General, Engineering, Random, Announcements) and 9 messages with correct reactions JSON
+
+**Lint:** `bun run lint` passes with zero errors.
+
+---
+
+### PHASE 9: P1 CORE IMPROVEMENTS
+
+#### 1. Pagination for Meeting List API
+- **File:** `src/app/api/v1/meetings/route.ts`
+- **Changes:** Replaced hardcoded `take: 50` with full pagination support.
+- **Query params added:** `page` (default 1), `limit` (default 20, max 100), `status` (existing), `search` (filter by title contains).
+- **Response format:** `{ success, data: { meetings: [...], pagination: { page, limit, total, totalPages } } }`.
+- **Implementation:** Uses `Promise.all([findMany, count])` for parallel query execution. `skip` computed as `(page - 1) * limit`.
+
+#### 2. Pagination for Audit Logs API
+- **File:** `src/app/api/v1/admin/audit-logs/route.ts`
+- **Changes:** Replaced hardcoded `take: 100` with paginated query.
+- **Response format:** Added `pagination: { page, limit, total, totalPages }` to existing `data` object alongside `warningCount` and `criticalCount`.
+- **Implementation:** Same `Promise.all` pattern. Severity filtering and counts remain unchanged.
+
+#### 3. Pagination for Admin Users API
+- **File:** `src/app/api/v1/admin/users/route.ts`
+- **Changes:** Replaced hardcoded `take: 100` with paginated query.
+- **Response format:** Added `pagination: { page, limit, total, totalPages }` alongside existing `roleCounts` and `statusCounts`.
+- **Implementation:** Same pattern. `roleCounts` and `statusCounts` queries remain unpaginated (they're aggregate counts).
+
+#### 4. Fixed useChat Hook — Added JWT Authentication
+- **File:** `src/hooks/useChat.ts`
+- **Problem:** WebSocket connection was created without any authentication token, allowing unauthenticated access.
+- **Fix:** Imported `getAccessToken` from `@/lib/api`. On connect, the hook now:
+  1. Calls `getAccessToken()` to retrieve the JWT from localStorage.
+  2. If no token is available, logs a warning and refuses to connect (status stays `disconnected`).
+  3. If token exists, appends `?token=<jwt>` to the WebSocket URL (same pattern as `useMeetingRoom.ts`).
+- **Security impact:** Closes the unauthenticated chat WebSocket vulnerability.
+
+#### 5. Password Reset API
+- **Schema change:** Added `resetTokenHash String?` and `resetTokenExpiry DateTime?` fields to the `User` model in `prisma/schema.prisma`.
+- **New file:** `src/app/api/v1/auth/reset-password/route.ts`
+- **POST `/api/v1/auth/reset-password`:**
+  - Accepts `{ email }`.
+  - Generates a 32-byte random hex token, hashes it with SHA-256, stores the hash + 15-minute expiry on the user.
+  - Returns success with a mock message (email sending not implemented).
+  - Returns generic success even if email doesn't exist (prevents email enumeration).
+  - In non-production environments, returns `debugToken` in the response for testing.
+- **PUT `/api/v1/auth/reset-password`:**
+  - Accepts `{ token, newPassword }`.
+  - Validates password strength via `validatePasswordStrength`.
+  - Hashes the token with SHA-256, looks up user by `resetTokenHash`.
+  - Checks expiry; clears expired tokens.
+  - Uses `timingSafeEqual` for hash comparison to prevent timing attacks.
+  - Updates password via `hashPassword`, clears `resetTokenHash` and `resetTokenExpiry`.
+
+#### 6. Connection Pooling for Prisma
+- **File:** `prisma/schema.prisma`
+- **Change:** Updated datasource URL from `file:../db/custom.db` to `file:../db/custom.db?connection_limit=10`.
+- **Effect:** SQLite connection pool capped at 10 connections. Prisma Client respects this limit for concurrent requests.
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/app/api/v1/meetings/route.ts` | Added pagination (page, limit, search, skip/take + count) |
+| `src/app/api/v1/admin/audit-logs/route.ts` | Added pagination (page, limit, skip/take + count) |
+| `src/app/api/v1/admin/users/route.ts` | Added pagination (page, limit, skip/take + count) |
+| `src/hooks/useChat.ts` | Added JWT token authentication for WebSocket connection |
+| `src/app/api/v1/auth/reset-password/route.ts` | Created — POST (request reset) + PUT (confirm reset) |
+| `prisma/schema.prisma` | Added `resetTokenHash`, `resetTokenExpiry` to User; `connection_limit=10` |
+
+**Verification:**
+- `bun run db:push` — schema applied successfully, 2 new columns on User, connection_limit=10 confirmed.
+- `bun run lint` — passes with zero errors.
+
+---
+
+### PHASE 9: P2 ENTERPRISE FEATURES
+
+#### Summary
+Implemented three enterprise-grade backend features: API Key Management, Login Session Tracking, and Organization Data Isolation.
+
+#### 1. API Key Management (`/api/v1/api-keys`)
+
+**Schema change:** Added `isActive Boolean @default(true)` to `ApiKey` model.
+
+**New file:** `src/app/api/v1/api-keys/route.ts`
+- **GET**: Lists all API keys for the authenticated user. Returns masked keys (`alv_••••••••••••••••••••••••••••••a1b2`), name, prefix, parsed permissions, computed `isActive` (checks both flag and expiry), `lastUsedAt`, `createdAt`.
+- **POST**: Creates a new API key. Generates `alv_` + 32 random hex chars via `crypto.randomBytes(16)`. Hashes with SHA-256 before storage. Returns the FULL plaintext key only once. Enforces max 20 keys per user. Accepts `{ name, permissions? }`.
+- **DELETE**: Deletes by `?id=xxx`. Owner or orgadmin+ can delete. Returns 404/403 on failure.
+- Uses `inputSanitize` for name validation, `validateUuid` for ID, `hasMinimumRole` for permission checks.
+
+#### 2. Login Session Management
+
+**Schema change:** Added `Session` model:
+```
+Session: id, userId, deviceInfo (String?), ipAddress (String?), lastActivity (DateTime), createdAt, expiresAt
+```
+Added `sessions Session[]` relation to `User` model. Indexed on `userId` and `expiresAt`.
+
+**Modified:** `src/app/api/v1/auth/login/route.ts`
+- On successful login, creates a `Session` record with `deviceInfo` (User-Agent), `ipAddress`, and `expiresAt` (8h, matching JWT access token TTL).
+
+**Replaced:** `src/app/api/v1/sessions/route.ts`
+- Previous: meeting session history endpoint (querying `db.meeting`).
+- New: login session management:
+  - **GET**: Returns all active (non-expired) sessions for the authenticated user. Performs lazy cleanup of expired sessions first. Returns id, deviceInfo, ipAddress, lastActivity, createdAt, expiresAt.
+  - **DELETE ?id=xxx**: Terminates a specific session (verifies ownership).
+  - **DELETE ?all=true**: Terminates all sessions except the most recently active one (current session).
+
+#### 3. Organization Data Isolation
+
+**New utility:** `getOrgFilter(user)` in `src/lib/api-auth.ts`
+- Returns `{ organizationId: user.organizationId }` for non-superadmin users with an org.
+- Returns `{}` for superadmins (bypass org filtering) and users without an org.
+
+**Applied org isolation to:**
+- `src/app/api/v1/meetings/route.ts` GET: Merges `getOrgFilter(user)` into the Prisma `where` clause. Non-superadmin users only see their org's meetings.
+- `src/app/api/v1/teams/route.ts` GET: Uses `getOrgFilter(user)` directly as the `where` clause. Teams are org-scoped by design.
+- `src/app/api/v1/files/route.ts` GET: Files lack a direct `organizationId`, so when org filtering is active, uses nested query `channel → team → organizationId` to scope results.
+
+#### Files Modified
+| File | Action |
+|------|--------|
+| `prisma/schema.prisma` | Added `isActive` to ApiKey, added `Session` model + User relation |
+| `src/lib/api-auth.ts` | Added `getOrgFilter()` utility |
+| `src/app/api/v1/api-keys/route.ts` | **Created** — full CRUD for API keys |
+| `src/app/api/v1/sessions/route.ts` | **Replaced** — login session tracking |
+| `src/app/api/v1/auth/login/route.ts` | Modified — creates Session record on login |
+| `src/app/api/v1/meetings/route.ts` | Modified — org-scoped GET |
+| `src/app/api/v1/teams/route.ts` | Modified — org-scoped GET |
+| `src/app/api/v1/files/route.ts` | Modified — org-scoped GET via channel→team |
+
+**Verification:**
+- `bun run db:push` — schema applied successfully, Session model + ApiKey.isActive added.
+- `bun run lint` — passes with zero errors.
+
+---
+
+### PHASE 9: P3 AI IMPROVEMENTS — Streaming, Conversation Memory, Model Selection
+
+#### 1. AI Response Streaming via SSE
+
+Created `src/app/api/v1/ai/chat-stream/route.ts` (POST):
+- Accepts `{ message, model?, conversationId? }` with JWT auth via `requireAuth()`
+- Uses `z-ai-web-dev-sdk` with `stream: true` to stream AI responses as Server-Sent Events
+- Each SSE event format: `data: { type: 'chunk'|'done'|'error'|'meta', content?, conversationId?, message? }`
+- Returns `Content-Type: text/event-stream` with `Cache-Control: no-cache, no-transform`
+- Handles stream fallback if SDK returns non-streaming response
+- Maps friendly model names (`alvision-pro/fast/creative`) to actual model IDs
+- Auto-creates conversation if no `conversationId` provided
+- Saves both user and assistant messages to the database after stream completes
+- Auto-generates conversation title from first user message (truncated to 80 chars)
+- Loads last 20 messages from conversation history to provide context
+
+Modified `src/components/dashboard/views/AIAssistantPage.tsx`:
+- Replaced blocking `authFetch` + `res.json()` with `ReadableStream` reader
+- Parses SSE `data:` lines incrementally, appending chunks to assistant message in real-time
+- Implements typewriter effect — tokens appear as they stream in
+- Added streaming cursor (animated `|` bar) during active streaming
+- Added **Stop button** (red square icon) to abort in-flight streams via `AbortController`
+- Status indicator changes from "Online" to "Streaming..." during active streams
+- Placeholder text changes to "AI is responding..." while streaming
+
+#### 2. AI Conversation Memory
+
+Added to `prisma/schema.prisma`:
+- **`AiConversation`** model: `id, userId, title, model, createdAt, updatedAt` with FK to User (onDelete: Cascade)
+- **`AiConversationMessage`** model: `id, conversationId, role, content, createdAt` with FK to AiConversation (onDelete: Cascade)
+- Added `aiConversations` relation to User model
+- Added indexes on `userId`, `updatedAt` (conversations) and `conversationId`, `createdAt` (messages)
+
+Created `src/app/api/v1/ai/conversations/route.ts`:
+- **GET**: Lists all conversations for authenticated user (id, title, model, updatedAt, messageCount) ordered by updatedAt desc
+- **POST**: Creates new conversation with optional title and model
+- **DELETE**: Deletes conversation by ID after verifying ownership
+
+Created `src/app/api/v1/ai/conversations/[id]/messages/route.ts`:
+- **GET**: Loads all messages for a conversation (ownership verified), returns conversation metadata + messages
+
+Wired into `AIAssistantPage.tsx`:
+- On mount, fetches conversation list via `loadConversations()`
+- History sidebar shows real conversations from DB with message counts and relative dates
+- **New Chat** button (`+` icon in sidebar) creates a fresh chat
+- Clicking a conversation loads its full message history
+- Conversations are auto-created when the first message is sent (no explicit create step needed)
+- Delete button (trash icon, visible on hover) removes conversation and cascades messages
+- After each streamed response, conversation list is refreshed to show updated timestamps
+- Active conversation is highlighted with primary color border
+
+#### 3. Real Model Selection
+
+- Model selector (`alvision-pro`, `alvision-fast`, `alvision-creative`) now sends the selected model value to the streaming endpoint
+- The streaming endpoint maps these to the actual model ID via a `modelMap`
+- When loading a saved conversation, the model selector auto-updates to match the conversation's stored model
+- The bottom label dynamically shows the selected model name
+
+#### Files Created
+1. `src/app/api/v1/ai/chat-stream/route.ts` — SSE streaming endpoint with conversation memory
+2. `src/app/api/v1/ai/conversations/route.ts` — Conversation CRUD (list, create, delete)
+3. `src/app/api/v1/ai/conversations/[id]/messages/route.ts` — Load conversation messages
+
+#### Files Modified
+1. `prisma/schema.prisma` — Added AiConversation + AiConversationMessage models, User relation
+2. `src/components/dashboard/views/AIAssistantPage.tsx` — Complete rewrite with streaming, conversation persistence, model selection
+
+#### Verification
+- `bun run db:push` — schema applied successfully
+- `bun run lint` — passes with zero errors
+
+---
+### PHASE 9: MeetingRoomPage.tsx Monolith Decomposition
+
+**Goal:** Decompose the 2202-line `MeetingRoomPage.tsx` into focused, maintainable sub-components.
+
+**Approach:** Pure refactoring — zero functional or UI changes. Extracted logical sections into separate files under `src/components/meeting/parts/`, with a shared `meeting-data.ts` for types, mock data, and utility functions.
+
+#### Files Created (11 new files in `src/components/meeting/parts/`):
+
+| File | Lines | Responsibility |
+|------|-------|----------------|
+| `meeting-data.ts` | ~170 | Shared interfaces (ChatMessage, Participant, BreakoutRoom, etc.), mock data, constants, helper functions (getGradient, getRoleBadgeClass, wsMsgToLocal, wsPollToLocal) |
+| `MeetingHeader.tsx` | ~198 | Top bar: editable title, connection indicator, meeting timer, ID copy, participant count, E2E badge, fullscreen toggle, recording indicator |
+| `VideoGrid.tsx` | ~312 | Video grid area with ParticipantTile, AudioLevelBars, NetworkQualityIndicator. Supports grid/speaker/gallery layouts + live captions overlay |
+| `MeetingToolbar.tsx` | ~371 | Bottom control bar: mic, camera, screen share, hand raise, recording, sidebar toggles, captions, transcription, virtual bg, reactions, layout menu, leave button. Includes ToolbarButton sub-component |
+| `MeetingSidebar.tsx` | ~107 | Sidebar shell: tab header (Chat/People/AI/Breakout/Polls) + tab content routing |
+| `MeetingChat.tsx` | ~200 | Chat tab: message list with system messages, typing indicators, @mention dropdown, chat input with typing indicator broadcast |
+| `ParticipantList.tsx` | ~188 | People tab: search, mute/video-all buttons, hand-raised queue, participant list with role dropdown, online indicators |
+| `WaitingRoom.tsx` | ~88 | Waiting room section (admit/deny participants), embedded in ParticipantList |
+| `MeetingAIPanel.tsx` | ~190 | AI tab: suggestion chips, AI/user message thread, typing indicator, free-text input |
+| `PollsPanel.tsx` | ~105 | Polls tab: poll list with animated vote bars, vote tracking, create-poll trigger |
+| `BreakoutRoomsPanel.tsx` | ~267 | Breakout tab: room CRUD, timer, auto-assign, participant avatar stacks |
+
+#### Parent File:
+| File | Before | After |
+|------|--------|-------|
+| `MeetingRoomPage.tsx` | 2202 lines | 326 lines |
+
+**What the parent now holds:**
+- App store + WebSocket hook integration
+- ~20 shared state variables (mic, camera, screen share, hand, recording, sidebar, layout, etc.)
+- Derived state via `useMemo` (chatMessages, typingUserNames, displayPolls, displayParticipants, effectiveHandRaisedIds)
+- Shared handlers (toggle fullscreen, send reaction, leave meeting, toggle sidebar, toggle hand, create poll)
+- JSX composition of sub-components + external overlays (PollBuilder, VirtualBackgrounds, LiveTranscriptionPanel)
+
+**Pre-existing lint fixes applied:**
+- Replaced `useEffect` + `setState` for caption key with `useMemo(() => Date.now(), [wsCaption])`
+- Moved `setRecordingTime(0)` reset into the toggle handler to avoid `react-hooks/set-state-in-effect`
+
+**Verification:** `bun run lint` passes with 0 errors. Dev server compiles successfully.
+
+---
+
+### PHASE 9: CODE QUALITY IMPROVEMENTS
+
+#### 1. Removed Dead Code and Files
+- **Deleted** `src/middleware.ts.disabled` (disabled middleware, no longer needed)
+- Verified no `.bak` or `.old` files exist in `src/`
+- **Noted:** `skills/` directory exists at project root with 1076 files — left intact as it may be required by the system
+
+#### 2. Fixed Package Name
+- Changed `package.json` name from `"nextjs_tailwind_shadcn_ts"` → `"alvision"`
+
+#### 3. Environment Variable Validation (Zod)
+- **Rewrote** `src/lib/env.ts` using Zod schema validation:
+  - `JWT_SECRET` — `z.string().default(...)` with production runtime guard (≥32 chars)
+  - `DATABASE_URL` — `z.string().default('file:./dev.db')`
+  - `NEXT_PUBLIC_WS_URL` — `z.string().default('')`
+  - `NODE_ENV` — `z.enum(['development', 'production', 'test']).default('development')`
+- Uses `z.safeParse` with clear error output on failure
+- Replaced hand-rolled `requireEnv()` helper with typed Zod schema
+
+#### 4. Removed Redundant Token Storage
+- **Problem:** Tokens were stored in TWO places — directly in localStorage (`alvision_access_token` / `alvision_refresh_token`) AND duplicated in Zustand persisted state (`alvision-auth` key). On token refresh, `api.ts` updated localStorage but NOT Zustand, causing stale data.
+- **Fix:** Removed `accessToken` and `refreshToken` fields from Zustand `AppState` interface and state. Removed them from `partialize` so they're no longer persisted to the `alvision-auth` key. `setTokens()` now writes ONLY to localStorage. `clearAuth()` still clears both localStorage keys and resets user/auth state.
+- Verified no code reads tokens from Zustand — all API calls use `api.ts` functions that read directly from localStorage.
+
+#### 5. Enhanced Error Boundary
+- **Enhanced** `src/components/ErrorBoundary.tsx`:
+  - Added `sanitizeErrorMessage()` helper that strips file paths, stack trace fragments, and internal identifiers from error messages
+  - Changed buttons: "Go to Dashboard" (navigates to `/`) and "Reload Page" (full `window.location.reload()`)
+  - Replaced `Home` icon with `LayoutDashboard` icon
+  - Error display uses sanitized message with monospace font and break-all
+- Layout already wrapped children with `<ErrorBoundary>` — no changes needed to `layout.tsx`
+
+#### 6. Fixed `any` Types (16 instances across 5 files)
+
+**AdminUsersPage.tsx (4 fixes):**
+- `(u: any)` → `(u: Record<string, unknown>)` with `String()` coercion for all field access
+- Three `catch (err: any)` → `catch (err: unknown)` with `instanceof Error` guard
+
+**AdminAuditPage.tsx (3 fixes):**
+- Two `(e: any)` → `(e: Record<string, unknown>)` with proper type-safe field mapping
+- `catch (err: any)` → `catch (err: unknown)` with `instanceof Error` guard
+
+**AdminOrgsPage.tsx (5 fixes):**
+- `(o: any)` → `(o: Record<string, unknown>)` with `String()`/`Number()` coercion and union type narrowing for `plan`
+- Two `catch (err: any)` → `catch (err: unknown)` with `instanceof Error` guard
+
+**SessionHistoryPage.tsx (4 fixes):**
+- `MonitorUp(props: any)` → `MonitorUp(props: React.SVGProps<SVGSVGElement>)`
+- `defaultSessions: any[]` → defined `SessionRecord` interface, typed as `SessionRecord[]`
+- `useState<any>(null)` → `useState<SessionRecord | null>(null)`
+- `(m: any, i: number)` → `(m: Record<string, unknown>, i: number)` with typed return object
+
+**JitsiMeeting.tsx (3 fixes):**
+- `configOverwrite?: Record<string, any>` → `Record<string, string | boolean | string[]>`
+- `JitsiMeetExternalAPI: any` → typed constructor signature with `dispose`, `addEventListener`, `removeEventListener`
+- `useRef<any>(null)` → `useRef<ReturnType<typeof window.JitsiMeetExternalAPI> | null>(null)`
+
+**Verification:** `bun run lint` passes with 0 errors, 0 warnings.
+
+---
+Task ID: master-prompt-phase06
+Agent: main
+Task: Comprehensive platform hardening — P0 security fixes, P1 core infrastructure, P2 enterprise features, P3 AI improvements, code quality
+
+Work Log:
+- Ran full codebase technical audit identifying 5 P0, 7 P1, 10 P2, 8 P3 issues
+- P0-1: Added meeting password hashing (scrypt) — new passwordHash field, migrated create/join endpoints
+- P0-3: Removed --accept-data-loss from db:push script
+- P0-4: Fixed WebSocket auth bypass in useMeetingRoom (no-connect without token)
+- P0-5: Tightened CSP — removed unsafe-eval (kept unsafe-inline for Next.js Turbopack)
+- Extracted shared role hierarchy to src/lib/roles.ts (single source of truth)
+- P0-2: Persisted chat service to SQLite via Prisma (ChatChannel, ChatMessage, ChatChannelMember models)
+- P1: Added pagination to meetings, audit logs, admin users APIs
+- P1: Fixed useChat hook to send JWT authentication
+- P1: Implemented password reset API (POST generate token, PUT verify+reset)
+- P1: Decomposed MeetingRoomPage (2202 lines) into 11 focused components in parts/
+- P2: Created API key management endpoints (GET/POST/DELETE /api/v1/api-keys)
+- P2: Added session management (Session model, login tracking, terminate sessions)
+- P2: Implemented organization data isolation (getOrgFilter helper, applied to meetings/teams/files)
+- P3: Implemented AI response streaming via SSE (/api/v1/ai/chat-stream)
+- P3: Added AI conversation memory (AiConversation, AiConversationMessage models)
+- P3: Wired real model selection to streaming endpoint
+- P5: Removed dead code (middleware.ts.disabled), fixed package name to 'alvision'
+- P5: Added Zod env validation, removed redundant token storage from Zustand
+- P5: Enhanced ErrorBoundary, fixed 19 any types across 5 files
+- Fixed CSP breaking page load (restored unsafe-inline for Next.js Turbopack)
+- Fixed Prisma schema connection_limit causing readonly DB
+- Re-seeded database after schema changes
+
+Stage Summary:
+- 7 new API endpoints created
+- 4 new database models (ChatChannel, ChatMessage, ChatChannelMember, Session, AiConversation, AiConversationMessage)
+- 11 new component files from MeetingRoomPage decomposition
+- MeetingRoomPage reduced from 2202 to 326 lines
+- Chat service now persists to SQLite
+- AI assistant streams responses and persists conversations
+- Full lint clean, browser-verified

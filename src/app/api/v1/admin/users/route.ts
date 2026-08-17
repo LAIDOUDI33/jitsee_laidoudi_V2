@@ -12,6 +12,11 @@ export async function GET(request: Request) {
     const role = searchParams.get('role') || '';
     const status = searchParams.get('status') || '';
 
+    // Pagination params
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
+    const skip = (page - 1) * limit;
+
     const where: Record<string, unknown> = {};
     if (search) {
       where.OR = [
@@ -28,24 +33,28 @@ export async function GET(request: Request) {
       where.isActive = false;
     }
 
-    const users = await db.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        mfaEnabled: true,
-        lastLogin: true,
-        createdAt: true,
-        organization: {
-          select: { id: true, name: true },
+    const [users, total] = await Promise.all([
+      db.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          mfaEnabled: true,
+          lastLogin: true,
+          createdAt: true,
+          organization: {
+            select: { id: true, name: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      db.user.count({ where }),
+    ]);
 
     const roleCounts = await db.user.groupBy({
       by: ['role'],
@@ -59,7 +68,20 @@ export async function GET(request: Request) {
       suspended: suspendedCount,
     };
 
-    return NextResponse.json({ success: true, data: { users, roleCounts, statusCounts } });
+    return NextResponse.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+        roleCounts,
+        statusCounts,
+      },
+    });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(

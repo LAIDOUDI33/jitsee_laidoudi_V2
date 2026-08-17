@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { getAccessToken } from '@/lib/api'
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -146,9 +147,18 @@ export function useChat({
     const isReconnect = retryCountRef.current > 0
     setStatus(isReconnect ? 'reconnecting' : 'connecting')
 
+    // SECURITY: require JWT token for WebSocket connection
+    const token = getAccessToken()
+    if (!token) {
+      console.warn('[useChat] No auth token — skipping WebSocket connection')
+      setStatus('disconnected')
+      return
+    }
+
+    const wsUrl = `${currentUrl}?token=${encodeURIComponent(token)}`
     let ws: WebSocket
     try {
-      ws = new WebSocket(currentUrl)
+      ws = new WebSocket(wsUrl)
     } catch {
       setStatus('disconnected')
       return

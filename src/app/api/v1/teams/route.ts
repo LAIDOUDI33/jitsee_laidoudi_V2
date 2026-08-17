@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, AuthError } from '@/lib/api-auth';
+import { requireAuth, AuthError, getOrgFilter } from '@/lib/api-auth';
 
 /**
  * GET /api/v1/teams
@@ -10,7 +10,10 @@ export async function GET() {
   try {
     const user = await requireAuth();
 
+    const orgFilter = getOrgFilter(user);
+
     const teams = await db.team.findMany({
+      where: orgFilter,
       include: {
         _count: {
           select: {

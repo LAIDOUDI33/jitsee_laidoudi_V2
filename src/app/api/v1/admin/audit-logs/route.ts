@@ -50,6 +50,11 @@ export async function GET(request: Request) {
     const from = searchParams.get('from') || '';
     const to = searchParams.get('to') || '';
 
+    // Pagination params
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
+    const skip = (page - 1) * limit;
+
     const where: Record<string, unknown> = {};
 
     if (search) {
@@ -68,16 +73,20 @@ export async function GET(request: Request) {
       if (to) (where.createdAt as Record<string, unknown>).lte = new Date(to);
     }
 
-    const entries = await db.auditLog.findMany({
-      where,
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
+    const [entries, total] = await Promise.all([
+      db.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      db.auditLog.count({ where }),
+    ]);
 
     // Apply severity filter client-side since it's derived
     let filteredEntries = entries;
@@ -91,9 +100,7 @@ export async function GET(request: Request) {
       severity: deduceSeverity(entry.action),
     }));
 
-    const total = await db.auditLog.count({ where });
-
-    // Count warnings and criticals
+    // Count warnings and criticals across all entries
     const allEntries = await db.auditLog.findMany({
       select: { action: true },
     });
@@ -109,7 +116,12 @@ export async function GET(request: Request) {
       success: true,
       data: {
         entries: entriesWithSeverity,
-        total,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
         warningCount,
         criticalCount,
       },

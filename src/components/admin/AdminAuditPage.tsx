@@ -99,26 +99,26 @@ export default function AdminAuditPage() {
       const json = await res.json()
       const { entries: apiEntries, total: t, warningCount: wc, criticalCount: cc } = json.data
 
-      const mappedEntries: AuditEntry[] = apiEntries.map((e: any) => ({
-        id: e.id,
-        timestamp: formatTimestamp(e.createdAt),
-        actor: e.user?.email || 'system',
-        action: e.action,
-        resource: e.resource || '',
-        details: e.details || '',
-        severity: e.severity || 'info',
-        ip: e.ipAddress || '—',
+      const mappedEntries: AuditEntry[] = apiEntries.map((e: Record<string, unknown>) => ({
+        id: String(e.id ?? ''),
+        timestamp: formatTimestamp(String(e.createdAt ?? '')),
+        actor: (e.user as Record<string, unknown>)?.email ? String((e.user as Record<string, unknown>).email) : 'system',
+        action: String(e.action ?? ''),
+        resource: String(e.resource ?? ''),
+        details: String(e.details ?? ''),
+        severity: (['info', 'warning', 'critical'].includes(String(e.severity)) ? String(e.severity) : 'info') as AuditEntry['severity'],
+        ip: String(e.ipAddress ?? '—'),
       }))
 
-      const actions = [...new Set(apiEntries.map((e: any) => e.action))]
+      const actions = [...new Set(apiEntries.map((e: Record<string, unknown>) => String(e.action ?? '')))]
 
       setEntries(mappedEntries)
       setTotal(t ?? apiEntries.length)
       setWarningCount(wc ?? 0)
       setCriticalCount(cc ?? 0)
       setAvailableActions(actions)
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load audit logs')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load audit logs')
     } finally {
       setLoading(false)
     }

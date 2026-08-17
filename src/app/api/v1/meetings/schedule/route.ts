@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       settings.participants = participants.slice(0, 50); // limit participants
     }
     if (recurrence) settings.recurrence = recurrence;
-    meetingData.password = JSON.stringify(settings);
+    meetingData.settings = JSON.stringify(settings);
 
     // Create meeting
     const meeting = await db.meeting.create({

@@ -233,10 +233,15 @@ export function useMeetingRoom({
       ? (localStorage.getItem('alvision_access_token') || '')
       : ''
 
+    // SECURITY: refuse to connect without a valid auth token
+    if (!token) {
+      console.warn('[useMeetingRoom] No auth token — skipping WebSocket connection')
+      setStatus('disconnected')
+      return
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_WS_URL || ''
-    const wsUrl = token
-      ? `${baseUrl}?token=${encodeURIComponent(token)}`
-      : `${baseUrl}?XTransformPort=3010`
+    const wsUrl = `${baseUrl}?token=${encodeURIComponent(token)}`
 
     let ws: WebSocket
     try {

@@ -155,14 +155,14 @@ export default function AdminUsersPage() {
         statusMap.all = apiUsers.length
       }
 
-      const mappedUsers: UserRecord[] = apiUsers.map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        org: u.organization?.name || 'None',
+      const mappedUsers: UserRecord[] = apiUsers.map((u: Record<string, unknown>) => ({
+        id: String(u.id ?? ''),
+        name: String(u.name ?? ''),
+        email: String(u.email ?? ''),
+        role: String(u.role ?? 'participant'),
+        org: (u.organization as Record<string, unknown>)?.name ? String((u.organization as Record<string, unknown>).name) : 'None',
         status: u.isActive ? 'active' : 'suspended',
-        lastActive: relativeTime(u.lastLogin || u.createdAt),
+        lastActive: relativeTime(String(u.lastLogin || u.createdAt || '')),
         meetings: 0,
         storage: '—',
       }))
@@ -170,8 +170,8 @@ export default function AdminUsersPage() {
       setUsers(mappedUsers)
       setRoleCounts(roleMap)
       setStatusCounts(statusMap)
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load users')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
       setLoading(false)
     }
@@ -207,8 +207,8 @@ export default function AdminUsersPage() {
       }
       toast.success(`User ${action === 'suspend' ? 'suspended' : 'reactivated'}`)
       fetchUsers()
-    } catch (err: any) {
-      toast.error(err.message || `Failed to ${action} user`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${action} user`)
     }
   }
 
@@ -252,8 +252,8 @@ export default function AdminUsersPage() {
       setNewUserRole('participant')
       setNewUserOrg('')
       fetchUsers()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create user')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create user')
     }
   }
 

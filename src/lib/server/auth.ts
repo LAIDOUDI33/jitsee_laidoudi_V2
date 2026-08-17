@@ -43,17 +43,9 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
   return { valid: errors.length === 0, errors };
 }
 
-// ─── Role Hierarchy ──────────────────────────────────────────────────────────
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  superadmin: 100, orgadmin: 80, teamadmin: 60, host: 40, participant: 20, guest: 10,
-};
-
-export function hasMinimumRole(userRole: string, requiredRole: string): boolean {
-  return (ROLE_HIERARCHY[userRole] ?? 0) >= (ROLE_HIERARCHY[requiredRole] ?? 0);
-}
-
-export const ROLES = { SUPERADMIN: 'superadmin', ORGADMIN: 'orgadmin', TEAMADMIN: 'teamadmin', HOST: 'host', PARTICIPANT: 'participant', GUEST: 'guest' } as const;
+// ─── Role hierarchy — single source of truth ─────────────────────────────────
+// Import from @/lib/roles for the canonical definitions
+export { ROLES, ROLES_HIERARCHY, hasMinimumRole, type Role } from '../roles';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

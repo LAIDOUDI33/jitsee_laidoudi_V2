@@ -119,28 +119,28 @@ export default function AdminOrgsPage() {
         Object.assign(pcMap, planCounts)
       }
 
-      const mappedOrgs: Org[] = organizations.map((o: any) => ({
-        id: o.id,
-        name: o.name,
-        plan: o.plan,
-        users: o._count?.users ?? 0,
-        maxUsers: o.maxUsers ?? 10,
+      const mappedOrgs: Org[] = organizations.map((o: Record<string, unknown>) => ({
+        id: String(o.id ?? ''),
+        name: String(o.name ?? ''),
+        plan: (['free', 'pro', 'enterprise'].includes(String(o.plan)) ? String(o.plan) : 'free') as Org['plan'],
+        users: Number((o._count as Record<string, unknown>)?.users ?? 0),
+        maxUsers: Number(o.maxUsers ?? 10),
         storage: '—',
         storageUsed: 0,
-        meetings: o._count?.meetings ?? 0,
+        meetings: Number((o._count as Record<string, unknown>)?.meetings ?? 0),
         status: 'active' as const,
-        createdAt: formatDate(o.createdAt),
+        createdAt: formatDate(String(o.createdAt ?? '')),
         admin: '',
         members: [],
       }))
 
-      const totalUsers = organizations.reduce((sum: number, o: any) => sum + (o._count?.users ?? 0), 0)
-      const enterpriseCount = pcMap.enterprise ?? organizations.filter((o: any) => o.plan === 'enterprise').length
+      const totalUsers = organizations.reduce((sum: number, o: Record<string, unknown>) => sum + Number((o._count as Record<string, unknown>)?.users ?? 0), 0)
+      const enterpriseCount = pcMap.enterprise ?? organizations.filter((o: Record<string, unknown>) => o.plan === 'enterprise').length
 
       setOrgs(mappedOrgs)
       setStats({ totalOrgs: total ?? organizations.length, totalUsers, enterpriseCount })
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load organizations')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load organizations')
     } finally {
       setLoading(false)
     }
@@ -169,8 +169,8 @@ export default function AdminOrgsPage() {
       setNewOrgName('')
       setNewOrgPlan('free')
       fetchOrgs()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create organization')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create organization')
     }
   }
 

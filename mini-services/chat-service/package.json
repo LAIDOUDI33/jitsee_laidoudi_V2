@@ -5,6 +5,8 @@
     "dev": "bun --hot index.ts"
   },
   "dependencies": {
-    "jose": "^6.2.9"
+    "@prisma/client": "6.19.2",
+    "jose": "^6.2.9",
+    "prisma": "6.19.2"
   }
 }

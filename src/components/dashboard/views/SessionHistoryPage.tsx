@@ -36,7 +36,7 @@ const statusConfig: Record<string, { color: string; bg: string }> = {
   'In Progress': { color: 'text-sky-700 dark:text-sky-400', bg: 'bg-sky-100 dark:bg-sky-900/30' },
 }
 
-function MonitorUp(props: any) { return <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' {...props}><path d='M8 21h8'/><path d='M12 17v4'/><path d='m17 5-5-3-5 3'/><rect width='22' height='14' x='1' y='3' rx='2'/></svg> }
+function MonitorUp(props: React.SVGProps<SVGSVGElement>) { return <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' {...props}><path d='M8 21h8'/><path d='M12 17v4'/><path d='m17 5-5-3-5 3'/><rect width='22' height='14' x='1' y='3' rx='2'/></svg> }
 
 function useCountUp(target: number, duration: number = 1200) {
   const [count, setCount] = useState(0)
@@ -66,7 +66,24 @@ function StarRating({ rating }: { rating: number }) {
 
 const hostColors = ['bg-violet-600', 'bg-emerald-600', 'bg-sky-600', 'bg-rose-600', 'bg-amber-600', 'bg-cyan-600']
 
-const defaultSessions: any[] = []
+interface SessionRecord {
+  id: string
+  title: string
+  type: string
+  status: string
+  date: string
+  duration: number
+  participants: number
+  host: string
+  hostInitials: string
+  hostColor: string
+  hasRecording: boolean
+  hasSummary: boolean
+  quality: number
+  notes: string
+}
+
+const defaultSessions: SessionRecord[] = []
 
 export default function SessionHistoryPage() {
   const [sessions, setSessions] = useState(defaultSessions)
@@ -77,7 +94,7 @@ export default function SessionHistoryPage() {
   const [durationFilter, setDurationFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
   const [page, setPage] = useState(1)
-  const [selectedSession, setSelectedSession] = useState<any>(null)
+  const [selectedSession, setSelectedSession] = useState<SessionRecord | null>(null)
   const perPage = 10
 
   const fetchSessions = useCallback(async () => {
@@ -87,22 +104,23 @@ export default function SessionHistoryPage() {
       if (!res.ok) throw new Error('Failed to fetch sessions')
       const json = await res.json()
       const meetings = json.data?.meetings || []
-      const mapped = meetings.map((m: any, i: number) => {
-        const hostName = m.host?.name || 'Unknown'
+      const mapped: SessionRecord[] = meetings.map((m: Record<string, unknown>, i: number) => {
+        const hostData = m.host as Record<string, unknown> | undefined
+        const hostName = hostData?.name ? String(hostData.name) : 'Unknown'
         const initials = hostName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-        const start = m.startTime ? new Date(m.startTime) : null
-        const end = m.endTime ? new Date(m.endTime) : null
+        const start = m.startTime ? new Date(String(m.startTime)) : null
+        const end = m.endTime ? new Date(String(m.endTime)) : null
         const dur = start && end ? Math.round((end.getTime() - start.getTime()) / 60000) : 0
-        const hasRec = (m.recordings?.length || 0) > 0
+        const hasRec = Array.isArray(m.recordings) && m.recordings.length > 0
         const hasSum = false
         return {
-          id: m.id,
-          title: m.title,
+          id: String(m.id ?? ''),
+          title: String(m.title ?? ''),
           type: 'Video',
-          status: m.status === 'ended' ? 'Completed' : m.status,
-          date: m.startTime || m.createdAt,
+          status: m.status === 'ended' ? 'Completed' : String(m.status ?? ''),
+          date: String(m.startTime || m.createdAt || ''),
           duration: dur || 0,
-          participants: m.participants?.length || 0,
+          participants: Array.isArray(m.participants) ? m.participants.length : 0,
           host: hostName,
           hostInitials: initials,
           hostColor: hostColors[i % hostColors.length],

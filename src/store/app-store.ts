@@ -70,8 +70,6 @@ interface AppState {
   user: User | null
   setUser: (user: User | null) => void
   isAuthenticated: boolean
-  accessToken: string | null
-  refreshToken: string | null
   setTokens: (accessToken: string, refreshToken: string) => void
   clearAuth: () => void
   
@@ -155,21 +153,20 @@ export const useAppStore = create<AppState>()(
       user: null,
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       isAuthenticated: false,
-      accessToken: null,
-      refreshToken: null,
+      // Tokens are stored ONLY in localStorage (single source of truth).
+      // api.ts reads/writes them directly; this helper is kept for the login flow.
       setTokens: (accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {
           localStorage.setItem('alvision_access_token', accessToken)
           localStorage.setItem('alvision_refresh_token', refreshToken)
         }
-        set({ accessToken, refreshToken })
       },
       clearAuth: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('alvision_access_token')
           localStorage.removeItem('alvision_refresh_token')
         }
-        set({ user: null, isAuthenticated: false, accessToken: null, refreshToken: null })
+        set({ user: null, isAuthenticated: false })
       },
       
       currentMeetingId: null,
@@ -210,8 +207,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
       }),
     }
   )

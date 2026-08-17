@@ -18,6 +18,8 @@ model User {
   isActive      Boolean   @default(true)
   mfaEnabled    Boolean   @default(false)
   lastLogin     DateTime?
+  resetTokenHash  String?
+  resetTokenExpiry DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -31,6 +33,8 @@ model User {
   files        File[]
   apiKeys      ApiKey[]
   templates    Template[]
+  sessions     Session[]
+  aiConversations AiConversation[]
 
   @@index([organizationId])
   @@index([role])
@@ -124,7 +128,8 @@ model Meeting {
   id                String   @id @default(uuid())
   title             String
   meetingId         String   @unique // public meeting ID like "abc-def-ghi"
-  password          String?  // Actual meeting password (for join protection)
+  password          String?  // DEPRECATED — retained for backward compat; do not write new values
+  passwordHash      String?  // scrypt hash of meeting password (for join protection)
   settings          String?  @default("{\"duration\":60}") // JSON for scheduling settings
   hostId            String?
   organizationId    String?
@@ -329,16 +334,17 @@ model AuditLog {
 }
 
 model ApiKey {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
-  key         String   @unique
+  key         String    @unique
   userId      String
-  permissions String   @default("[]")
+  permissions String    @default("[]")
+  isActive    Boolean   @default(true)
   lastUsed    DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   expiresAt   DateTime?
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -365,4 +371,96 @@ model Template {
 
   @@index([createdById])
   @@index([organizationId])
+}
+
+// ── Chat Service Persistence Models ─────────────────────────────────────
+
+model ChatChannel {
+  id             String   @id @default(uuid())
+  name           String
+  organizationId String?
+  createdAt      DateTime @default(now())
+
+  messages ChatMessage[]
+  members  ChatChannelMember[]
+
+  @@index([organizationId])
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  channelId  String
+  senderId   String
+  senderName String
+  content    String
+  timestamp  String
+  avatar     String?
+  status     String   @default("sent") // sent, delivered, read
+  reactions  String   @default("{}") // JSON: Record<string, number>
+  createdAt  DateTime @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([createdAt])
+}
+
+model ChatChannelMember {
+  id        String   @id @default(uuid())
+  channelId String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+// ── Login Session Tracking ──────────────────────────────────────────
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  deviceInfo   String?
+  ipAddress    String?
+  lastActivity DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ── AI Conversation Memory ──────────────────────────────────────────
+
+model AiConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @default("New Chat")
+  model     String   @default("gpt-4o-mini")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiConversationMessage[]
+
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model AiConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   // user, assistant, system
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
 }

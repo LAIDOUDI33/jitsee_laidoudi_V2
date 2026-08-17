@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken, extractBearerToken, rateLimit } from './lib/jwt-edge';
+import { ROLES_HIERARCHY } from './lib/roles';
 
 // ─── Edge-Compatible Middleware for API Auth & Security Headers ───────────────
 
@@ -19,15 +20,6 @@ const ROLE_REQUIRED: Record<string, string> = {
   '/api/v1/users': 'orgadmin',
 };
 
-const ROLE_LEVELS: Record<string, number> = {
-  superadmin: 100,
-  orgadmin: 80,
-  teamadmin: 60,
-  host: 40,
-  participant: 20,
-  guest: 10,
-};
-
 // ─── Security Headers ────────────────────────────────────────────────────────
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -37,11 +29,13 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    // 'unsafe-inline' required for Next.js Turbopack hydration/HMR; tighten with nonces in production build
+    "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
-    "connect-src 'self' wss: ws:",
+    // Allow WebSocket (wss/ws), API fetches, and Jitsi iframe connections
+    "connect-src 'self' wss: ws: https://meet.jit.si",
     "frame-src https://meet.jit.si",
   ].join('; '),
 };
@@ -155,8 +149,8 @@ export async function middleware(request: NextRequest) {
   // ── RBAC check ────────────────────────────────────────────────────────────
   const requiredRole = getRequiredRole(pathname);
   if (requiredRole) {
-    const userLevel = ROLE_LEVELS[payload.role] ?? 0;
-    const requiredLevel = ROLE_LEVELS[requiredRole] ?? 0;
+    const userLevel = ROLES_HIERARCHY[payload.role] ?? 0;
+    const requiredLevel = ROLES_HIERARCHY[requiredRole] ?? 0;
     if (userLevel < requiredLevel) {
       return NextResponse.json(
         {

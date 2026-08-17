@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:/home/z/my-project/db/custom.db"
+}
+
+// ── Chat Service Persistence Models ─────────────────────────────────────
+// These mirror the models in the main project's prisma/schema.prisma.
+// They reference the SAME database file so both services share data.
+
+model ChatChannel {
+  id             String   @id @default(uuid())
+  name           String
+  organizationId String?
+  createdAt      DateTime @default(now())
+
+  messages ChatMessage[]
+  members  ChatChannelMember[]
+
+  @@index([organizationId])
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  channelId  String
+  senderId   String
+  senderName String
+  content    String
+  timestamp  String
+  avatar     String?
+  status     String   @default("sent") // sent, delivered, read
+  reactions  String   @default("{}") // JSON: Record<string, number>
+  createdAt  DateTime @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([createdAt])
+}
+
+model ChatChannelMember {
+  id        String   @id @default(uuid())
+  channelId String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
