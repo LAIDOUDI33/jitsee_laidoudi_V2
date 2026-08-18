@@ -56,6 +56,7 @@ import { LayoutDashboard,
   UserPlus,
   NotebookPen,
   History,
+  ListTodo,
 } from 'lucide-react'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
@@ -88,6 +89,7 @@ const mainNavItems: NavItem[] = [
   { label: 'Analytics', icon: <BarChart3 className='h-4 w-4' />, view: 'analytics' },
   { label: 'Status', icon: <Activity className='h-4 w-4' />, view: 'status' },
   { label: 'People', icon: <UsersRound className='h-4 w-4' />, view: 'people' },
+  { label: 'Org Settings', icon: <Building2 className='h-4 w-4' />, view: 'org-settings' },
   { label: 'Integrations', icon: <Puzzle className='h-4 w-4' />, view: 'integrations' },
   { label: 'Help Center', icon: <HelpCircle className='h-4 w-4' />, view: 'help-center' },
   { label: 'Webhooks', icon: <WebhookIcon className='h-4 w-4' />, view: 'webhooks' },
@@ -96,6 +98,7 @@ const mainNavItems: NavItem[] = [
   { label: 'Breakout Rooms', icon: <LayoutGrid className='h-4 w-4' />, view: 'breakout-rooms' },
   { label: 'Participants', icon: <UserPlus className='h-4 w-4' />, view: 'participants' },
   { label: 'Meeting Notes', icon: <NotebookPen className='h-4 w-4' />, view: 'meeting-notes' },
+  { label: 'Smart Action Items', icon: <ListTodo className='h-4 w-4' />, view: 'action-items' },
   { label: 'Session History', icon: <History className='h-4 w-4' />, view: 'session-history' },
 ]
 
@@ -104,6 +107,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Users', icon: <Users className='h-4 w-4' />, view: 'admin-users', adminOnly: true },
   { label: 'Organizations', icon: <Building2 className='h-4 w-4' />, view: 'admin-orgs', adminOnly: true },
   { label: 'Security', icon: <Lock className='h-4 w-4' />, view: 'admin-security', adminOnly: true },
+  { label: 'Activity Reports', icon: <BarChart3 className='h-4 w-4' />, view: 'activity-reports', adminOnly: true },
   { label: 'Audit Log', icon: <FileText className='h-4 w-4' />, view: 'admin-audit', adminOnly: true },
   { label: 'System', icon: <Server className='h-4 w-4' />, view: 'admin-system', adminOnly: true },
 ]
@@ -348,12 +352,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'breakout-rooms': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Breakout Rooms' }],
     participants: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Participant Management' }],
     'meeting-notes': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Notes' }],
+    'action-items': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Smart Action Items' }],
     'session-history': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Session History' }],
+    'org-settings': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Org Settings' }],
     admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
     'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
     'admin-orgs': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Organizations' }],
     'admin-security': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Security' }],
     'admin-audit': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Audit Log' }],
+    'activity-reports': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Activity Reports' }],
     'admin-system': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'System' }],
     settings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Settings' }],
     profile: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Profile' }],
@@ -376,6 +383,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'admin-orgs': 'Organizations',
     'admin-security': 'Security',
     'admin-audit': 'Audit Log',
+    'activity-reports': 'Activity Reports',
     'admin-system': 'System',
     settings: 'Settings',
     profile: 'Profile',
@@ -387,7 +395,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'breakout-rooms': 'Breakout Rooms',
     participants: 'Participant Management',
     'meeting-notes': 'Meeting Notes',
+    'action-items': 'Smart Action Items',
     'session-history': 'Session History',
+    'org-settings': 'Org Settings',
   }
 
   const handleSignOut = () => {

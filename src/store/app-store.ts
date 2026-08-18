@@ -38,7 +38,10 @@ export type AppView =
   | 'breakout-rooms'
   | 'participants'
   | 'meeting-notes'
+  | 'action-items'
   | 'session-history'
+  | 'org-settings'
+  | 'activity-reports'
 
 export interface NotificationItem {
   id: string
@@ -80,8 +83,8 @@ interface AppState {
   setMeetingTitle: (title: string) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
-  meetingSidebarTab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout'
-  setMeetingSidebarTab: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => void
+  meetingSidebarTab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation'
+  setMeetingSidebarTab: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation') => void
   
   // Notifications
   notificationCount: number

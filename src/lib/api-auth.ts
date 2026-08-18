@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { isBlacklisted } from './token-blacklist';
-import { ROLES_HIERARCHY, hasMinimumRole } from './roles';
+import { ROLES, ROLES_HIERARCHY, hasMinimumRole } from './roles';
 import type { TokenPayload } from './jwt-edge';
 
 /**
@@ -117,4 +117,62 @@ export function getOrgFilter(user: { role: string; organizationId: string | null
   if (user.organizationId) return { organizationId: user.organizationId };
   // User has no org — return empty filter (only their own data will match)
   return {};
+}
+
+/**
+ * Require orgadmin role or higher.
+ * Convenience shorthand for requireRole('orgadmin').
+ */
+export async function requireOrgAdmin() {
+  return requireRole(ROLES.ORGADMIN);
+}
+
+/**
+ * Check if the current user owns the resource (matches resourceUserId)
+ * OR has orgadmin+ privileges. Throws AuthError if neither.
+ *
+ * @param resourceUserId - The user ID of the resource owner
+ * @returns The authenticated user record (with organization)
+ */
+export async function requireResourceOwner(resourceUserId: string) {
+  const user = await requireAuth();
+
+  // Orgadmin and above can access any resource in their org
+  if (hasMinimumRole(user.role, ROLES.ORGADMIN)) {
+    return user;
+  }
+
+  // Otherwise, user must be the resource owner
+  if (user.id !== resourceUserId) {
+    throw new AuthError('FORBIDDEN', 'You do not have access to this resource', 403);
+  }
+
+  return user;
+}
+
+/**
+ * Check if a user can manage other users.
+ * Returns true for:
+ *  - orgadmin+ (can manage all users in their org)
+ *  - teamadmin managing users within their own teams
+ * Returns false otherwise.
+ *
+ * This is a synchronous boolean check — does NOT throw.
+ */
+export function canManageUsers(user: {
+  id: string;
+  role: string;
+  organizationId: string | null;
+}): boolean {
+  // orgadmin and above can manage any user in their org
+  if (hasMinimumRole(user.role, ROLES.ORGADMIN)) {
+    return true;
+  }
+
+  // teamadmin can manage users (but caller must enforce team-scoping separately)
+  if (user.role === ROLES.TEAMADMIN) {
+    return true;
+  }
+
+  return false;
 }

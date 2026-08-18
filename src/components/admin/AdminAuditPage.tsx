@@ -128,8 +128,46 @@ export default function AdminAuditPage() {
     fetchEntries()
   }, [fetchEntries])
 
-  const handleExport = (format: string) => {
-    toast.success(`Exported ${entries.length} entries as ${format.toUpperCase()}`)
+  const handleExport = async (format: string) => {
+    try {
+      if (format === 'csv') {
+        // Build query string from current filter state
+        const params = new URLSearchParams()
+        if (dateFrom) params.set('startDate', dateFrom)
+        if (dateTo) params.set('endDate', dateTo)
+        if (actionFilter !== 'all') params.set('action', actionFilter)
+        const query = params.toString() ? `?${params.toString()}` : ''
+        const res = await authFetch(`/api/v1/admin/audit-logs/export${query}`)
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: { message: 'Export failed' } }))
+          throw new Error(err.error?.message || 'Export failed')
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `audit-log-export-${new Date().toISOString().slice(0, 10)}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('CSV exported successfully')
+      } else {
+        // JSON export — use the current in-memory entries
+        const jsonBlob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(jsonBlob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `audit-log-export-${new Date().toISOString().slice(0, 10)}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success(`Exported ${entries.length} entries as JSON`)
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to export')
+    }
   }
 
   return (

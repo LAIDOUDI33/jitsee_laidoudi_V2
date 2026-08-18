@@ -25,8 +25,9 @@ const ROLE_REQUIRED: Record<string, string> = {
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
+  'X-XSS-Protection': '1; mode=block',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+  'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self)',
   'Content-Security-Policy': [
     "default-src 'self'",
     // 'unsafe-inline' required for Next.js Turbopack hydration/HMR; tighten with nonces in production build
@@ -49,10 +50,11 @@ function getRequiredRole(pathname: string): string | null {
   return null;
 }
 
-function addSecurityHeaders(response: NextResponse): NextResponse {
+function addSecurityHeaders(response: NextResponse, requestId: string): NextResponse {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value);
   }
+  response.headers.set('x-request-id', requestId);
   return response;
 }
 
@@ -68,10 +70,11 @@ function getClientIp(request: NextRequest): string {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const requestId = crypto.randomUUID();
 
   // ── Non-API routes: add security headers and pass through ─────────────────
   if (!pathname.startsWith('/api/')) {
-    return addSecurityHeaders(NextResponse.next());
+    return addSecurityHeaders(NextResponse.next(), requestId);
   }
 
   // ── Check if this is a public API route ───────────────────────────────────
@@ -85,7 +88,7 @@ export async function middleware(request: NextRequest) {
       const clientIp = getClientIp(request);
       const { allowed } = rateLimit(`auth:${clientIp}`, 10, 60000);
       if (!allowed) {
-        return NextResponse.json(
+        return addSecurityHeaders(NextResponse.json(
           {
             success: false,
             error: {
@@ -94,16 +97,16 @@ export async function middleware(request: NextRequest) {
             },
           },
           { status: 429 }
-        );
+        ), requestId);
       }
     }
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next(), requestId);
   }
 
   // ── Protected API routes: require Bearer token ─────────────────────────────
   const token = extractBearerToken(request);
   if (!token) {
-    return NextResponse.json(
+    return addSecurityHeaders(NextResponse.json(
       {
         success: false,
         error: {
@@ -112,13 +115,13 @@ export async function middleware(request: NextRequest) {
         },
       },
       { status: 401 }
-    );
+    ), requestId);
   }
 
   // ── Verify JWT ────────────────────────────────────────────────────────────
   const payload = await verifyAccessToken(token);
   if (!payload) {
-    return NextResponse.json(
+    return addSecurityHeaders(NextResponse.json(
       {
         success: false,
         error: {
@@ -127,14 +130,14 @@ export async function middleware(request: NextRequest) {
         },
       },
       { status: 401 }
-    );
+    ), requestId);
   }
 
   // ── Rate limit authenticated API requests ─────────────────────────────────
   const clientIp = getClientIp(request);
   const { allowed } = rateLimit(`api:${clientIp}:${payload.userId}`, 120, 60000);
   if (!allowed) {
-    return NextResponse.json(
+    return addSecurityHeaders(NextResponse.json(
       {
         success: false,
         error: {
@@ -143,7 +146,7 @@ export async function middleware(request: NextRequest) {
         },
       },
       { status: 429 }
-    );
+    ), requestId);
   }
 
   // ── RBAC check ────────────────────────────────────────────────────────────
@@ -152,7 +155,7 @@ export async function middleware(request: NextRequest) {
     const userLevel = ROLES_HIERARCHY[payload.role] ?? 0;
     const requiredLevel = ROLES_HIERARCHY[requiredRole] ?? 0;
     if (userLevel < requiredLevel) {
-      return NextResponse.json(
+      return addSecurityHeaders(NextResponse.json(
         {
           success: false,
           error: {
@@ -161,7 +164,7 @@ export async function middleware(request: NextRequest) {
           },
         },
         { status: 403 }
-      );
+      ), requestId);
     }
   }
 
@@ -174,7 +177,7 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-user-org-id', payload.organizationId);
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return addSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), requestId);
 }
 
 // ─── Matcher: run on all routes except Next.js internals ──────────────────────

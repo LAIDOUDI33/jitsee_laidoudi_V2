@@ -35,6 +35,15 @@ import {
   Loader2,
   Square,
   Plus,
+  VideoIcon,
+  Languages,
+  ChevronDown,
+  ChevronUp,
+  ListTodo,
+  CheckCircle2,
+  Circle,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -56,6 +65,17 @@ interface ConversationListItem {
   model: string
   updatedAt: string
   messageCount: number
+}
+
+interface ActionItemDisplay {
+  id: string
+  content: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  status: 'pending' | 'in_progress' | 'completed'
+  dueDate: string | null
+  owner: { id: string; name: string; email?: string } | null
+  meetingId: string | null
+  createdAt: string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -82,10 +102,32 @@ const WELCOME_MESSAGE: AIMessage = {
   timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
 }
 
+// ── Priority / status helpers ──────────────────────────────────────────────────
+
+const priorityConfig: Record<string, { color: string; bg: string; label: string }> = {
+  critical: { color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-900/30', label: 'Critical' },
+  high: { color: 'text-rose-600', bg: 'bg-rose-100 dark:bg-rose-900/30', label: 'High' },
+  medium: { color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30', label: 'Medium' },
+  low: { color: 'text-slate-500', bg: 'bg-slate-100 dark:bg-slate-800/50', label: 'Low' },
+}
+
+const statusConfig: Record<string, { color: string; bg: string; label: string }> = {
+  pending: { color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30', label: 'Pending' },
+  in_progress: { color: 'text-teal-600', bg: 'bg-teal-100 dark:bg-teal-900/30', label: 'In Progress' },
+  completed: { color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-900/30', label: 'Completed' },
+}
+
+const QUICK_PROMPTS = [
+  { label: 'Summarize this meeting', endpoint: '/api/v1/ai/summarize', body: { type: 'brief' }, method: 'POST' as const },
+  { label: 'Extract action items', endpoint: '/api/v1/ai/smart-action-items', body: {}, method: 'POST' as const, isSmartAction: true },
+  { label: 'Key topics discussed', endpoint: '/api/v1/ai/summarize', body: { type: 'key-topics' }, method: 'POST' as const },
+  { label: 'Translate last message', endpoint: '', body: {}, method: 'POST' as const, isTranslate: true },
+]
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function AIAssistantPage() {
-  const { user } = useAppStore()
+  const { user, currentMeetingId } = useAppStore()
 
   // Conversation state
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
@@ -99,6 +141,15 @@ export default function AIAssistantPage() {
   const [model, setModel] = useState('alvision-pro')
   const [streaming, setStreaming] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Meeting context mode
+  const [meetingContextMode, setMeetingContextMode] = useState(false)
+
+  // Action items panel
+  const [extractedActionItems, setExtractedActionItems] = useState<ActionItemDisplay[]>([])
+  const [actionItemsPanelOpen, setActionItemsPanelOpen] = useState(false)
+  const [actionItemsLoading, setActionItemsLoading] = useState(false)
+  const [translateOpen, setTranslateOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -196,6 +247,121 @@ export default function AIAssistantPage() {
     )
   }
 
+  // ── Handle quick prompt ───────────────────────────────────────────────
+  const handleQuickPrompt = async (qp: typeof QUICK_PROMPTS[number]) => {
+    if (streaming) return
+
+    // Translate: find last user message and open translate dialog
+    if (qp.isTranslate) {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+      if (lastUserMsg) {
+        setTranslateOpen(true)
+      } else {
+        toast.error('No message to translate')
+      }
+      return
+    }
+
+    // Smart action items extraction
+    if (qp.isSmartAction) {
+      if (!meetingContextMode || !currentMeetingId) {
+        toast.error('Enable Meeting Context mode and join a meeting first')
+        return
+      }
+      setActionItemsLoading(true)
+      try {
+        const res = await authFetch(qp.endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ meetingId: currentMeetingId }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          toast.error(err?.error?.message || 'Failed to extract action items')
+          setActionItemsLoading(false)
+          return
+        }
+        const data = await res.json()
+        if (data.success && data.data?.actionItems?.length > 0) {
+          setExtractedActionItems(prev => [...data.data.actionItems, ...prev])
+          setActionItemsPanelOpen(true)
+          toast.success(`Extracted ${data.data.actionItems.length} action items!`)
+        } else {
+          toast.info('No action items found in this meeting')
+        }
+      } catch {
+        toast.error('Failed to extract action items')
+      } finally {
+        setActionItemsLoading(false)
+      }
+      return
+    }
+
+    // Summarize / key-topics
+    const meetingId = meetingContextMode ? currentMeetingId : undefined
+    const userMsg: AIMessage = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: qp.label,
+      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    }
+    setMessages(prev => [...prev, userMsg])
+
+    const assistantMsgId = `ai-${Date.now()}`
+    setMessages(prev => [...prev, {
+      id: assistantMsgId, role: 'assistant', content: '',
+      timestamp: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      loading: true, streaming: true,
+    }])
+    setStreaming(true)
+
+    try {
+      const bodyPayload = meetingId ? { ...qp.body, meetingId } : qp.body
+      const res = await authFetch(qp.endpoint, {
+        method: qp.method,
+        body: JSON.stringify(bodyPayload),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        setMessages(prev => prev.map(m => m.id === assistantMsgId
+          ? { ...m, content: err?.error?.message || 'Request failed.', loading: false, streaming: false }
+          : m))
+        setStreaming(false)
+        return
+      }
+      const data = await res.json()
+      const summary = data.data?.summary || 'No summary generated.'
+      setMessages(prev => prev.map(m => m.id === assistantMsgId
+        ? { ...m, content: summary, loading: false, streaming: false }
+        : m))
+      loadConversations()
+    } catch {
+      setMessages(prev => prev.map(m => m.id === assistantMsgId
+        ? { ...m, content: 'Failed to process request.', loading: false, streaming: false }
+        : m))
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  // ── Toggle action item status ────────────────────────────────────────
+  const toggleActionItemStatus = async (itemId: string) => {
+    setExtractedActionItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item
+      const nextStatus = item.status === 'pending' ? 'in_progress' : item.status === 'in_progress' ? 'completed' : 'pending'
+      return { ...item, status: nextStatus as ActionItemDisplay['status'] }
+    }))
+    try {
+      const item = extractedActionItems.find(i => i.id === itemId)
+      const nextStatus = item?.status === 'pending' ? 'in_progress' : item?.status === 'in_progress' ? 'completed' : 'pending'
+      await authFetch('/api/v1/action-items', {
+        method: 'PUT',
+        body: JSON.stringify({ id: itemId, status: nextStatus }),
+      })
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
   // ── Send message with SSE streaming ────────────────────────────────────
   const sendMessage = async (text?: string) => {
     const content = text || input.trim()
@@ -225,13 +391,19 @@ export default function AIAssistantPage() {
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
+    // If in meeting context mode, append meeting info to the message
+    const enhancedContent = meetingContextMode && currentMeetingId
+      ? `[Meeting Context Mode - Meeting ID: ${currentMeetingId}]\n${content}`
+      : content
+
     try {
       const res = await authFetch('/api/v1/ai/chat-stream', {
         method: 'POST',
         body: JSON.stringify({
-          message: content,
+          message: enhancedContent,
           model,
           conversationId: activeConversationId || undefined,
+          meetingId: meetingContextMode ? currentMeetingId : undefined,
         }),
         signal: abortController.signal,
       })
@@ -504,7 +676,14 @@ export default function AIAssistantPage() {
                 <Bot className='h-5 w-5 text-primary-foreground' />
               </div>
               <div>
-                <h3 className='font-semibold text-sm'>AI Assistant</h3>
+                <h3 className='font-semibold text-sm flex items-center gap-2'>
+                  {meetingContextMode ? 'Meeting Assistant' : 'AI Assistant'}
+                  {meetingContextMode && (
+                    <Badge variant='outline' className='gap-1 text-[10px] border-teal-500/30 text-teal-600 bg-teal-500/10'>
+                      <VideoIcon className='h-3 w-3' /> Live Context
+                    </Badge>
+                  )}
+                </h3>
                 <p className='text-[11px] text-emerald-600 flex items-center gap-1'>
                   <span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' />{' '}
                   {streaming ? 'Streaming...' : 'Online'}
@@ -512,6 +691,23 @@ export default function AIAssistantPage() {
               </div>
             </div>
             <div className='flex items-center gap-2'>
+              {/* Meeting Context Toggle */}
+              {currentMeetingId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={meetingContextMode ? 'default' : 'outline'}
+                      size='sm'
+                      className={`gap-1.5 text-xs h-8 ${meetingContextMode ? 'bg-teal-600 hover:bg-teal-500 text-white' : ''}`}
+                      onClick={() => setMeetingContextMode(!meetingContextMode)}
+                    >
+                      <VideoIcon className='h-3.5 w-3.5' />
+                      <span className='hidden sm:inline'>Meeting Context</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{meetingContextMode ? 'Disable meeting context' : 'Enable meeting context'}</TooltipContent>
+                </Tooltip>
+              )}
               <Select value={model} onValueChange={setModel}>
                 <SelectTrigger className='h-8 w-[140px] text-xs border-border/50'><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -691,10 +887,101 @@ export default function AIAssistantPage() {
                 </Button>
               )}
             </div>
-            <p className='text-[10px] text-muted-foreground/60 text-center mt-2'>
+            {/* Quick Prompts Row */}
+            <div className='flex flex-wrap gap-1.5 mb-2'>
+              {QUICK_PROMPTS.map((qp, i) => (
+                <motion.button
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  onClick={() => handleQuickPrompt(qp)}
+                  disabled={streaming || (qp.isSmartAction && (!meetingContextMode || !currentMeetingId))}
+                  className='flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-border/50 bg-muted/30 hover:bg-muted/60 transition-all disabled:opacity-40 hover:shadow-sm'
+                >
+                  {qp.isTranslate ? <Languages className='h-3 w-3 text-violet-500' />
+                    : qp.isSmartAction ? <ListTodo className='h-3 w-3 text-emerald-500' />
+                    : qp.body.type === 'brief' ? <FileText className='h-3 w-3 text-primary' />
+                    : <Target className='h-3 w-3 text-amber-500' />}
+                  <span>{qp.label}</span>
+                  {actionItemsLoading && qp.isSmartAction && <Loader2 className='h-3 w-3 animate-spin' />}
+                </motion.button>
+              ))}
+            </div>
+            <p className='text-[10px] text-muted-foreground/60 text-center mt-1'>
               ALVISION {models.find(m => m.value === model)?.label || 'Pro'} · AI may produce inaccurate information.
             </p>
           </div>
+
+          {/* Action Items Panel (collapsible) */}
+          <AnimatePresence>
+            {actionItemsPanelOpen && extractedActionItems.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className='overflow-hidden border-t'
+              >
+                <div className='px-4 py-3 bg-card/50 backdrop-blur-sm'>
+                  <div className='flex items-center justify-between mb-2'>
+                    <div className='flex items-center gap-2'>
+                      <ListTodo className='h-4 w-4 text-primary' />
+                      <span className='text-sm font-semibold'>Action Items</span>
+                      <Badge variant='secondary' className='text-[10px]'>{extractedActionItems.length}</Badge>
+                    </div>
+                    <div className='flex items-center gap-1'>
+                      <Button
+                        variant='ghost' size='sm' className='h-6 text-xs gap-1 text-primary hover:text-primary'
+                        onClick={() => useAppStore.getState().setCurrentView('action-items')}
+                      >
+                        View All
+                      </Button>
+                      <Button variant='ghost' size='icon' className='h-6 w-6' onClick={() => setActionItemsPanelOpen(false)}>
+                        <ChevronDown className='h-3.5 w-3.5' />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className='space-y-1.5 max-h-48 overflow-y-auto pr-1'>
+                    {extractedActionItems.map((item) => {
+                      const pConfig = priorityConfig[item.priority] || priorityConfig.medium
+                      const sConfig = statusConfig[item.status] || statusConfig.pending
+                      return (
+                        <motion.div
+                          key={item.id}
+                          layout
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className='flex items-start gap-2.5 p-2 rounded-lg border border-border/40 bg-background/50 hover:bg-muted/30 transition-colors group'
+                        >
+                          <button
+                            onClick={() => toggleActionItemStatus(item.id)}
+                            className='mt-0.5 shrink-0 transition-transform hover:scale-110'
+                            aria-label={`Toggle status for: ${item.content}`}
+                          >
+                            {item.status === 'completed'
+                              ? <CheckCircle2 className='h-4 w-4 text-emerald-500' />
+                              : item.status === 'in_progress'
+                                ? <Clock className='h-4 w-4 text-teal-500' />
+                                : <Circle className='h-4 w-4 text-muted-foreground/50 hover:text-amber-500' />}
+                          </button>
+                          <div className='flex-1 min-w-0'>
+                            <p className={`text-xs leading-relaxed ${item.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{item.content}</p>
+                            <div className='flex items-center gap-2 mt-1 flex-wrap'>
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${pConfig.bg} ${pConfig.color}`}>{pConfig.label}</span>
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${sConfig.bg} ${sConfig.color}`}>{sConfig.label}</span>
+                              {item.owner && <span className='text-[10px] text-muted-foreground'>{item.owner.name}</span>}
+                              {item.dueDate && <span className='text-[10px] text-muted-foreground flex items-center gap-0.5'><AlertTriangle className='h-2.5 w-2.5' />{new Date(item.dueDate).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ── Right Sidebar: Quick Actions & Capabilities ────────────────── */}

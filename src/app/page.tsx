@@ -123,7 +123,16 @@ const ParticipantsPage = dynamic(() => import('@/components/dashboard/views/Part
 const MeetingNotesPage = dynamic(() => import('@/components/dashboard/views/MeetingNotesPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
+const SmartActionItemsPage = dynamic(() => import('@/components/dashboard/views/SmartActionItemsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
 const SessionHistoryPage = dynamic(() => import('@/components/dashboard/views/SessionHistoryPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
+const OrgSettingsPage = dynamic(() => import('@/components/dashboard/views/OrgSettingsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
+const ActivityReportsPage = dynamic(() => import('@/components/dashboard/views/ActivityReportsPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
 
@@ -274,7 +283,8 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'admin-system': AdminSystemPage, settings: SettingsPage, profile: ProfilePage,
   webhooks: WebhooksPage, templates: TemplatesPage, notifications: NotificationsPage,
   'breakout-rooms': BreakoutRoomsPage, participants: ParticipantsPage,
-  'meeting-notes': MeetingNotesPage, 'session-history': SessionHistoryPage,
+  'meeting-notes': MeetingNotesPage, 'action-items': SmartActionItemsPage, 'session-history': SessionHistoryPage,
+  'org-settings': OrgSettingsPage, 'activity-reports': ActivityReportsPage,
 }
 
 // ===========================================================================

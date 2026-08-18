@@ -1,14 +1,38 @@
+// --- AI Meeting Summarization Endpoint ---------------------------------------------------
+// Enhanced with multiple summary types: brief, detailed, action-items, key-topics.
+// Fetches existing transcripts from DB when meetingId is provided.
+// Task ID: phase6-ai-backend
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth, AuthError } from '@/lib/api-auth';
-import { sanitizePrompt, validateUuidOptional } from '@/lib/security';
+import { sanitizePrompt, validateUuidOptional, inputSanitizeOptional, SecurityError } from '@/lib/security';
+
+type SummaryType = 'brief' | 'detailed' | 'action-items' | 'key-topics';
+
+const VALID_TYPES: SummaryType[] = ['brief', 'detailed', 'action-items', 'key-topics'];
+
+const SYSTEM_PROMPTS: Record<SummaryType, string> = {
+  brief:
+    'You are ALVISION AI Meeting Assistant. Generate a concise 2-3 sentence summary of the meeting transcript. Focus on the main outcome and key takeaway.',
+  detailed:
+    'You are ALVISION AI Meeting Assistant. Generate a comprehensive meeting summary with the following sections:\n\n## Executive Summary\n2-3 paragraph overview of the meeting.\n\n## Key Topics Discussed\nBulleted list of main topics with brief descriptions.\n\n## Decisions Made\nBulleted list of decisions with rationale.\n\n## Action Items\nNumbered list with owner and suggested deadline.\n\n## Risks & Concerns\nBulleted list of identified risks.\n\nRespond in plain text with markdown headings. Do NOT wrap in JSON.',
+  'action-items':
+    'You are ALVISION AI Meeting Assistant. Extract ONLY action items from the meeting transcript. For each action item, provide:\n- A clear description of the task\n- Who is responsible (or "Unassigned" if unclear)\n- Priority level (high/medium/low)\n- Suggested deadline if mentioned (or "No deadline specified")\n\nFormat as a numbered list. Do NOT include any other sections or commentary.',
+  'key-topics':
+    'You are ALVISION AI Meeting Assistant. Extract the main discussion topics from the meeting transcript. For each topic, provide:\n- Topic name (2-5 words)\n- Brief summary of the discussion (1-2 sentences)\n- Key participants mentioned\n\nFormat as a bulleted list. Do NOT include any other sections.',
+};
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
 
     const body = await request.json();
-    const { meetingId, transcript } = body;
+    const { meetingId, transcript, type } = body;
+
+    // --- Validate summary type -------------------------------------------------
+    const safeType = inputSanitizeOptional(type, 30) as SummaryType | null;
+    const summaryType: SummaryType = safeType && VALID_TYPES.includes(safeType) ? safeType : 'brief';
 
     if (!transcript && !meetingId) {
       return NextResponse.json(
@@ -17,90 +41,91 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate meetingId if provided
     const safeMeetingId = validateUuidOptional(meetingId);
 
-    // If meetingId provided, try to fetch any existing transcript
+    // --- Build transcript text -------------------------------------------------
     let transcriptText: string | undefined;
-    if (!transcript && safeMeetingId) {
-      const transcriptRecord = await db.transcript.findFirst({
+
+    if (safeMeetingId) {
+      // Fetch ALL transcripts for this meeting (not just the first one)
+      const transcriptRecords = await db.transcript.findMany({
         where: { meetingId: safeMeetingId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'asc' },
       });
-      transcriptText = transcriptRecord?.text || undefined;
-    } else if (transcript) {
-      // Sanitize transcript — truncate to 10000 chars
+
+      if (transcriptRecords.length > 0) {
+        transcriptText = transcriptRecords
+          .map((t) => `[${t.speakerName}]: ${t.text}`)
+          .join('\n');
+      }
+    }
+
+    // Override with provided transcript if given
+    if (transcript && typeof transcript === 'string' && transcript.trim().length > 0) {
       transcriptText = sanitizePrompt(transcript, 10000);
     }
 
+    // --- Build prompt ---------------------------------------------------------
     const userPrompt = transcriptText
-      ? `Please summarize the following meeting transcript:\n\n${transcriptText}`
-      : 'Generate a sample meeting summary for a project kickoff meeting about data center deployment. Include executive summary, 3 key topics, 2 decisions, 3 action items with owners, and 2 risks.';
+      ? `Summarize the following meeting transcript:\n\n${transcriptText}`
+      : 'Generate a sample meeting summary for a project kickoff meeting about data center deployment.';
 
-    // Dynamic import to avoid module-level config issues
+    // --- Call LLM -------------------------------------------------------------
     const ZAI = (await import('z-ai-web-dev-sdk')).default;
     const zai = await ZAI.create();
 
     const completion = await zai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are ALVISION AI Meeting Assistant. Generate a professional meeting summary with: Executive Summary, Key Topics, Decisions, Action Items (with owner and dueDate), Risks. Respond in valid JSON format.',
-        },
+        { role: 'system', content: SYSTEM_PROMPTS[summaryType] },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 1000,
+      max_tokens: summaryType === 'brief' ? 300 : 1500,
     });
 
-    const aiMessage = completion.choices?.[0]?.message?.content || '';
+    const summaryText = completion.choices?.[0]?.message?.content || 'Unable to generate summary.';
 
-    let summary: { [key: string]: unknown };
-    try {
-      const jsonMatch = aiMessage.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        summary = JSON.parse(jsonMatch[0]);
-      } else {
-        summary = {
-          executiveSummary: aiMessage,
-          keyTopics: [],
-          decisions: [],
-          actionItems: [],
-          risks: [],
-        };
-      }
-    } catch {
-      summary = {
-        executiveSummary: aiMessage,
-        keyTopics: [],
-        decisions: [],
-        actionItems: [],
-        risks: [],
-      };
-    }
-
-    // Save MeetingSummary if meetingId exists
+    // --- Save to MeetingSummary if meetingId exists ---------------------------
     if (safeMeetingId) {
       await db.meetingSummary.create({
         data: {
           meetingId: safeMeetingId,
-          summary: JSON.stringify(summary),
-          keyTopics: JSON.stringify(summary.keyTopics || []),
-          decisions: JSON.stringify(summary.decisions || []),
-          risks: JSON.stringify(summary.risks || []),
+          summary: summaryText,
+          keyTopics: summaryType === 'key-topics' ? JSON.stringify([]) : JSON.stringify([]),
+          decisions: JSON.stringify([]),
+          risks: JSON.stringify([]),
           participantCount: 0,
           duration: 0,
         },
       });
     }
 
+    // --- Audit log ------------------------------------------------------------
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'AI_SUMMARIZE',
+        resource: 'MeetingSummary',
+        resourceId: safeMeetingId || undefined,
+        details: `Generated ${summaryType} summary${safeMeetingId ? ` for meeting ${safeMeetingId}` : ''}`,
+      },
+    });
+
     return NextResponse.json({
       success: true,
-      data: { summary },
+      data: {
+        type: summaryType,
+        summary: summaryText,
+      },
     });
   } catch (error) {
     if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode }
+      );
+    }
+    if (error instanceof SecurityError) {
       return NextResponse.json(
         { success: false, error: { code: error.code, message: error.message } },
         { status: error.statusCode }

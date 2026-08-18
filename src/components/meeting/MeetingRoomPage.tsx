@@ -305,7 +305,7 @@ export default function MeetingRoomPage() {
     setCurrentView('dashboard');
   };
 
-  const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => {
+  const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation') => {
     if (tab && sidebarOpen && meetingSidebarTab === tab) setSidebarOpen(false);
     else if (tab) { setMeetingSidebarTab(tab); setSidebarOpen(true); }
     else setSidebarOpen(prev => !prev);

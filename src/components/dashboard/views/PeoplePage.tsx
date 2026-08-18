@@ -7,6 +7,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Search,
   Mail,
@@ -22,9 +36,17 @@ import {
   RefreshCw,
   UserX,
   AlertCircle,
+  UserCog,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 import { authFetch } from '@/lib/api'
+import { useAppStore } from '@/store/app-store'
+import { ROLES_HIERARCHY } from '@/lib/roles'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -52,27 +74,27 @@ interface Person {
 const roleBadgeColors: Record<string, { bg: string; text: string; border: string }> = {
   superadmin: { bg: 'bg-rose-500/10', text: 'text-rose-600', border: 'border-rose-200 dark:border-rose-800' },
   orgadmin: { bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-200 dark:border-amber-800' },
-  teamadmin: { bg: 'bg-violet-500/10', text: 'text-violet-600', border: 'border-violet-200 dark:border-violet-800' },
+  teamadmin: { bg: 'bg-teal-500/10', text: 'text-teal-600', border: 'border-teal-200 dark:border-teal-800' },
   host: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-200 dark:border-emerald-800' },
-  participant: { bg: 'bg-sky-500/10', text: 'text-sky-600', border: 'border-sky-200 dark:border-sky-800' },
+  participant: { bg: 'bg-slate-500/10', text: 'text-slate-600', border: 'border-slate-200 dark:border-slate-800' },
   guest: { bg: 'bg-zinc-500/10', text: 'text-zinc-600', border: 'border-zinc-200 dark:border-zinc-800' },
 }
 
 const roleIcons: Record<string, React.ReactNode> = {
   superadmin: <Crown className='h-3 w-3 text-rose-500' />,
   orgadmin: <Shield className='h-3 w-3 text-amber-500' />,
-  teamadmin: <Shield className='h-3 w-3 text-violet-500' />,
+  teamadmin: <Shield className='h-3 w-3 text-teal-500' />,
   host: <Crown className='h-3 w-3 text-emerald-500' />,
-  participant: <Users className='h-3 w-3 text-sky-500' />,
+  participant: <Users className='h-3 w-3 text-slate-500' />,
   guest: <Users className='h-3 w-3 text-zinc-400' />,
 }
 
 const gradientOptions = [
   'from-rose-500 to-pink-600',
-  'from-violet-500 to-purple-600',
+  'from-teal-500 to-emerald-600',
   'from-emerald-500 to-teal-600',
   'from-amber-500 to-orange-600',
-  'from-sky-500 to-cyan-600',
+  'from-rose-400 to-amber-500',
   'from-teal-500 to-green-600',
 ]
 
@@ -141,13 +163,29 @@ function AnimatedCounter({ target }: { target: number }) {
 
 // ── Main Component ────────────────────────────────────────────────────
 
+const VALID_MEMBER_ROLES = ['orgadmin', 'teamadmin', 'host', 'participant', 'guest'] as const
+
 export default function PeoplePage() {
+  const { user } = useAppStore()
+  const userRole = user?.role || 'participant'
+  const canManage = (ROLES_HIERARCHY[userRole] ?? 0) >= (ROLES_HIERARCHY['orgadmin'] ?? 0)
+
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Invite dialog state
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteName, setInviteName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('participant')
+  const [inviting, setInviting] = useState(false)
+
+  // Action loading state
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const fetchPeople = async () => {
     setLoading(true)
@@ -190,7 +228,99 @@ export default function PeoplePage() {
   }, [search, roleFilter, people])
 
   const activeCount = people.filter(p => p.active).length
+  const inactiveCount = people.filter(p => !p.active).length
   const totalCount = people.length
+
+  // ── Invite member handler ──
+  const handleInvite = async () => {
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      toast.error('Name and email are required')
+      return
+    }
+    setInviting(true)
+    try {
+      const res = await authFetch('/api/v1/organization/members', {
+        method: 'POST',
+        body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), role: inviteRole }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to invite member' } }))
+        throw new Error(err.error?.message || 'Failed to invite member')
+      }
+      toast.success('Member invited successfully')
+      setInviteOpen(false)
+      setInviteName('')
+      setInviteEmail('')
+      setInviteRole('participant')
+      fetchPeople()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to invite member')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  // ── Change role handler ──
+  const handleChangeRole = async (targetUserId: string, newRole: string) => {
+    setActionLoading(targetUserId)
+    try {
+      const res = await authFetch('/api/v1/organization/members', {
+        method: 'PUT',
+        body: JSON.stringify({ userId: targetUserId, role: newRole }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to change role' } }))
+        throw new Error(err.error?.message || 'Failed to change role')
+      }
+      toast.success(`Role changed to ${newRole}`)
+      fetchPeople()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to change role')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ── Toggle active handler ──
+  const handleToggleActive = async (targetUser: Person) => {
+    setActionLoading(targetUser.id)
+    try {
+      const res = await authFetch('/api/v1/organization/members', {
+        method: 'PUT',
+        body: JSON.stringify({ userId: targetUser.id, isActive: !targetUser.active }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to update status' } }))
+        throw new Error(err.error?.message || 'Failed to update status')
+      }
+      toast.success(`${targetUser.name} ${targetUser.active ? 'deactivated' : 'activated'}`)
+      fetchPeople()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update status')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ── Remove member handler ──
+  const handleRemoveMember = async (targetUser: Person) => {
+    setActionLoading(targetUser.id)
+    try {
+      const res = await authFetch(`/api/v1/organization/members?userId=${targetUser.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: 'Failed to remove member' } }))
+        throw new Error(err.error?.message || 'Failed to remove member')
+      }
+      toast.success(`${targetUser.name} removed from organization`)
+      fetchPeople()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove member')
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   const roleCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -273,14 +403,41 @@ export default function PeoplePage() {
             <p className='text-sm text-muted-foreground'>Enterprise directory &amp; team contacts</p>
           </div>
         </div>
-        <div className='relative w-full sm:w-72'>
-          <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
-          <Input
-            placeholder='Search people...'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className='pl-9 h-9'
-          />
+        <div className='flex items-center gap-2 w-full sm:w-auto'>
+          <div className='relative flex-1 sm:w-72'>
+            <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder='Search people...'
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className='pl-9 h-9'
+            />
+          </div>
+          {canManage && (
+            <Button size='sm' className='gap-2 shrink-0' onClick={() => setInviteOpen(true)}>
+              <UserPlus className='h-4 w-4' />
+              <span className='hidden sm:inline'>Invite Member</span>
+            </Button>
+          )}
+        </div>
+      </motion.div>
+
+      {/* ── Member Count Summary ── */}
+      <motion.div variants={item} className='flex flex-wrap gap-3'>
+        <div className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border/50 text-sm'>
+          <Users className='h-4 w-4 text-muted-foreground' />
+          <span className='font-medium'>{totalCount}</span>
+          <span className='text-muted-foreground text-xs'>Total</span>
+        </div>
+        <div className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-200/50 dark:border-emerald-800/50 text-sm'>
+          <span className='w-2 h-2 rounded-full bg-emerald-500' />
+          <span className='font-medium text-emerald-600 dark:text-emerald-400'>{activeCount}</span>
+          <span className='text-muted-foreground text-xs'>Active</span>
+        </div>
+        <div className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-200/50 dark:border-red-800/50 text-sm'>
+          <span className='w-2 h-2 rounded-full bg-red-500' />
+          <span className='font-medium text-red-600 dark:text-red-400'>{inactiveCount}</span>
+          <span className='text-muted-foreground text-xs'>Inactive</span>
         </div>
       </motion.div>
 
@@ -436,9 +593,51 @@ export default function PeoplePage() {
                         <Video className='h-3 w-3' />
                         Call
                       </Button>
-                      <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-lg'>
-                        <MoreHorizontal className='h-3.5 w-3.5' />
-                      </Button>
+                      {canManage ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-lg' disabled={actionLoading === person.id}>
+                              {actionLoading === person.id ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : <MoreHorizontal className='h-3.5 w-3.5' />}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align='end' className='w-48'>
+                            <DropdownMenuLabel className='text-xs'>Actions</DropdownMenuLabel>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger className='gap-2 text-xs'>
+                                <UserCog className='h-3.5 w-3.5' /> Change Role
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {VALID_MEMBER_ROLES.filter(r => r !== person.role).map((role) => (
+                                  <DropdownMenuItem key={role} className='gap-2 text-xs capitalize' onClick={() => handleChangeRole(person.id, role)}>
+                                    {roleIcons[role]}
+                                    {role}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className='gap-2 text-xs'
+                              onClick={() => handleToggleActive(person)}
+                            >
+                              {person.active ? <XCircle className='h-3.5 w-3.5 text-red-500' /> : <CheckCircle2 className='h-3.5 w-3.5 text-emerald-500' />}
+                              {person.active ? 'Deactivate' : 'Activate'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className='gap-2 text-xs text-red-600 focus:text-red-600'
+                              onClick={() => handleRemoveMember(person)}
+                            >
+                              <Trash2 className='h-3.5 w-3.5' />
+                              Remove from Org
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Button variant='ghost' size='sm' className='h-7 w-7 p-0 rounded-lg'>
+                          <MoreHorizontal className='h-3.5 w-3.5' />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -459,6 +658,46 @@ export default function PeoplePage() {
           </div>
         )}
       </motion.div>
+
+      {/* ── Invite Member Dialog ── */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <UserPlus className='h-5 w-5 text-primary' />
+              Invite Member
+            </DialogTitle>
+          </DialogHeader>
+          <div className='space-y-4 pt-2'>
+            <div className='space-y-2'>
+              <Label htmlFor='invite-name'>Name</Label>
+              <Input id='invite-name' placeholder='Full name' value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='invite-email'>Email</Label>
+              <Input id='invite-email' type='email' placeholder='user@company.com' value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            </div>
+            <div className='space-y-2'>
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger><SelectValue placeholder='Select role' /></SelectTrigger>
+                <SelectContent>
+                  {VALID_MEMBER_ROLES.map((r) => (
+                    <SelectItem key={r} value={r} className='capitalize'>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex justify-end gap-3 pt-2'>
+              <Button variant='outline' onClick={() => setInviteOpen(false)}>Cancel</Button>
+              <Button onClick={handleInvite} disabled={inviting || !inviteName.trim() || !inviteEmail.trim()}>
+                {inviting ? <Loader2 className='h-4 w-4 mr-1 animate-spin' /> : <UserPlus className='h-4 w-4 mr-1' />}
+                Send Invite
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

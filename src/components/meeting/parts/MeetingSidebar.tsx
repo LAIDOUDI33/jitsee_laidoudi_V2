@@ -1,6 +1,6 @@
 'use client';
 
-import { X, BarChart3 } from 'lucide-react';
+import { X, BarChart3, Mic, Languages } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MeetingChat from './MeetingChat';
@@ -8,24 +8,26 @@ import ParticipantList from './ParticipantList';
 import MeetingAIPanel from './MeetingAIPanel';
 import PollsPanel from './PollsPanel';
 import BreakoutRoomsPanel from './BreakoutRoomsPanel';
+import TranscriptionPanel from './TranscriptionPanel';
+import TranslationPanel from './TranslationPanel';
 import { type ChatMessage, type PollData } from './meeting-data';
 
 // ─── Props ─────────────────────────────────────────────────────
 export interface MeetingSidebarProps {
- activeTab: string;
- onTabChange: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => void;
- onClose: () => void;
- chatMessages: ChatMessage[];
- typingUserNames: string[];
- onSendMessage: (content: string) => void;
- onSetTyping: (isTyping: boolean) => void;
- effectiveHandRaisedIds: Set<string>;
- onlineCount: number;
- userName: string;
- displayPolls: PollData[];
- onVotePoll: (pollId: string, optionLabel: string) => void;
- onCreatePoll: (config: { question: string; options: string[] }) => void;
- onOpenPollBuilder: () => void;
+  activeTab: string;
+  onTabChange: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation') => void;
+  onClose: () => void;
+  chatMessages: ChatMessage[];
+  typingUserNames: string[];
+  onSendMessage: (content: string) => void;
+  onSetTyping: (isTyping: boolean) => void;
+  effectiveHandRaisedIds: Set<string>;
+  onlineCount: number;
+  userName: string;
+  displayPolls: PollData[];
+  onVotePoll: (pollId: string, optionLabel: string) => void;
+  onCreatePoll: (config: { question: string; options: string[] }) => void;
+  onOpenPollBuilder: () => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────
@@ -56,12 +58,13 @@ export default function MeetingSidebar({
       {/* Sidebar Header */}
       <div className="border-b border-white/10 bg-white/[0.03] backdrop-blur-xl px-2 pt-2">
         <div className="flex items-center justify-between mb-2">
-          <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'chat' | 'participants' | 'ai' | 'polls' | 'breakout')} className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation')} className="w-full">
             <TabsList className="bg-white/5 w-full h-9 rounded-xl">
               <TabsTrigger value="chat" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Chat</TabsTrigger>
               <TabsTrigger value="participants" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">People</TabsTrigger>
               <TabsTrigger value="ai" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">AI</TabsTrigger>
-              <TabsTrigger value="breakout" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg">Breakout</TabsTrigger>
+              <TabsTrigger value="transcription" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg" title="Transcription"><Mic size={12} /></TabsTrigger>
+              <TabsTrigger value="translation" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg" title="Translation"><Languages size={12} /></TabsTrigger>
               <TabsTrigger value="polls" className="flex-1 text-xs data-[state=active]:bg-white/10 data-[state=active]:text-white rounded-lg"><BarChart3 size={12} className="mr-0.5" /></TabsTrigger>
             </TabsList>
           </Tabs>
@@ -100,6 +103,12 @@ export default function MeetingSidebar({
         )}
         {activeTab === 'breakout' && (
           <BreakoutRoomsPanel />
+        )}
+        {activeTab === 'transcription' && (
+          <TranscriptionPanel />
+        )}
+        {activeTab === 'translation' && (
+          <TranslationPanel />
         )}
       </div>
     </motion.div>
