@@ -58,30 +58,26 @@ export function useKeyboardShortcuts() {
     const handler = (e: KeyboardEvent) => {
       const isCmd = e.metaKey || e.ctrlKey
       
-      // Cmd+K - Command palette
-      if (isCmd && e.key === 'k') {
-        e.preventDefault()
-        setSearchOpen(true)
-      }
+      // Cmd+K is handled by SearchCommand component — do not duplicate here
       // Cmd+, - Settings
-      else if (isCmd && e.key === ',') {
+      if (isCmd && e.key === ',') {
         e.preventDefault()
         setCurrentView('settings')
       }
       // Cmd+Shift+N - New Meeting
-      else if (isCmd && e.shiftKey && e.key === 'N') {
+      if (isCmd && e.shiftKey && e.key === 'N') {
         e.preventDefault()
         setMeetingTitle('New Meeting')
         setCurrentMeetingId('new-' + Date.now())
         setCurrentView('meeting-room')
       }
       // Cmd+/ - Show shortcuts
-      else if (isCmd && e.key === '/') {
+      if (isCmd && e.key === '/') {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('toggle-shortcuts'))
       }
       // Escape - Go back
-      else if (e.key === 'Escape') {
+      if (e.key === 'Escape') {
         const store = useAppStore.getState()
         if (store.searchOpen) {
           store.setSearchOpen(false)
