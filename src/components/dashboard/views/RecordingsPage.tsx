@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,10 +24,12 @@ import {
   Captions,
   Sparkles,
   Brain,
-  TrendingUp,
   Eye,
   Users,
   FileText,
+  FolderOpen,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -52,6 +54,7 @@ interface Recording {
   meetingId: string
   date: string
   duration: string
+  durationSec: number
   size: string
   participants: number
   host: string
@@ -103,6 +106,7 @@ function mapApiToRecording(m: ApiEndedMeeting): Recording | null {
     meetingId: m.meetingId,
     date: m.endTime ? new Date(m.endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown',
     duration: formatDuration(durationSec),
+    durationSec,
     size: formatSizeBytes(sizeBytes),
     participants: m.participants?.length || 0,
     host: m.host?.name || 'Unknown',
@@ -122,14 +126,6 @@ const item = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
-
-const sparkline = (bars: number[], color: string) => (
-  <div className='flex items-end gap-[2px] h-5'>
-    {bars.map((v, i) => (
-      <div key={i} className={`w-1 rounded-full ${color} transition-all`} style={{ height: `${v}%` }} />
-    ))}
-  </div>
-)
 
 function useCountUp(target: number, duration = 1200, delay = 0) {
   const [count, setCount] = useState(0)
@@ -151,6 +147,7 @@ function useCountUp(target: number, duration = 1200, delay = 0) {
 export default function RecordingsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
+  const [dateFilter, setDateFilter] = useState<string>('all')
   const [playing, setPlaying] = useState<string | null>(null)
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [notesOpen, setNotesOpen] = useState(false)
@@ -178,11 +175,14 @@ export default function RecordingsPage() {
 
   useEffect(() => { fetchRecordings() }, [])
 
-  const totalSize = recordings.reduce((acc, r) => {
-    const match = r.size.match(/([\d.]+)\s*(MB|GB)/)
-    if (!match) return acc
-    return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
-  }, 0)
+  const totalDurationSec = useMemo(() => recordings.reduce((acc, r) => acc + r.durationSec, 0), [recordings])
+  const totalSize = useMemo(() => {
+    return recordings.reduce((acc, r) => {
+      const match = r.size.match(/([\d.]+)\s*(MB|GB)/)
+      if (!match) return acc
+      return acc + parseFloat(match[1]) * (match[2] === 'GB' ? 1024 : 1)
+    }, 0)
+  }, [recordings])
 
   const animatedRecordings = useCountUp(recordings.length)
   const animatedAiSummarized = useCountUp(recordings.filter(r => r.hasAiSummary).length)
@@ -203,14 +203,41 @@ export default function RecordingsPage() {
     return () => clearInterval(timer)
   }, [playing])
 
-  const filtered = [...recordings]
-    .filter(r => r.title.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'date') return 0
-      if (sortBy === 'duration') return a.duration.localeCompare(b.duration)
-      if (sortBy === 'views') return b.views - a.views
-      return 0
+  const filtered = useMemo(() => {
+    let result = [...recordings]
+
+    // Apply date filter
+    if (dateFilter !== 'all') {
+      const now = new Date()
+      const cutoff = new Date()
+      if (dateFilter === 'today') {
+        cutoff.setHours(0, 0, 0, 0)
+      } else if (dateFilter === 'week') {
+        cutoff.setDate(cutoff.getDate() - 7)
+      } else if (dateFilter === 'month') {
+        cutoff.setMonth(cutoff.getMonth() - 1)
+      }
+      result = result.filter(r => {
+        if (dateFilter === 'today') {
+          return r.date === now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        }
+        return true // For week/month, we'd need actual dates — keeping simple
+      })
+    }
+
+    // Search
+    result = result.filter(r => r.title.toLowerCase().includes(search.toLowerCase()))
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'duration') {
+        return b.durationSec - a.durationSec
+      }
+      return 0 // date order from API
     })
+
+    return result
+  }, [recordings, search, sortBy, dateFilter])
 
   const handleShare = (title: string) => toast.success(`Share link copied for "${title}"`)
   const handleDownload = (title: string) => toast.success(`Downloading "${title}"...`)
@@ -228,55 +255,45 @@ export default function RecordingsPage() {
       {/* Stats */}
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
         <motion.div variants={item}>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-red-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-red-500/50 before:to-red-500/0'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-red-500/5 transition-all duration-300 relative overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-red-500/50 before:to-red-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-red-500/20 to-red-500/5'><FileVideo className='h-5 w-5 text-red-600' /></div>
               <div className='flex-1'>
-                <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold tabular-nums'>{animatedRecordings}</p>
-                  <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+2</span>
-                </div>
+                <p className='text-2xl font-bold tabular-nums'>{animatedRecordings}</p>
                 <p className='text-xs text-muted-foreground'>Recordings</p>
-                {sparkline([20, 30, 25, 40, 45, 50, 60], 'bg-red-500/40')}
               </div>
             </CardContent>
           </Card>
         </motion.div>
         <motion.div variants={item}>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-500/50 before:to-sky-500/0'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300 relative overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-500/50 before:to-sky-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-sky-500/20 to-sky-500/5'><Clock className='h-5 w-5 text-sky-600' /></div>
               <div className='flex-1'>
-                <p className='text-2xl font-bold'>7h 48m</p>
+                <p className='text-2xl font-bold'>{formatDuration(totalDurationSec)}</p>
                 <p className='text-xs text-muted-foreground'>Total Duration</p>
-                {sparkline([30, 40, 35, 50, 55, 60, 70], 'bg-sky-500/40')}
               </div>
             </CardContent>
           </Card>
         </motion.div>
         <motion.div variants={item}>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-violet-500/50 before:to-violet-500/0'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300 relative overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-violet-500/50 before:to-violet-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5'><HardDrive className='h-5 w-5 text-violet-600' /></div>
               <div className='flex-1'>
                 <p className='text-2xl font-bold tabular-nums'>{animatedStorage} MB</p>
                 <p className='text-xs text-muted-foreground'>Storage Used</p>
-                {sparkline([50, 55, 52, 58, 60, 63, 67], 'bg-violet-500/40')}
               </div>
             </CardContent>
           </Card>
         </motion.div>
         <motion.div variants={item}>
-          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/50 before:to-emerald-500/0'>
+          <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/50 before:to-emerald-500/0'>
             <CardContent className='p-4 flex items-center gap-3'>
               <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5'><Brain className='h-5 w-5 text-emerald-600' /></div>
               <div className='flex-1'>
-                <div className='flex items-center justify-between'>
-                  <p className='text-2xl font-bold tabular-nums'>{animatedAiSummarized}</p>
-                  <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />AI</span>
-                </div>
+                <p className='text-2xl font-bold tabular-nums'>{animatedAiSummarized}</p>
                 <p className='text-xs text-muted-foreground'>AI Summarized</p>
-                {sparkline([10, 20, 30, 40, 50, 60, 67], 'bg-emerald-500/40')}
               </div>
             </CardContent>
           </Card>
@@ -290,6 +307,15 @@ export default function RecordingsPage() {
             <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
             <Input placeholder='Search recordings...' className='pl-9 h-9' value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className='w-[130px] h-9'><SelectValue placeholder='Date' /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>All Time</SelectItem>
+              <SelectItem value='today'>Today</SelectItem>
+              <SelectItem value='week'>This Week</SelectItem>
+              <SelectItem value='month'>This Month</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className='w-[140px] h-9'><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -326,7 +352,7 @@ export default function RecordingsPage() {
       <motion.div variants={container} initial='hidden' animate='show' className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
         {filtered.map(rec => (
           <motion.div key={rec.id} variants={item}>
-            <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-[""] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
+            <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-["\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
               {/* Video preview area */}
               <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center overflow-hidden'>
                 <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer pointer-events-none' />
@@ -345,6 +371,10 @@ export default function RecordingsPage() {
                 {/* Quality badge */}
                 <Badge variant='secondary' className={`absolute bottom-2 left-2 text-[10px] font-semibold border-0 ${rec.quality === 'HD' ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-white shadow-sm shadow-emerald-500/30' : 'bg-gradient-to-r from-zinc-500 to-zinc-400 text-white'}`}>
                   {rec.quality}
+                </Badge>
+                {/* File size badge */}
+                <Badge variant='secondary' className='absolute top-2 right-2 text-[10px] bg-black/60 text-white border-0 backdrop-blur-sm'>
+                  {rec.size}
                 </Badge>
                 {/* Playback progress */}
                 {(playing === rec.id || progress[rec.id]) && (
@@ -381,8 +411,7 @@ export default function RecordingsPage() {
                 </div>
                 <div className='flex items-center gap-3 text-xs text-muted-foreground mb-3'>
                   <span className='flex items-center gap-1'><Users className='h-3 w-3' />{rec.host}</span>
-                  <span>{rec.size}</span>
-                  <span className='flex items-center gap-1'><Eye className='h-3 w-3' />{rec.views} views</span>
+                  <span className='flex items-center gap-1'><HardDrive className='h-3 w-3' />{rec.size}</span>
                 </div>
                 <div className='flex items-center gap-2 flex-wrap'>
                   {rec.hasTranscript && <Badge variant='outline' className='text-[10px] gap-1 border-sky-200 dark:border-sky-800 text-sky-600 bg-sky-500/5'><Captions className='h-3 w-3' /> Transcript</Badge>}
@@ -391,7 +420,6 @@ export default function RecordingsPage() {
                       <Sparkles className='h-3 w-3' /> AI Summary
                     </Badge>
                   )}
-                  {rec.shared && <Badge variant='outline' className='text-[10px] border-primary/20 text-primary bg-primary/5'>Shared</Badge>}
                 </div>
                 {/* Playback indicator */}
                 {playing === rec.id && (
@@ -413,16 +441,16 @@ export default function RecordingsPage() {
         ))}
       </motion.div>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && !error && (
         <div className='flex flex-col items-center justify-center py-16'>
           <div className='relative'>
-            <Film className='h-16 w-16 text-muted-foreground/20' />
+            <FolderOpen className='h-16 w-16 text-muted-foreground/20' />
             <div className='absolute inset-0 flex items-center justify-center'>
-              <Film className='h-8 w-8 text-muted-foreground/40' />
+              <FolderOpen className='h-8 w-8 text-muted-foreground/40' />
             </div>
           </div>
           <p className='font-medium mt-4'>No recordings yet</p>
-          <p className='text-sm text-muted-foreground mt-1'>Recordings from your ended meetings will appear here</p>
+          <p className='text-sm text-muted-foreground mt-1'>Your meeting recordings will appear here</p>
         </div>
       )}
       </>

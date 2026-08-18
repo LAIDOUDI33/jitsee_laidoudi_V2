@@ -83,14 +83,16 @@ export async function GET() {
         take: 5,
       }),
 
-      // Recent 10 audit log entries (for activity feed)
+      // Recent 10 audit log entries (for activity feed) — scoped via User.organizationId
       db.auditLog.findMany({
         where: {
-          ...orgFilter,
           userId: { not: null },
+          ...(user.organizationId && user.role !== 'superadmin'
+            ? { user: { organizationId: user.organizationId } }
+            : {}),
         },
         include: {
-          user: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, organizationId: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 10,

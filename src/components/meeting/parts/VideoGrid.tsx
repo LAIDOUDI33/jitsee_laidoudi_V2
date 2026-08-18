@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MicOff, VideoOff, Hand, Pin, PinOff, Wifi, Signal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { type Participant, type NetworkQuality, networkQualityConfig, getGradient, getRoleBadgeClass } from './meeting-data';
 
-// ─── Audio Level Bars ─────────────────────────────────────────
-function AudioLevelBars() {
+// ─── Audio Level Bars (real level-based) ──────────────────────
+function AudioLevelBars({ audioLevel }: { audioLevel?: number }) {
+  // Fallback to animated mock if no level provided
   const [levels, setLevels] = useState([3, 5, 2]);
+  const isReal = audioLevel !== undefined;
+
   useEffect(() => {
+    if (isReal) return; // driven by prop
     const interval = setInterval(() => {
       setLevels([
         Math.max(1, Math.floor(Math.random() * 6) + 1),
@@ -18,15 +22,23 @@ function AudioLevelBars() {
       ]);
     }, 400);
     return () => clearInterval(interval);
-  }, []);
+  }, [isReal]);
+
+  const barHeights = isReal
+    ? [audioLevel * 14 + 2, audioLevel * 16 + 2, audioLevel * 12 + 2]
+    : levels.map(h => h * 4);
+
   return (
     <div className="flex items-end gap-[2px] h-4">
-      {levels.map((h, i) => (
+      {barHeights.map((h, i) => (
         <motion.div
           key={i}
           className="w-[3px] rounded-full bg-emerald-400"
-          animate={{ height: [2, h * 4, 2] }}
-          transition={{ duration: 0.4, delay: i * 0.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' as const }}
+          animate={isReal ? { height: h } : { height: [2, h, 2] }}
+          transition={isReal
+            ? { duration: 0.1, ease: 'easeOut' as const }
+            : { duration: 0.4, delay: i * 0.1, repeat: Infinity, repeatType: 'reverse' as const, ease: 'easeInOut' as const }
+          }
         />
       ))}
     </div>
@@ -34,21 +46,28 @@ function AudioLevelBars() {
 }
 
 // ─── Network Quality Indicator ────────────────────────────────
-function NetworkQualityIndicator() {
-  const [quality, setQuality] = useState<NetworkQuality>('excellent');
-  const [latency, setLatency] = useState(22);
+function NetworkQualityIndicator({ rtt = 0, bitrate = 0, resolution = '' }: { rtt?: number; bitrate?: number; resolution?: string }) {
+  // Derive quality from real RTT; fallback to random if no data
+  const [simQuality, setSimQuality] = useState<NetworkQuality>('excellent');
+  const [simLatency, setSimLatency] = useState(22);
 
   useEffect(() => {
+    if (rtt > 0) return; // Real data drives quality
     const qualities: NetworkQuality[] = ['excellent', 'good', 'fair', 'poor'];
     const changeQuality = () => {
       const q = qualities[Math.floor(Math.random() * qualities.length)];
-      setQuality(q);
+      setSimQuality(q);
       const [minLat, maxLat] = networkQualityConfig[q].latency;
-      setLatency(Math.floor(Math.random() * (maxLat - minLat + 1)) + minLat);
+      setSimLatency(Math.floor(Math.random() * (maxLat - minLat + 1)) + minLat);
     };
     const interval = setInterval(changeQuality, 10000 + Math.random() * 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [rtt]);
+
+  // Real quality from RTT
+  const realQuality: NetworkQuality = rtt === 0 ? 'excellent' : rtt < 50 ? 'excellent' : rtt < 100 ? 'good' : rtt < 200 ? 'fair' : 'poor';
+  const quality = rtt > 0 ? realQuality : simQuality;
+  const latency = rtt > 0 ? rtt : simLatency;
 
   const config = networkQualityConfig[quality];
   const barCount = quality === 'excellent' ? 4 : quality === 'good' ? 3 : quality === 'fair' ? 2 : 1;
@@ -74,6 +93,8 @@ function NetworkQualityIndicator() {
         <div className="flex flex-col gap-0.5">
           <span>Network: <span className={config.color}>{config.label}</span></span>
           <span className="text-white/50">Latency: {latency}ms</span>
+          {bitrate > 0 && <span className="text-white/50">Bitrate: {bitrate >= 1000 ? `${(bitrate / 1000).toFixed(1)} Mbps` : `${bitrate} kbps`}</span>}
+          {resolution && <span className="text-white/50">Video: {resolution}</span>}
         </div>
       </TooltipContent>
     </Tooltip>
@@ -89,6 +110,9 @@ interface ParticipantTileProps {
   onPin?: () => void;
   index?: number;
   compact?: boolean;
+  mediaStream?: MediaStream | null;
+  isLocal?: boolean;
+  audioLevel?: number;
 }
 
 function ParticipantTile({
@@ -99,9 +123,24 @@ function ParticipantTile({
   onPin,
   index = 0,
   compact = false,
+  mediaStream,
+  isLocal = false,
+  audioLevel,
 }: ParticipantTileProps) {
   const [hovered, setHovered] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const gradient = getGradient(participant.color);
+
+  const hasVideoStream = mediaStream && mediaStream.getVideoTracks().some(t => t.enabled && t.readyState === 'live');
+
+  // Attach stream to video element
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl || !mediaStream) return;
+    if (videoEl.srcObject !== mediaStream) {
+      videoEl.srcObject = mediaStream;
+    }
+  }, [mediaStream]);
 
   return (
     <motion.div
@@ -115,32 +154,45 @@ function ParticipantTile({
         isSpeaker ? 'ring-1 ring-white/10' : 'ring-1 ring-white/[0.06]'
       } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'}`}
     >
-      {/* Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+      {/* Video element (when real stream available) */}
+      {hasVideoStream ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          className={`absolute inset-0 w-full h-full object-cover ${isLocal ? '[transform:scaleX(-1)]' : ''}`}
+        />
+      ) : (
+        <>
+          {/* Gradient Background (fallback) */}
+          <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
 
-      {/* Subtle noise texture overlay */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }} />
+          {/* Subtle noise texture overlay */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }} />
 
-      {/* Avatar Placeholder */}
-      <div className="relative z-10 flex flex-col items-center gap-2">
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className={`rounded-full ${participant.color} flex items-center justify-center text-white font-bold shadow-lg ${
-            compact ? 'w-10 h-10 text-sm' : 'w-16 h-16 sm:w-20 sm:h-20 text-xl sm:text-2xl'
-          }`}
-          style={{ boxShadow: `0 8px 32px ${participant.color.replace('bg-', '')}40` }}
-        >
-          {participant.initials}
-        </motion.div>
-        {participant.videoOn && !compact && (
-          <span className="text-[10px] text-white/40 font-medium">Camera active</span>
-        )}
-      </div>
+          {/* Avatar Placeholder */}
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className={`rounded-full ${participant.color} flex items-center justify-center text-white font-bold shadow-lg ${
+                compact ? 'w-10 h-10 text-sm' : 'w-16 h-16 sm:w-20 sm:h-20 text-xl sm:text-2xl'
+              }`}
+              style={{ boxShadow: `0 8px 32px ${participant.color.replace('bg-', '')}40` }}
+            >
+              {participant.initials}
+            </motion.div>
+            {!hasVideoStream && participant.videoOn && !compact && (
+              <span className="text-[10px] text-white/40 font-medium">Camera active</span>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Audio Level Indicator (when mic on, bottom-left) */}
       {participant.micOn && !compact && (
         <div className="absolute bottom-3 left-3 z-20 bg-black/40 backdrop-blur-sm rounded-lg px-1.5 py-1">
-          <AudioLevelBars />
+          <AudioLevelBars audioLevel={audioLevel} />
         </div>
       )}
 
@@ -211,6 +263,10 @@ export interface VideoGridProps {
   displayCaption: { speaker: string; text: string } | null;
   captionKey: number;
   onTogglePin: (id: string) => void;
+  localStream?: MediaStream | null;
+  remoteStreams?: Map<string, MediaStream>;
+  localAudioLevel?: number;
+  webrtcStats?: { rtt: number; bitrate: number; localVideoResolution: string };
 }
 
 // ─── Component ─────────────────────────────────────────────────
@@ -223,11 +279,19 @@ export default function VideoGrid({
   displayCaption,
   captionKey,
   onTogglePin,
+  localStream = null,
+  remoteStreams,
+  localAudioLevel,
+  webrtcStats,
 }: VideoGridProps) {
   return (
     <div className="flex-1 relative z-10">
       {/* ── Network Quality Indicator ── */}
-      <NetworkQualityIndicator />
+      <NetworkQualityIndicator
+        rtt={webrtcStats?.rtt}
+        bitrate={webrtcStats?.bitrate}
+        resolution={webrtcStats?.localVideoResolution}
+      />
 
       {/* ── Live Captions Panel ── */}
       <AnimatePresence mode="wait">
@@ -267,6 +331,9 @@ export default function VideoGrid({
                   isPinned={pinnedParticipant === displayParticipants[0].id}
                   isHandRaised={effectiveHandRaisedIds.has(displayParticipants[0].id)}
                   onPin={() => onTogglePin(displayParticipants[0].id)}
+                  mediaStream={displayParticipants[0].isLocal ? localStream : (remoteStreams?.get(displayParticipants[0].id) ?? null)}
+                  isLocal={displayParticipants[0].isLocal}
+                  audioLevel={displayParticipants[0].isLocal ? localAudioLevel : undefined}
                 />
             </div>
             {/* Thumbnail strip */}
@@ -280,6 +347,9 @@ export default function VideoGrid({
                     isHandRaised={effectiveHandRaisedIds.has(p.id)}
                     onPin={() => onTogglePin(p.id)}
                     compact
+                    mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
+                    isLocal={p.isLocal}
+                    audioLevel={p.isLocal ? localAudioLevel : undefined}
                   />
                 </div>
               ))}
@@ -302,6 +372,9 @@ export default function VideoGrid({
                 isPinned={pinnedParticipant === p.id}
                 isHandRaised={effectiveHandRaisedIds.has(p.id)}
                 onPin={() => onTogglePin(p.id)}
+                mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
+                isLocal={p.isLocal}
+                audioLevel={p.isLocal ? localAudioLevel : undefined}
               />
             ))}
           </div>

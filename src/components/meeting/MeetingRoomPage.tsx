@@ -2,6 +2,7 @@
 
 import { useAppStore } from '@/store/app-store';
 import { useMeetingRoom } from '@/hooks/useMeetingRoom';
+import { useWebRTC } from '@/hooks/useWebRTC';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ import PollBuilder, { PollConfig } from '@/components/shared/PollBuilder';
 import VirtualBackgrounds, { VirtualBgOption } from '@/components/shared/VirtualBackgrounds';
 import LiveTranscriptionPanel from '@/components/shared/LiveTranscriptionPanel';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Wifi, Loader2 } from 'lucide-react';
 
 // Sub-components
 import MeetingHeader from './parts/MeetingHeader';
@@ -18,10 +20,13 @@ import MeetingSidebar from './parts/MeetingSidebar';
 
 // Shared data / helpers
 import {
+  type Participant,
   type FloatingReaction,
   mockParticipants,
   wsMsgToLocal,
   wsPollToLocal,
+  nameToColor,
+  nameToInitials,
 } from './parts/meeting-data';
 
 // ─── Floating Reaction Emoji ──────────────────────────────────
@@ -40,6 +45,25 @@ function FloatingReactionEmoji({ emoji, x, onDone }: { emoji: string; x: number;
   );
 }
 
+// ─── WebRTC Connection Indicator ──────────────────────────────
+function WebRTCIndicator({ state }: { state: string }) {
+  if (state === 'disconnected') return null;
+  const isConnecting = state === 'connecting';
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border ${
+      isConnecting
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+    }`}>
+      {isConnecting
+        ? <Loader2 size={11} className="animate-spin" />
+        : <Wifi size={11} />
+      }
+      <span>{isConnecting ? 'Connecting…' : 'P2P'}</span>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function MeetingRoomPage() {
   const {
@@ -49,6 +73,9 @@ export default function MeetingRoomPage() {
 
   // ── Real-time meeting room WebSocket ─────────────────────────
   const meetingId = currentMeetingId || 'alv-mtg-001';
+  const userId = user?.id || 'local-user';
+  const userName = user?.name || 'You';
+
   const {
     status: wsStatus,
     chatMessages: wsChatMessages,
@@ -65,16 +92,28 @@ export default function MeetingRoomPage() {
     votePoll: wsVotePoll,
     disconnect: wsDisconnect,
     setOnReaction,
-  } = useMeetingRoom({
+    updateMediaState: wsUpdateMediaState,
+  } = useMeetingRoom({ meetingId, userId, userName });
+
+  // ── WebRTC hook ───────────────────────────────────────────────
+  const {
+    localStream,
+    remoteParticipants: webrtcRemoteParticipants,
+    mediaState: webrtcMediaState,
+    connectionState: webrtcConnectionState,
+    stats: webrtcStats,
+    toggleAudio: webrtcToggleAudio,
+    toggleVideo: webrtcToggleVideo,
+    toggleScreenShare: webrtcToggleScreenShare,
+    disconnect: webrtcDisconnect,
+  } = useWebRTC({
     meetingId,
-    userId: user?.id || 'local-user',
-    userName: user?.name || 'You',
+    userId,
+    userName,
+    enabled: true,
   });
 
   // --- Shared State ---
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
-  const [screenSharing, setScreenSharing] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -95,6 +134,24 @@ export default function MeetingRoomPage() {
 
   const meetingContainerRef = useRef<HTMLDivElement>(null);
 
+  // Derive mic/camera/screen state from WebRTC
+  const micOn = webrtcMediaState.audio;
+  const cameraOn = webrtcMediaState.video;
+  const screenSharing = webrtcMediaState.screen;
+
+  // Build remote streams map for VideoGrid
+  const remoteStreams = useMemo(() => {
+    const map = new Map<string, MediaStream>();
+    for (const [id, rp] of webrtcRemoteParticipants) {
+      if (rp.stream) map.set(id, rp.stream);
+    }
+    return map;
+  }, [webrtcRemoteParticipants]);
+
+  // Whether WebRTC has real remote participants
+  const hasRemoteParticipants = webrtcRemoteParticipants.size > 0 &&
+    (webrtcConnectionState === 'connected' || webrtcConnectionState === 'connecting');
+
   // ── Derive display state from WebSocket ───────────────────────
   const chatMessages = useMemo(() => wsChatMessages.map(wsMsgToLocal), [wsChatMessages]);
   const typingUserNames = useMemo(() => {
@@ -107,6 +164,78 @@ export default function MeetingRoomPage() {
   }, [wsTypingUsers, wsChatMessages]);
   const displayPolls = useMemo(() => wsPolls.map(wsPollToLocal), [wsPolls]);
   const displayCaption = useMemo(() => wsCaption, [wsCaption]);
+
+  // ── Build local participant object ────────────────────────────
+  const localParticipant = useMemo((): Participant => ({
+    id: userId,
+    name: userName,
+    initials: nameToInitials(userName),
+    color: nameToColor(userName),
+    role: 'Host',
+    micOn,
+    videoOn: cameraOn,
+    online: true,
+    isLocal: true,
+  }), [userId, userName, micOn, cameraOn]);
+
+  // ── Map WebRTC remote participants to display Participants ────
+  const remoteParticipantList = useMemo((): Participant[] => {
+    const list: Participant[] = [];
+    for (const [, rp] of webrtcRemoteParticipants) {
+      list.push({
+        id: rp.id,
+        name: rp.name,
+        initials: nameToInitials(rp.name),
+        color: nameToColor(rp.name),
+        role: 'Participant',
+        micOn: rp.micOn,
+        videoOn: rp.videoOn,
+        online: true,
+        isLocal: false,
+      });
+    }
+    return list;
+  }, [webrtcRemoteParticipants]);
+
+  // --- Derived display data ---
+  const displayParticipants = useMemo(() => {
+    // Use real WebRTC participants when available
+    if (hasRemoteParticipants) {
+      const all: Participant[] = [localParticipant, ...remoteParticipantList];
+      if (pinnedParticipant && gridLayout === 'speaker') {
+        const pinned = all.find(p => p.id === pinnedParticipant);
+        const others = all.filter(p => p.id !== pinnedParticipant);
+        return pinned ? [pinned, ...others.slice(0, 5)] : all.slice(0, 6);
+      }
+      if (gridLayout === 'speaker') return all.slice(0, 6);
+      if (gridLayout === 'gallery') return all;
+      return all.slice(0, 4);
+    }
+
+    // Fallback: mock participants (demo mode)
+    // Replace the first mock participant with the local user if local stream exists
+    if (localStream) {
+      const withLocal = [localParticipant, ...mockParticipants];
+      if (pinnedParticipant && gridLayout === 'speaker') {
+        const pinned = withLocal.find(p => p.id === pinnedParticipant);
+        const others = withLocal.filter(p => p.id !== pinnedParticipant);
+        return pinned ? [pinned, ...others.slice(0, 5)] : withLocal.slice(0, 6);
+      }
+      if (gridLayout === 'speaker') return [withLocal[0], ...withLocal.slice(1, 6)];
+      if (gridLayout === 'gallery') return withLocal;
+      return withLocal.slice(0, 4);
+    }
+
+    // Pure fallback (no WebRTC at all)
+    if (pinnedParticipant && gridLayout === 'speaker') {
+      const pinned = mockParticipants.find(p => p.id === pinnedParticipant);
+      const others = mockParticipants.filter(p => p.id !== pinnedParticipant);
+      return pinned ? [pinned, ...others.slice(0, 5)] : mockParticipants.slice(0, 6);
+    }
+    if (gridLayout === 'speaker') return [mockParticipants[0], ...mockParticipants.slice(1, 6)];
+    if (gridLayout === 'gallery') return mockParticipants;
+    return mockParticipants.slice(0, 4);
+  }, [hasRemoteParticipants, localParticipant, remoteParticipantList, localStream, gridLayout, pinnedParticipant]);
 
   // ── Handle incoming reactions for floating UI ──────────────────
   const handleIncomingReaction = useCallback((data: { userId: string; userName: string; emoji: string }) => {
@@ -170,6 +299,7 @@ export default function MeetingRoomPage() {
   };
 
   const handleLeaveMeeting = () => {
+    webrtcDisconnect();
     wsDisconnect();
     toast.success('You left the meeting');
     setCurrentView('dashboard');
@@ -198,25 +328,35 @@ export default function MeetingRoomPage() {
 
   const handleApplyVirtualBg = (bg: VirtualBgOption) => setVirtualBg(bg.id);
 
-  // --- Derived display data ---
-  const displayParticipants = useMemo(() => {
-    if (pinnedParticipant && gridLayout === 'speaker') {
-      const pinned = mockParticipants.find(p => p.id === pinnedParticipant);
-      const others = mockParticipants.filter(p => p.id !== pinnedParticipant);
-      return pinned ? [pinned, ...others.slice(0, 5)] : mockParticipants.slice(0, 6);
-    }
-    if (gridLayout === 'speaker') return [mockParticipants[0], ...mockParticipants.slice(1, 6)];
-    if (gridLayout === 'gallery') return mockParticipants;
-    return mockParticipants.slice(0, 4);
-  }, [gridLayout, pinnedParticipant]);
+  // Media toggle handlers — WebRTC + WS media state broadcast
+  const handleToggleMic = useCallback(async () => {
+    await webrtcToggleAudio();
+    wsUpdateMediaState(!micOn, cameraOn);
+  }, [webrtcToggleAudio, wsUpdateMediaState, micOn, cameraOn]);
+
+  const handleToggleCamera = useCallback(async () => {
+    await webrtcToggleVideo();
+    wsUpdateMediaState(micOn, !cameraOn);
+  }, [webrtcToggleVideo, wsUpdateMediaState, micOn, cameraOn]);
+
+  const handleToggleScreenShare = useCallback(async () => {
+    await webrtcToggleScreenShare();
+    toast(screenSharing ? 'Screen sharing stopped' : 'Screen sharing started');
+  }, [webrtcToggleScreenShare, screenSharing]);
 
   const effectiveHandRaisedIds = useMemo(() => {
     const ids = new Set(wsHandRaisedUsers);
-    if (handRaised) ids.add(user?.id || 'local-user');
+    if (handRaised) ids.add(userId);
     return ids;
-  }, [wsHandRaisedUsers, handRaised, user?.id]);
+  }, [wsHandRaisedUsers, handRaised, userId]);
 
-  const onlineCount = mockParticipants.filter(p => p.online !== false).length;
+  const onlineCount = hasRemoteParticipants
+    ? webrtcRemoteParticipants.size + 1
+    : mockParticipants.filter(p => p.online !== false).length;
+
+  const totalCount = hasRemoteParticipants
+    ? webrtcRemoteParticipants.size + 1
+    : mockParticipants.length;
 
   // ─── Render ─────────────────────────────────────────────────
   return (
@@ -248,13 +388,20 @@ export default function MeetingRoomPage() {
           isRecording={isRecording}
           recordingTime={recordingTime}
           elapsed={elapsed}
-          meetingId={currentMeetingId || 'alv-mtg-001'}
+          meetingId={meetingId}
           onlineCount={onlineCount}
-          totalCount={mockParticipants.length}
+          totalCount={totalCount}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
           formatTime={formatTime}
         />
+
+        {/* WebRTC Connection Indicator */}
+        {localStream && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30">
+            <WebRTCIndicator state={webrtcConnectionState} />
+          </div>
+        )}
 
         <VideoGrid
           displayParticipants={displayParticipants}
@@ -265,6 +412,10 @@ export default function MeetingRoomPage() {
           displayCaption={displayCaption}
           captionKey={captionKey}
           onTogglePin={handleTogglePin}
+          localStream={localStream}
+          remoteStreams={remoteStreams}
+          localAudioLevel={webrtcStats.localAudioLevel}
+          webrtcStats={webrtcStats}
         />
 
         <MeetingToolbar
@@ -274,9 +425,9 @@ export default function MeetingRoomPage() {
           virtualBgActive={virtualBg !== 'none'} gridLayout={gridLayout}
           meetingSidebarTab={meetingSidebarTab} sidebarOpen={sidebarOpen}
           reactionCounts={reactionCounts} enhancedReactionsOpen={enhancedReactionsOpen}
-          onToggleMic={() => setMicOn(!micOn)}
-          onToggleCamera={() => setCameraOn(!cameraOn)}
-          onToggleScreenShare={() => { setScreenSharing(!screenSharing); toast(screenSharing ? 'Screen sharing stopped' : 'Screen sharing started'); }}
+          onToggleMic={handleToggleMic}
+          onToggleCamera={handleToggleCamera}
+          onToggleScreenShare={handleToggleScreenShare}
           onToggleHand={handleToggleHand}
           onToggleRecording={() => { const next = !isRecording; if (!next) setRecordingTime(0); setIsRecording(next); toast(next ? 'Recording started' : 'Recording stopped'); }}
           onToggleCaptions={() => setCaptionsVisible(!captionsVisible)}
@@ -304,7 +455,7 @@ export default function MeetingRoomPage() {
             onSetTyping={wsSetTyping}
             effectiveHandRaisedIds={effectiveHandRaisedIds}
             onlineCount={onlineCount}
-            userName={user?.name || 'You'}
+            userName={userName}
             displayPolls={displayPolls}
             onVotePoll={wsVotePoll}
             onCreatePoll={handleCreatePoll}

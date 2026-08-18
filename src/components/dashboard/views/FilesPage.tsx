@@ -29,10 +29,8 @@ import {
   Clock,
   HardDrive,
   CloudUpload,
-  TrendingUp,
   FileSpreadsheet,
   FileImage,
-  FileType,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -243,14 +241,6 @@ export default function FilesPage() {
   const handleShare = (name: string) => toast.success(`Share link copied for "${name}"`)
   const handleDelete = (name: string) => toast.success(`"${name}" moved to trash`)
 
-  const sparkline = (bars: number[], color: string) => (
-    <div className='flex items-end gap-[2px] h-5'>
-      {bars.map((v, i) => (
-        <div key={i} className={`w-1 rounded-full ${color} transition-all`} style={{ height: `${v}%` }} />
-      ))}
-    </div>
-  )
-
   return (
     <div className='space-y-6'>
       {/* Header */}
@@ -284,7 +274,6 @@ export default function FilesPage() {
                   <p className='text-xs text-muted-foreground'>of {TOTAL_STORAGE_GB} GB used</p>
                 </div>
               </div>
-              <span className='text-[10px] font-medium text-amber-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />↑ 8%</span>
             </div>
             <div className='space-y-1'>
               <div className='relative h-2 rounded-full bg-primary/10 overflow-hidden'>
@@ -298,12 +287,8 @@ export default function FilesPage() {
           <CardContent className='p-4 flex items-center gap-3'>
             <div className='p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5'><File className='h-5 w-5 text-emerald-600' /></div>
             <div className='flex-1'>
-              <div className='flex items-center justify-between'>
-                <p className='text-2xl font-bold'>{files.length}</p>
-                <span className='text-[10px] font-medium text-emerald-600 flex items-center gap-0.5'><TrendingUp className='h-2.5 w-2.5' />+3</span>
-              </div>
+              <p className='text-2xl font-bold'>{files.length}</p>
               <p className='text-xs text-muted-foreground'>Total Files</p>
-              {sparkline([20, 30, 25, 40, 45, 50, 55], 'bg-emerald-500/40')}
             </div>
           </CardContent>
         </Card>
@@ -313,7 +298,6 @@ export default function FilesPage() {
             <div className='flex-1'>
               <p className='text-2xl font-bold'>{files.filter(f => f.shared).length}</p>
               <p className='text-xs text-muted-foreground'>Shared Files</p>
-              {sparkline([15, 25, 35, 30, 40, 38, 42], 'bg-violet-500/40')}
             </div>
           </CardContent>
         </Card>

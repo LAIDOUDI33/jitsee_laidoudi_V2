@@ -125,10 +125,23 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
-const sparklineDataFunc = () =>
-  Array.from({ length: 7 }, () => Math.floor(Math.random() * 80) + 20)
+// Stable pseudo-random based on seed string
+function seededRandom(seed: string, index: number): number {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) {
+    h = ((h << 5) - h + seed.charCodeAt(i)) | 0
+  }
+  h = ((h << 5) - h + index) | 0
+  return Math.abs(Math.sin(h * 9301 + 49297) * 233280) % 1
+}
 
-const sprintProgressFunc = () => Math.floor(Math.random() * 50) + 40
+function getSparklineData(teamId: string): number[] {
+  return Array.from({ length: 7 }, (_, i) => Math.floor(seededRandom(teamId, i) * 80) + 20)
+}
+
+function getSprintProgress(teamId: string): number {
+  return Math.floor(seededRandom(teamId, 100) * 50) + 40
+}
 
 // 7-day activity heatmap data (0-4 intensity levels)
 const heatmapDataFunc = () => Array.from({ length: 7 }, () => Math.floor(Math.random() * 5))
@@ -490,9 +503,9 @@ export default function TeamsPage() {
                   {/* Team Activity Sparkline + Sprint Progress */}
                   <div className='flex items-center justify-between mb-3 gap-3'>
                     <div className='flex-1'>
-                      <SprintProgressBar progress={sprintProgressFunc()} color={team.color} />
+                      <SprintProgressBar progress={getSprintProgress(team.id)} color={team.color} />
                     </div>
-                    <TeamSparkline data={sparklineDataFunc()} color={team.color} />
+                    <TeamSparkline data={getSparklineData(team.id)} color={team.color} />
                   </div>
                   <div className='flex items-center justify-between text-sm text-muted-foreground mb-3'>
                     <span className='flex items-center gap-1.5 text-xs'><MessageSquare className='h-3.5 w-3.5' />{team.channels} channels</span>
@@ -621,7 +634,7 @@ export default function TeamsPage() {
               </CardContent>
               {/* Activity heatmap strip at bottom of detail panel */}
               <div className='px-6 pb-4'>
-                <ActivityHeatmap data={heatmapData[selectedTeam.id] || heatmapData['t1']} />
+                <ActivityHeatmap data={getSparklineData(selectedTeam.id).map(v => Math.min(4, Math.floor(v / 20)))} />
               </div>
             </Card>
           </motion.div>

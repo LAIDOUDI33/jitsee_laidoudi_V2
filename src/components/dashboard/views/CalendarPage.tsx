@@ -31,6 +31,7 @@ interface CalendarEvent {
   duration: string
   type: 'meeting' | 'event' | 'deadline' | 'reminder'
   participants?: number
+  host?: string
   color: string
 }
 
@@ -45,6 +46,7 @@ interface ApiScheduledMeeting {
   maxParticipants: number
   settings: string | null
   participants?: { user: { id: string; name: string } }[]
+  host?: { id: string; name: string; email: string } | null
 }
 
 const meetingColors = ['bg-sky-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-teal-500', 'bg-rose-500', 'bg-sky-600']
@@ -62,6 +64,7 @@ function mapApiToCalendarEvent(m: ApiScheduledMeeting, index: number): CalendarE
     duration: durStr,
     type: 'meeting',
     participants: m.participants?.length || 0,
+    host: m.host?.name,
     color: meetingColors[index % meetingColors.length],
   }
 }
@@ -359,6 +362,7 @@ export default function CalendarPage() {
                           <div className='flex items-center gap-2 mt-1 text-xs text-muted-foreground'>
                             <span className='flex items-center gap-1'><Clock className='h-3 w-3' />{e.time}</span>
                             {e.duration && <span>· {e.duration}</span>}
+                            {e.host && <span>· Host: {e.host}</span>}
                           </div>
                           {e.participants && (
                             <div className='flex items-center gap-1 mt-1.5'>

@@ -25,6 +25,7 @@ export interface Participant {
   videoOn: boolean;
   online?: boolean;
   handRaised?: boolean;
+  isLocal?: boolean;
 }
 
 export interface BreakoutRoom {
