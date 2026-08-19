@@ -5,6 +5,7 @@ import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
   Hand, Phone, CircleDot, Sparkles, Check, Plus, LayoutGrid, UserCircle,
   Subtitles, SmilePlus, Pen, LayoutDashboard, FileText, ImageIcon,
+  MoreHorizontal,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -129,12 +130,16 @@ export default function MeetingToolbar({
 }: MeetingToolbarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const enhancedReactionsRef = useRef<HTMLDivElement>(null);
 
   // --- Close more menu on outside click ---
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setShowMoreMenu(false);
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node) &&
+          mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -202,105 +207,160 @@ export default function MeetingToolbar({
             onClick={onToggleCamera}
             glowColor="emerald"
           />
-          {/* Screen Share */}
-          <ToolbarButton
-            active={screenSharing}
-            icon={screenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
-            label={screenSharing ? 'Stop Sharing' : 'Share Screen'}
-            onClick={onToggleScreenShare}
-            glowColor="sky"
-          />
-          {/* Hand Raise */}
-          <ToolbarButton
-            active={handRaised}
-            icon={<Hand size={20} />}
-            label={handRaised ? 'Lower Hand' : 'Raise Hand'}
-            onClick={onToggleHand}
-            glowColor="amber"
-          />
-          {/* Recording */}
-          <ToolbarButton
-            active={isRecording}
-            icon={<CircleDot size={20} />}
-            label={isRecording ? 'Stop Recording' : 'Start Recording'}
-            onClick={onToggleRecording}
-            glowColor="red"
-          />
 
-          {/* Separator */}
-          <div className="w-px h-8 bg-white/10 mx-0.5" />
-
-          {/* Chat */}
-          <ToolbarButton
-            active={meetingSidebarTab === 'chat' && sidebarOpen}
-            icon={<MessageSquare size={20} />}
-            label="Chat"
-            onClick={() => onToggleSidebar('chat')}
-          />
-          {/* Participants */}
-          <ToolbarButton
-            active={meetingSidebarTab === 'participants' && sidebarOpen}
-            icon={<Users size={20} />}
-            label="Participants"
-            onClick={() => onToggleSidebar('participants')}
-          />
-          {/* AI */}
-          <ToolbarButton
-            active={meetingSidebarTab === 'ai' && sidebarOpen}
-            icon={<Sparkles size={20} />}
-            label="AI Assistant"
-            onClick={() => onToggleSidebar('ai')}
-          />
-          {/* Captions */}
-          <ToolbarButton
-            active={captionsVisible}
-            icon={<Subtitles size={20} />}
-            label={captionsVisible ? 'Hide Captions' : 'Show Captions'}
-            onClick={onToggleCaptions}
-          />
-          {/* Live Transcription Panel */}
-          <ToolbarButton
-            active={transcriptionOpen}
-            icon={<FileText size={20} />}
-            label={transcriptionOpen ? 'Hide Transcription' : 'Live Transcription'}
-            onClick={onToggleTranscription}
-          />
-          {/* Virtual Backgrounds */}
-          <ToolbarButton
-            active={virtualBgActive}
-            icon={<ImageIcon size={20} />}
-            label={virtualBgActive ? 'Change Background' : 'Virtual Background'}
-            onClick={onOpenVirtualBg}
-            glowColor="emerald"
-          />
-          {/* Reactions */}
-          <div className="relative">
+          {/* ── Desktop-only buttons (hidden on mobile) ── */}
+          <div className="hidden md:flex items-center">
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/10 mx-0.5" />
+            {/* Screen Share */}
             <ToolbarButton
-              active={enhancedReactionsOpen}
-              icon={(
-                <span className="relative">
-                  <SmilePlus size={20} />
-                  {Object.keys(reactionCounts).length > 0 && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-violet-500 text-[8px] font-bold text-white px-0.5"
-                    >
-                      {Object.values(reactionCounts).reduce((a, b) => a + b, 0)}
-                    </motion.span>
-                  )}
-                </span>
-              )}
-              label="Reactions"
-              onClick={onToggleEnhancedReactions}
+              active={screenSharing}
+              icon={screenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+              label={screenSharing ? 'Stop Sharing' : 'Share Screen'}
+              onClick={onToggleScreenShare}
+              glowColor="sky"
             />
+            {/* Hand Raise */}
+            <ToolbarButton
+              active={handRaised}
+              icon={<Hand size={20} />}
+              label={handRaised ? 'Lower Hand' : 'Raise Hand'}
+              onClick={onToggleHand}
+              glowColor="amber"
+            />
+            {/* Recording */}
+            <ToolbarButton
+              active={isRecording}
+              icon={<CircleDot size={20} />}
+              label={isRecording ? 'Stop Recording' : 'Start Recording'}
+              onClick={onToggleRecording}
+              glowColor="red"
+            />
+            <div className="w-px h-8 bg-white/10 mx-0.5" />
+            {/* Chat */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'chat' && sidebarOpen}
+              icon={<MessageSquare size={20} />}
+              label="Chat"
+              onClick={() => onToggleSidebar('chat')}
+            />
+            {/* Participants */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'participants' && sidebarOpen}
+              icon={<Users size={20} />}
+              label="Participants"
+              onClick={() => onToggleSidebar('participants')}
+            />
+            {/* AI */}
+            <ToolbarButton
+              active={meetingSidebarTab === 'ai' && sidebarOpen}
+              icon={<Sparkles size={20} />}
+              label="AI Assistant"
+              onClick={() => onToggleSidebar('ai')}
+            />
+            {/* Captions */}
+            <ToolbarButton
+              active={captionsVisible}
+              icon={<Subtitles size={20} />}
+              label={captionsVisible ? 'Hide Captions' : 'Show Captions'}
+              onClick={onToggleCaptions}
+            />
+            {/* Live Transcription Panel */}
+            <ToolbarButton
+              active={transcriptionOpen}
+              icon={<FileText size={20} />}
+              label={transcriptionOpen ? 'Hide Transcription' : 'Live Transcription'}
+              onClick={onToggleTranscription}
+            />
+            {/* Virtual Backgrounds */}
+            <ToolbarButton
+              active={virtualBgActive}
+              icon={<ImageIcon size={20} />}
+              label={virtualBgActive ? 'Change Background' : 'Virtual Background'}
+              onClick={onOpenVirtualBg}
+              glowColor="emerald"
+            />
+            {/* Reactions */}
+            <div className="relative">
+              <ToolbarButton
+                active={enhancedReactionsOpen}
+                icon={(
+                  <span className="relative">
+                    <SmilePlus size={20} />
+                    {Object.keys(reactionCounts).length > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-violet-500 text-[8px] font-bold text-white px-0.5"
+                      >
+                        {Object.values(reactionCounts).reduce((a, b) => a + b, 0)}
+                      </motion.span>
+                    )}
+                  </span>
+                )}
+                label="Reactions"
+                onClick={onToggleEnhancedReactions}
+              />
+            </div>
+
+            {/* Layout toggle (desktop) */}
+            <div className="relative">
+              <ToolbarButton
+                icon={<LayoutGrid size={20} />}
+                label="More"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+              />
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
+                  >
+                    {/* Layout options */}
+                    <div className="p-1.5 border-b border-white/10">
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Layout</p>
+                      {(['grid', 'speaker', 'gallery'] as const).map(layout => (
+                        <button
+                          key={layout}
+                          onClick={() => { onSetGridLayout(layout); setShowMoreMenu(false); toast(`Switched to ${layout} view`); }}
+                          className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${
+                            gridLayout === layout ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                          }`}
+                        >
+                          {layout === 'grid' && <LayoutGrid size={16} />}
+                          {layout === 'speaker' && <UserCircle size={16} />}
+                          {layout === 'gallery' && <LayoutDashboard size={16} />}
+                          <span className="capitalize">{layout}</span>
+                          {gridLayout === layout && <Check size={14} className="ml-auto text-emerald-400" />}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Other options */}
+                    <div className="p-1.5">
+                      <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
+                      <button onClick={() => { onToggleSidebar('polls'); setShowMoreMenu(false); onOpenPollBuilder(); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <Plus size={16} /> Create Poll
+                      </button>
+                      <button onClick={() => { setShowMoreMenu(false); toast('Whiteboard coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <Pen size={16} /> Whiteboard
+                      </button>
+                      <button onClick={() => { onToggleSidebar('breakout'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
+                        <LayoutGrid size={16} /> Breakout Rooms
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
-          {/* Layout toggle */}
-          <div className="relative" ref={moreMenuRef}>
+          {/* ── Mobile: More button (triggers same menu) ── */}
+          <div className="md:hidden relative" ref={mobileMenuRef}>
             <ToolbarButton
-              icon={<LayoutGrid size={20} />}
-              label="Layout"
+              icon={<MoreHorizontal size={20} />}
+              label="More"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
             />
             <AnimatePresence>
@@ -309,10 +369,69 @@ export default function MeetingToolbar({
                   initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
+                  className="absolute bottom-full right-0 mb-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
                 >
-                  {/* Layout options */}
+                  {/* Media controls */}
                   <div className="p-1.5 border-b border-white/10">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Media</p>
+                    <button onClick={() => { onToggleScreenShare(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      {screenSharing ? <MonitorOff size={16} /> : <Monitor size={16} />}
+                      {screenSharing ? 'Stop Sharing' : 'Share Screen'}
+                    </button>
+                    <button onClick={() => { onToggleHand(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <Hand size={16} />
+                      {handRaised ? 'Lower Hand' : 'Raise Hand'}
+                    </button>
+                    <button onClick={() => { onToggleRecording(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <CircleDot size={16} className={isRecording ? 'text-red-400' : ''} />
+                      {isRecording ? 'Stop Recording' : 'Start Recording'}
+                    </button>
+                  </div>
+                  {/* Sidebar panels */}
+                  <div className="p-1.5 border-b border-white/10">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Panels</p>
+                    {([
+                      { tab: 'chat' as const, icon: <MessageSquare size={16} />, label: 'Chat' },
+                      { tab: 'participants' as const, icon: <Users size={16} />, label: 'Participants' },
+                      { tab: 'ai' as const, icon: <Sparkles size={16} />, label: 'AI Assistant' },
+                    ]).map(item => (
+                      <button
+                        key={item.tab}
+                        onClick={() => { onToggleSidebar(item.tab); setShowMoreMenu(false); }}
+                        className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${
+                          meetingSidebarTab === item.tab && sidebarOpen ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        {item.icon}
+                        {item.label}
+                        {meetingSidebarTab === item.tab && sidebarOpen && <Check size={14} className="ml-auto text-emerald-400" />}
+                      </button>
+                    ))}
+                    <button onClick={() => { onToggleCaptions(); setShowMoreMenu(false); }} className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${captionsVisible ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
+                      <Subtitles size={16} /> {captionsVisible ? 'Hide' : 'Show'} Captions
+                    </button>
+                    <button onClick={() => { onToggleTranscription(); setShowMoreMenu(false); }} className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${transcriptionOpen ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
+                      <FileText size={16} /> {transcriptionOpen ? 'Hide' : 'Live'} Transcription
+                    </button>
+                  </div>
+                  {/* Tools */}
+                  <div className="p-1.5 border-b border-white/10">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
+                    <button onClick={() => { onOpenVirtualBg(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <ImageIcon size={16} /> Virtual Background
+                    </button>
+                    <button onClick={() => { onToggleEnhancedReactions(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <SmilePlus size={16} /> Reactions
+                    </button>
+                    <button onClick={() => { onOpenPollBuilder(); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <Plus size={16} /> Create Poll
+                    </button>
+                    <button onClick={() => { onToggleSidebar('breakout'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 text-white/70 hover:bg-white/5 hover:text-white transition-colors">
+                      <LayoutGrid size={16} /> Breakout Rooms
+                    </button>
+                  </div>
+                  {/* Layout */}
+                  <div className="p-1.5">
                     <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Layout</p>
                     {(['grid', 'speaker', 'gallery'] as const).map(layout => (
                       <button
@@ -326,22 +445,9 @@ export default function MeetingToolbar({
                         {layout === 'speaker' && <UserCircle size={16} />}
                         {layout === 'gallery' && <LayoutDashboard size={16} />}
                         <span className="capitalize">{layout}</span>
-                        {gridLayout === layout && <Check size={14} className="ml-auto text-violet-400" />}
+                        {gridLayout === layout && <Check size={14} className="ml-auto text-emerald-400" />}
                       </button>
                     ))}
-                  </div>
-                  {/* Other options */}
-                  <div className="p-1.5">
-                    <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
-                    <button onClick={() => { onToggleSidebar('polls'); setShowMoreMenu(false); onOpenPollBuilder(); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
-                      <Plus size={16} /> Create Poll
-                    </button>
-                    <button onClick={() => { setShowMoreMenu(false); toast('Whiteboard coming soon!'); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
-                      <Pen size={16} /> Whiteboard
-                    </button>
-                    <button onClick={() => { onToggleSidebar('breakout'); setShowMoreMenu(false); }} className="w-full px-3 py-2 text-left text-sm rounded-lg text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2.5">
-                      <LayoutGrid size={16} /> Breakout Rooms
-                    </button>
                   </div>
                 </motion.div>
               )}

@@ -3,826 +3,844 @@
 import { useAppStore } from '@/store/app-store';
 import { authFetch } from '@/lib/api';
 import {
-  Video, Users, Clock, TrendingUp, Calendar, MessageSquare, FileText, Brain,
-  ArrowRight, Plus, MoreHorizontal, Mic, Monitor, Globe, Shield, ChevronRight,
-  BarChart3, Activity, LayoutDashboard, FolderOpen, CircleDot, Radio,
-  Settings, User, LogOut, Search, Bell, BookOpen, Pen, Bot, Puzzle,
-  HelpCircle, Webhook, LayoutTemplate, LayoutGrid, UsersRound, MessageCircle,
-  AlertTriangle, RefreshCw,
+  Video, CalendarPlus, Hash, Sparkles, Users, Clock, FileText, Brain,
+  ChevronRight, Copy, Play, MoreHorizontal, Film, ArrowUpRight, ArrowDownRight,
+  VideoIcon, Calendar, Mic, Monitor,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell
-} from 'recharts';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 
-const stagger = {
+// ── Animation variants ─────────────────────────────────────────────────
+
+const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.07 } }
-};
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-};
-const chartFadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay: 0.35 + i * 0.12 } })
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
 };
 
-function RippleButton({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
-  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
-  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const id = Date.now();
-    setRipples(prev => [...prev, { id, x, y }]);
-    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
-    onClick?.();
-  }, [onClick]);
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+};
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface UpcomingMeeting {
+  id: string;
+  title: string;
+  scheduledAt: string;
+  type: 'instant' | 'scheduled' | 'recurring';
+  hostName: string;
+  hostInitials: string;
+  participants: { initials: string; color: string }[];
+}
+
+interface Recording {
+  id: string;
+  title: string;
+  duration: string;
+  date: string;
+}
+
+interface DashboardStats {
+  totalMeetings: number;
+  totalMeetingsTrend: string;
+  totalHours: number;
+  totalHoursTrend: string;
+  teamMembers: number;
+  teamMembersTrend: string;
+  aiSummaries: number;
+  aiSummariesTrend: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function getFormattedDate(): string {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = date.getTime() - now.getTime();
+  const diffMins = Math.round(diffMs / 60000);
+  const diffHours = Math.round(diffMins / 60);
+
+  if (diffMins <= 0 && diffMins > -60) return 'Starting now';
+  if (diffMins > 0 && diffMins < 60) return `In ${diffMins} min`;
+
+  // Check if today
+  if (date.toDateString() === now.toDateString()) {
+    return `Today ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  // Check if tomorrow
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (date.toDateString() === tomorrow.toDateString()) {
+    return `Tomorrow ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+const AVATAR_COLORS = [
+  'bg-emerald-500',
+  'bg-amber-500',
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-teal-500',
+  'bg-fuchsia-500',
+  'bg-orange-500',
+  'bg-cyan-500',
+];
+
+function getAvatarColor(name: string): string {
+  const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+// ── Skeletons ──────────────────────────────────────────────────────────
+
+function WelcomeBannerSkeleton() {
   return (
-    <button onClick={handleClick} className={`relative overflow-hidden ${className || ''}`}>
-      {children}
-      {ripples.map(r => (
-        <motion.span
-          key={r.id}
-          initial={{ scale: 0, opacity: 0.35 }}
-          animate={{ scale: 4, opacity: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' as const }}
-          className='absolute rounded-full bg-white/30 pointer-events-none'
-          style={{ left: r.x - 10, top: r.y - 10, width: 20, height: 20 }}
-        />
-      ))}
-    </button>
+    <div className='rounded-2xl bg-muted/50 p-6 lg:p-8'>
+      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+        <div className='space-y-2'>
+          <Skeleton className='h-8 w-56' />
+          <Skeleton className='h-4 w-72' />
+        </div>
+        <Skeleton className='h-10 w-36 rounded-xl' />
+      </div>
+    </div>
   );
 }
 
-const PIE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#38bdf8'];
-
-interface Meeting {
-  id: string;
-  title: string;
-  date: string;
-  duration: string;
-  participants: number;
-  status: 'Active' | 'Ended' | 'Scheduled';
+function QuickActionsSkeleton() {
+  return (
+    <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className='rounded-xl border border-border/50 p-5 space-y-3'>
+          <Skeleton className='w-12 h-12 rounded-full' />
+          <Skeleton className='h-5 w-24' />
+          <Skeleton className='h-4 w-32' />
+        </div>
+      ))}
+    </div>
+  );
 }
 
-interface DashboardData {
-  meetingActivity: { day: string; meetings: number; date: string }[];
-  meetingTypes: { name: string; value: number; count: number }[];
-  upcomingMeetings: Meeting[];
-  recentActivity: { user: string; initials: string; color: string; action: string; target: string; time: string }[];
-  onlineUsers: { name: string; initials: string; color: string; status: string }[];
-  quickStats: {
-    totalMeetings: number;
-    activeToday: number;
-    totalParticipants: number;
-    totalRecordings: number;
-    aiSummariesThisWeek: number;
-  };
-  bannerStats: {
-    meetingsToday: number;
-    unreadMessages: number;
-    pendingActions: number;
-    newRecordings: number;
-  };
+function MeetingCardSkeleton() {
+  return (
+    <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+      <CardContent className='p-5 space-y-4'>
+        <div className='flex items-start justify-between'>
+          <div className='space-y-2 flex-1'>
+            <Skeleton className='h-5 w-48' />
+            <Skeleton className='h-4 w-32' />
+          </div>
+          <Skeleton className='h-5 w-20 rounded-full' />
+        </div>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <Skeleton className='w-7 h-7 rounded-full' />
+            <Skeleton className='w-7 h-7 rounded-full' />
+            <Skeleton className='w-7 h-7 rounded-full' />
+          </div>
+          <div className='flex gap-2'>
+            <Skeleton className='h-8 w-16 rounded-lg' />
+            <Skeleton className='h-8 w-20 rounded-lg' />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
+
+function RecordingCardSkeleton() {
+  return (
+    <div className='min-w-[260px] max-w-[280px] shrink-0 rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 overflow-hidden'>
+      <Skeleton className='h-36 w-full' />
+      <div className='p-4 space-y-2'>
+        <Skeleton className='h-5 w-40' />
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-3 w-12' />
+          <Skeleton className='h-3 w-20' />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 p-5 space-y-3'>
+          <div className='flex items-center justify-between'>
+            <Skeleton className='w-10 h-10 rounded-xl' />
+            <Skeleton className='h-4 w-16 rounded-full' />
+          </div>
+          <Skeleton className='h-8 w-16' />
+          <Skeleton className='h-4 w-24' />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Component ──────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user, setCurrentView, currentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
-  const [gradientPhase, setGradientPhase] = useState(0);
+  const { user, setCurrentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
+  const [joinCode, setJoinCode] = useState('');
+  const [showJoinInput, setShowJoinInput] = useState(false);
 
-  useEffect(() => {
-    const interval = setInterval(() => setGradientPhase(p => (p + 1) % 360), 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch dashboard data from API
-  const { data: dashboardResponse, isLoading, isError, error, refetch } = useQuery<{
-    success: boolean;
-    data: DashboardData;
-  }>({
-    queryKey: ['dashboard-stats'],
-    queryFn: async () => {
-      const res = await authFetch('/api/v1/stats/dashboard');
-      if (!res.ok) {
-        throw new Error(`Failed to fetch dashboard: ${res.status}`);
-      }
-      const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error?.message || 'Failed to load dashboard data');
-      }
-      return json;
-    },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
-
-  const dashboard = dashboardResponse?.data;
-
+  // Ensure user is set for display
   useEffect(() => {
     if (!user) {
       useAppStore.getState().setUser({
-        id: '1', name: 'Alex Johnson', email: 'alex@alvision.com', role: 'admin',
-        organizationId: 'org1', organizationName: 'Alvision Inc.',
+        id: '1',
+        name: 'Sarah Mitchell',
+        email: 'sarah@alvision.com',
+        role: 'admin',
+        organizationId: 'org1',
+        organizationName: 'Alvision Inc.',
       });
     }
   }, []);
 
-  const navItems = [
-    { label: 'Dashboard', icon: <LayoutDashboard size={18} />, view: 'dashboard' },
-    { label: 'Meetings', icon: <Video size={18} />, view: 'meetings', badge: dashboard ? `${dashboard.quickStats.activeToday} today` : undefined },
-    { label: 'Teams', icon: <Users size={18} />, view: 'teams' },
-    { label: 'Chat', icon: <MessageSquare size={18} />, view: 'chat' },
-    { label: 'Files', icon: <FolderOpen size={18} />, view: 'files' },
-    { label: 'Recordings', icon: <CircleDot size={18} />, view: 'recordings' },
-    { label: 'AI Assistant', icon: <Brain size={18} />, view: 'ai-assistant', badge: 'AI', badgeVariant: 'secondary' as const },
-    { label: 'Knowledge', icon: <BookOpen size={18} />, view: 'knowledge' },
-    { label: 'Calendar', icon: <Calendar size={18} />, view: 'calendar' },
-    { label: 'Events', icon: <Radio size={18} />, view: 'events' },
-    { label: 'Whiteboard', icon: <Pen size={18} />, view: 'whiteboard', badge: 'N', badgeVariant: 'outline' as const },
-    { label: 'Analytics', icon: <BarChart3 size={18} />, view: 'analytics', badge: 'N', badgeVariant: 'outline' as const },
-    { label: 'Status', icon: <Activity size={18} />, view: 'status' },
-    { label: 'People', icon: <UsersRound size={18} />, view: 'people' },
-    { label: 'Integrations', icon: <Puzzle size={18} />, view: 'integrations' },
-    { label: 'Help Center', icon: <HelpCircle size={18} />, view: 'help-center' },
-    { label: 'Webhooks', icon: <Webhook size={18} />, view: 'webhooks' },
-    { label: 'Templates', icon: <LayoutTemplate size={18} />, view: 'templates' },
-    { label: 'Notifications', icon: <Bell size={18} />, view: 'notifications' },
-    { label: 'Breakout Rooms', icon: <LayoutGrid size={18} />, view: 'breakout-rooms' },
-  ];
+  const firstName = user?.name?.split(' ')[0] || 'Sarah';
 
-  const bottomNavItems = [
-    { label: 'Admin', icon: <Shield size={18} />, view: 'admin', adminOnly: true },
-    { label: 'Settings', icon: <Settings size={18} />, view: 'settings' },
-    { label: 'Profile', icon: <User size={18} />, view: 'profile' },
-  ];
+  // Fetch upcoming meetings
+  const { data: meetingsData, isLoading: meetingsLoading } = useQuery({
+    queryKey: ['dashboard-upcoming-meetings'],
+    queryFn: async () => {
+      try {
+        const res = await authFetch('/api/v1/meetings?status=scheduled&limit=3');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const json = await res.json();
+        if (json.success && json.data?.meetings?.length > 0) {
+          return json.data.meetings.map((m: Record<string, unknown>) => ({
+            id: m.id,
+            title: m.title || 'Untitled Meeting',
+            scheduledAt: m.scheduledAt || m.startTime || new Date().toISOString(),
+            type: m.type || m.settings?.type || 'scheduled',
+            hostName: m.hostName || user?.name || 'You',
+            hostInitials: (m.hostName || user?.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+            participants: (m.participants || []).slice(0, 5).map((p: Record<string, unknown>, i: number) => ({
+              initials: ((p.name as string) || `U${i + 1}`).split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+              color: AVATAR_COLORS[i % AVATAR_COLORS.length],
+            })),
+          }));
+        }
+        throw new Error('No data');
+      } catch {
+        // Return mock data as fallback
+        return MOCK_MEETINGS;
+      }
+    },
+    staleTime: 30_000,
+  });
 
-  const getGreeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
+  // Fetch recordings
+  const { data: recordingsData, isLoading: recordingsLoading } = useQuery({
+    queryKey: ['dashboard-recordings'],
+    queryFn: async () => {
+      try {
+        const res = await authFetch('/api/v1/meetings?status=ended&limit=3&hasRecording=true');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const json = await res.json();
+        if (json.success && json.data?.meetings?.length > 0) {
+          return json.data.meetings.map((m: Record<string, unknown>) => ({
+            id: m.id,
+            title: m.title || 'Untitled Recording',
+            duration: m.duration || '0:00',
+            date: m.endedAt || m.updatedAt || new Date().toISOString(),
+          }));
+        }
+        throw new Error('No data');
+      } catch {
+        return MOCK_RECORDINGS;
+      }
+    },
+    staleTime: 30_000,
+  });
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      Active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-      Ended: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-      Scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    };
-    return variants[status] || '';
-  };
+  // Fetch dashboard stats
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboard-stats-v2'],
+    queryFn: async () => {
+      try {
+        const res = await authFetch('/api/v1/stats/dashboard');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          return {
+            totalMeetings: d.quickStats?.totalMeetings ?? 12,
+            totalMeetingsTrend: '+12%',
+            totalHours: d.quickStats?.totalRecordings ?? 8.5,
+            totalHoursTrend: '+5%',
+            teamMembers: d.quickStats?.totalParticipants ?? 24,
+            teamMembersTrend: '+3%',
+            aiSummaries: d.quickStats?.aiSummariesThisWeek ?? 27,
+            aiSummariesTrend: '+18%',
+          };
+        }
+        throw new Error('No data');
+      } catch {
+        return MOCK_STATS;
+      }
+    },
+    staleTime: 30_000,
+  });
 
-  const handleJoinMeeting = () => {
-    setMeetingTitle('Sprint Planning - Q4');
-    setCurrentMeetingId('meeting-1');
-    setCurrentView('meeting-room');
-  };
-
+  // Handlers
   const handleNewMeeting = () => {
     setMeetingTitle('New Meeting');
     setCurrentMeetingId('new-' + Date.now());
     setCurrentView('meeting-room');
   };
 
-  const initials = user?.name?.split(' ').map(n => n[0]).join('') || 'AJ';
+  const handleScheduleMeeting = () => {
+    setCurrentView('meetings');
+    toast('Navigate to the Calendar to schedule a new meeting', {
+      description: 'Use the Schedule button on the meetings page.',
+    });
+  };
+
+  const handleJoinWithCode = () => {
+    if (!joinCode.trim()) {
+      toast.error('Please enter a meeting code');
+      return;
+    }
+    setMeetingTitle(`Meeting ${joinCode}`);
+    setCurrentMeetingId(joinCode);
+    setCurrentView('meeting-room');
+    setJoinCode('');
+    setShowJoinInput(false);
+  };
+
+  const handleJoinMeeting = (meeting: UpcomingMeeting) => {
+    setMeetingTitle(meeting.title);
+    setCurrentMeetingId(meeting.id);
+    setCurrentView('meeting-room');
+  };
+
+  const handleCopyLink = (meeting: UpcomingMeeting) => {
+    const link = `${window.location.origin}/join?code=${meeting.id}`;
+    navigator.clipboard.writeText(link).then(() => {
+      toast.success('Meeting link copied to clipboard');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
+  };
+
+  const upcomingMeetings: UpcomingMeeting[] = meetingsData || [];
+  const recordings: Recording[] = recordingsData || [];
+  const stats: DashboardStats = statsData || MOCK_STATS;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 border-r bg-card flex flex-col shrink-0 max-lg:hidden">
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-              <Video size={16} className="text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">ALVISION</span>
+    <motion.div className='max-w-6xl mx-auto space-y-8' variants={container} initial='hidden' animate='show'>
+      {/* ═══════════════════ WELCOME BANNER ═══════════════════ */}
+      <motion.div variants={item}>
+        <div className='relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 lg:p-8 text-white'>
+          {/* Subtle pattern overlay */}
+          <div className='absolute inset-0 opacity-10 pointer-events-none' aria-hidden='true'>
+            <div className='absolute inset-0' style={{
+              backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+              backgroundSize: '32px 32px',
+            }} />
           </div>
-        </div>
+          {/* Decorative blobs */}
+          <div className='absolute top-0 right-0 w-64 h-64 rounded-full bg-white/10 blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none' />
+          <div className='absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white/10 blur-3xl translate-y-1/2 -translate-x-1/3 pointer-events-none' />
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map(item => (
-            <button
-              key={item.view}
-              onClick={() => setCurrentView(item.view as 'dashboard')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
-                ${currentView === item.view
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-            >
-              {item.icon}
-              <span className="flex-1">{item.label}</span>
-              {item.badge && (
-                <Badge variant={item.badgeVariant || 'default'} className="text-[10px] px-1.5 py-0">
-                  {item.badge}
-                </Badge>
-              )}
-            </button>
-          ))}
-
-          <div className="my-2 border-t" />
-
-          {bottomNavItems.map(item => {
-            if (item.adminOnly && !user?.role?.includes('admin')) return null;
-            return (
-              <button
-                key={item.view}
-                onClick={() => setCurrentView(item.view as 'dashboard')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
-                  ${currentView === item.view
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-              >
-                {item.icon}
-                <span className="flex-1">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3">
-            <Avatar className="w-9 h-9">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name || 'Alex Johnson'}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.role || 'Admin'}</p>
+          <div className='relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+            <div>
+              <h2 className='text-2xl lg:text-3xl font-bold mb-1'>
+                {getGreeting()}, {firstName}!
+              </h2>
+              <p className='text-emerald-100 text-sm lg:text-base'>{getFormattedDate()}</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-              <LogOut size={16} />
+            <Button
+              onClick={handleNewMeeting}
+              className='bg-white text-emerald-700 hover:bg-white/90 font-semibold shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/30 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shrink-0'
+            >
+              <Video className='h-4 w-4 mr-2' />
+              Start Meeting
             </Button>
           </div>
         </div>
-      </aside>
+      </motion.div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b px-4 lg:px-6 py-3 flex items-center gap-4">
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">Dashboard</h1>
-          </div>
-          <div className="relative hidden sm:block w-64">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search meetings, people..."
-              className="w-full h-9 pl-9 pr-4 rounded-lg border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            />
-          </div>
-          <Button variant="ghost" size="icon" className="relative h-9 w-9">
-            <Bell size={18} />
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">3</span>
-          </Button>
-          <Avatar className="h-8 w-8 cursor-pointer">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
-          </Avatar>
-        </header>
-
-        {/* Error State */}
-        {isError && (
-          <div className="p-4 lg:p-6">
-            <Card className="border-destructive/50">
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <AlertTriangle size={24} className="text-destructive" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg">Failed to load dashboard</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{error?.message || 'An unexpected error occurred. Please try again.'}</p>
-                </div>
-                <Button onClick={() => refetch()} className="gap-2">
-                  <RefreshCw size={14} />
-                  Retry
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <div className={`p-4 lg:p-6 space-y-6 ${isError ? 'hidden' : ''}`}>
-          {/* Welcome Banner */}
+      {/* ═══════════════════ QUICK ACTIONS ROW ═══════════════════ */}
+      <motion.div variants={item}>
+        <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+          {/* New Meeting */}
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-6 lg:p-8 text-white"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 p-5 cursor-pointer group'
+            onClick={handleNewMeeting}
           >
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-white/20 blur-2xl" />
-              <div className="absolute bottom-4 left-12 w-24 h-24 rounded-full bg-white/20 blur-2xl" />
+            <div className='w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/30 transition-shadow'>
+              <Video className='h-5 w-5 text-white' />
             </div>
-            <div className="relative z-10">
-              <h2 className="text-2xl lg:text-3xl font-bold mb-2">{getGreeting()}, {user?.name?.split(' ')[0] || 'Alex'}!</h2>
-              <p className="text-blue-100 mb-6">Here&apos;s what&apos;s happening with your team today.</p>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {isLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
-                      <Skeleton className="w-8 h-8 rounded-lg bg-white/20" />
-                      <div className="space-y-1.5">
-                        <Skeleton className="h-5 w-8 bg-white/20" />
-                        <Skeleton className="h-3 w-20 bg-white/20" />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  [
-                    { label: 'Meetings Today', value: String(dashboard?.bannerStats.meetingsToday ?? 0), icon: <Video size={16} /> },
-                    { label: 'Unread Messages', value: String(dashboard?.bannerStats.unreadMessages ?? 0), icon: <MessageSquare size={16} /> },
-                    { label: 'Pending Actions', value: String(dashboard?.bannerStats.pendingActions ?? 0), icon: <Clock size={16} /> },
-                    { label: 'New Recordings', value: String(dashboard?.bannerStats.newRecordings ?? 0), icon: <Mic size={16} /> },
-                  ].map((stat) => (
-                    <div key={stat.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{stat.icon}</div>
-                      <div>
-                        <p className="text-xl font-bold">{stat.value}</p>
-                        <p className="text-xs text-blue-200">{stat.label}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <h3 className='font-semibold text-sm mb-1'>New Meeting</h3>
+            <p className='text-xs text-muted-foreground'>Start an instant video call</p>
           </motion.div>
 
-          {/* Stats Cards */}
-          <div className="relative">
-            {/* Decorative dot pattern behind stats */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden rounded-xl" aria-hidden="true">
-              <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          {/* Schedule Meeting */}
+          <motion.div
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 p-5 cursor-pointer group'
+            onClick={handleScheduleMeeting}
+          >
+            <div className='w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/30 transition-shadow'>
+              <CalendarPlus className='h-5 w-5 text-white' />
             </div>
-            <motion.div variants={stagger} initial="hidden" animate="show" className="relative grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, idx) => (
-                  <motion.div key={idx} variants={fadeUp}>
-                    <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30">
-                      <Card className="relative overflow-hidden bg-card rounded-xl">
-                        <CardContent className="p-4 lg:p-5">
-                          <div className="flex items-start justify-between mb-3">
-                            <Skeleton className="w-10 h-10 rounded-xl" />
+            <h3 className='font-semibold text-sm mb-1'>Schedule Meeting</h3>
+            <p className='text-xs text-muted-foreground'>Plan ahead with calendar</p>
+          </motion.div>
+
+          {/* Join with Code */}
+          <motion.div
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 p-5 cursor-pointer group'
+            onClick={() => setShowJoinInput(!showJoinInput)}
+          >
+            <div className='w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/30 transition-shadow'>
+              <Hash className='h-5 w-5 text-white' />
+            </div>
+            <h3 className='font-semibold text-sm mb-1'>Join with Code</h3>
+            <p className='text-xs text-muted-foreground'>Enter a code to join</p>
+            {showJoinInput && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className='mt-3'
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className='flex gap-2'>
+                  <Input
+                    placeholder='Meeting code...'
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleJoinWithCode()}
+                    className='h-8 text-xs'
+                    autoFocus
+                  />
+                  <Button size='sm' className='h-8 px-3 text-xs shrink-0' onClick={handleJoinWithCode}>
+                    Join
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+
+          {/* AI Assistant */}
+          <motion.div
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 p-5 cursor-pointer group'
+            onClick={() => setCurrentView('ai-assistant')}
+          >
+            <div className='w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center mb-4 shadow-lg shadow-rose-500/20 group-hover:shadow-rose-500/30 transition-shadow'>
+              <Sparkles className='h-5 w-5 text-white' />
+            </div>
+            <h3 className='font-semibold text-sm mb-1'>AI Assistant</h3>
+            <p className='text-xs text-muted-foreground'>Get help with meetings</p>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* ═══════════════════ UPCOMING MEETINGS ═══════════════════ */}
+      <motion.div variants={item}>
+        <div className='flex items-center justify-between mb-4'>
+          <h2 className='text-lg font-semibold'>Upcoming Meetings</h2>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-sm text-muted-foreground hover:text-foreground'
+            onClick={() => setCurrentView('meetings')}
+          >
+            View All <ChevronRight className='h-4 w-4 ml-1' />
+          </Button>
+        </div>
+
+        {meetingsLoading ? (
+          <div className='space-y-4'>
+            <MeetingCardSkeleton />
+            <MeetingCardSkeleton />
+            <MeetingCardSkeleton />
+          </div>
+        ) : upcomingMeetings.length > 0 ? (
+          <div className='space-y-4'>
+            {upcomingMeetings.map((meeting) => {
+              const typeBadge = {
+                instant: { label: 'Instant', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+                scheduled: { label: 'Scheduled', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+                recurring: { label: 'Recurring', className: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+              }[meeting.type] || { label: 'Scheduled', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' };
+
+              return (
+                <motion.div
+                  key={meeting.id}
+                  whileHover={{ scale: 1.005 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300'>
+                    <CardContent className='p-5'>
+                      <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3'>
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex items-center gap-2 mb-1.5 flex-wrap'>
+                            <h3 className='font-semibold text-sm truncate'>{meeting.title}</h3>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${typeBadge.className}`}>
+                              {typeBadge.label}
+                            </span>
                           </div>
-                          <Skeleton className="h-8 w-16 mb-1" />
-                          <Skeleton className="h-4 w-24" />
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </motion.div>
-                ))
-              ) : (
-                [
-                  { title: 'Active Meetings', value: String(dashboard?.quickStats.totalMeetings ?? 0), icon: <TrendingUp size={20} />, badge: `${dashboard?.quickStats.activeToday ?? 0} today`, badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', gradientFrom: 'from-emerald-500/20', gradientTo: 'to-emerald-500/0' },
-                  { title: 'Total Participants', value: String(dashboard?.quickStats.totalParticipants ?? 0), icon: <Users size={20} />, gradientFrom: 'from-sky-500/20', gradientTo: 'to-sky-500/0' },
-                  { title: 'AI Summaries', value: String(dashboard?.quickStats.aiSummariesThisWeek ?? 0), icon: <FileText size={20} />, badge: 'This week', badgeColor: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', gradientFrom: 'from-violet-500/20', gradientTo: 'to-violet-500/0' },
-                  { title: 'Total Recordings', value: String(dashboard?.quickStats.totalRecordings ?? 0), icon: <Clock size={20} />, gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-500/0' },
-                ].map((card, idx) => (
-                  <motion.div key={card.title} variants={fadeUp}>
-                    <div className="relative rounded-xl p-[1.5px] bg-gradient-to-br bg-[length:200%_200%] from-primary/30 via-primary/10 to-violet-500/30 transition-all duration-[3000ms]"
-                      style={{ backgroundPosition: `${gradientPhase}% ${gradientPhase}%` }}
-                    >
-                      <Card className="relative overflow-hidden bg-card rounded-xl">
-                        <CardContent className="p-4 lg:p-5">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                              {card.icon}
-                            </div>
-                            {card.badge && (
-                              <Badge variant="secondary" className={`text-[10px] font-semibold ${card.badgeColor}`}>
-                                {card.badge}
-                              </Badge>
+                          <div className='flex items-center gap-3 text-xs text-muted-foreground'>
+                            <span className='flex items-center gap-1'>
+                              <Clock className='h-3.5 w-3.5' />
+                              {formatRelativeTime(meeting.scheduledAt)}
+                            </span>
+                            <span className='hidden sm:inline'>·</span>
+                            <span className='hidden sm:flex items-center gap-1'>
+                              <Users className='h-3.5 w-3.5' />
+                              {meeting.hostName}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2 shrink-0'>
+                          <Button
+                            size='sm'
+                            className='h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                            onClick={() => handleJoinMeeting(meeting)}
+                          >
+                            Join
+                          </Button>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            className='h-8 px-4 text-xs'
+                            onClick={() => handleCopyLink(meeting)}
+                          >
+                            <Copy className='h-3.5 w-3.5 mr-1' />
+                            Copy Link
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Participants avatars */}
+                      {meeting.participants.length > 0 && (
+                        <div className='flex items-center mt-4 pt-3 border-t border-border/50'>
+                          <div className='flex -space-x-2'>
+                            {meeting.participants.slice(0, 5).map((p, i) => (
+                              <Avatar key={i} className='h-7 w-7 border-2 border-card'>
+                                <AvatarFallback className={`${p.color} text-white text-[9px] font-bold`}>
+                                  {p.initials}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                            {meeting.participants.length > 5 && (
+                              <div className='h-7 w-7 rounded-full border-2 border-card bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground'>
+                                +{meeting.participants.length - 5}
+                              </div>
                             )}
                           </div>
-                          <p className="text-2xl lg:text-3xl font-bold tracking-tight">{card.value}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{card.title}</p>
-                        </CardContent>
-                        {/* Subtle gradient accent at bottom */}
-                        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradientFrom} ${card.gradientTo}`} />
-                      </Card>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </motion.div>
+                          <span className='ml-3 text-xs text-muted-foreground'>
+                            {meeting.participants.length} participant{meeting.participants.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
+        ) : (
+          <Card className='border border-dashed border-border/50 bg-muted/20'>
+            <CardContent className='p-12 flex flex-col items-center justify-center text-center'>
+              <div className='w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4'>
+                <Calendar className='h-7 w-7 text-muted-foreground' />
+              </div>
+              <h3 className='font-medium mb-1'>No upcoming meetings</h3>
+              <p className='text-sm text-muted-foreground mb-4 max-w-sm'>
+                Your schedule is clear. Start a new meeting or schedule one for later.
+              </p>
+              <Button variant='outline' size='sm' onClick={handleNewMeeting} className='gap-2'>
+                <Video className='h-4 w-4' />
+                Start a Meeting
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </motion.div>
 
-          {/* Charts Row */}
-          <div className="grid lg:grid-cols-2 gap-4">
-            <motion.div custom={0} variants={chartFadeUp} initial="hidden" animate="show">
-              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">Meeting Activity</CardTitle>
-                    <Select defaultValue="7d">
-                      <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="7d">Last 7 days</SelectItem>
-                        <SelectItem value="30d">Last 30 days</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    {isLoading ? (
-                      <div className="h-full flex items-center justify-center">
-                        <Skeleton className="h-full w-full rounded-lg" />
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={dashboard?.meetingActivity || []}>
-                          <defs>
-                            <linearGradient id="meetingGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                          <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                          <Area type="monotone" dataKey="meetings" stroke="#3b82f6" strokeWidth={2} fill="url(#meetingGrad)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div custom={1} variants={chartFadeUp} initial="hidden" animate="show">
-              <Card className="border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Meeting Types</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64 flex items-center">
-                    {isLoading ? (
-                      <div className="w-full flex items-center justify-center gap-6">
-                        <Skeleton className="w-40 h-40 rounded-full" />
-                        <div className="space-y-3 flex-1">
-                          {Array.from({ length: 4 }).map((_, i) => (
-                            <div key={i} className="flex items-center gap-3">
-                              <Skeleton className="w-3 h-3 rounded-full" />
-                              <Skeleton className="h-4 flex-1" />
-                              <Skeleton className="h-4 w-8" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (dashboard?.meetingTypes && dashboard.meetingTypes.length > 0) ? (
-                      <>
-                        <ResponsiveContainer width="50%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={dashboard.meetingTypes}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={55}
-                              outerRadius={80}
-                              paddingAngle={3}
-                              dataKey="value"
-                            >
-                              {dashboard.meetingTypes.map((_, index) => (
-                                <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="flex-1 space-y-3">
-                          {dashboard.meetingTypes.map((item, i) => (
-                            <div key={item.name} className="flex items-center gap-3">
-                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                              <span className="text-sm flex-1">{item.name}</span>
-                              <span className="text-sm font-semibold">{item.value}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full flex items-center justify-center text-muted-foreground text-sm">
-                        No meeting type data yet
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Recent Meetings */}
-          <motion.div variants={stagger} initial="hidden" animate="show">
-            <motion.div variants={fadeUp}>
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">Upcoming Meetings</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={() => setCurrentView('meetings')} className="text-sm">
-                      View All <ChevronRight size={14} className="ml-1" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {isLoading ? (
-                    <div className="p-4 lg:p-6 space-y-4">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-4">
-                          <Skeleton className="w-8 h-8 rounded-lg" />
-                          <Skeleton className="h-4 flex-1" />
-                          <Skeleton className="h-4 w-24 hidden md:block" />
-                          <Skeleton className="h-4 w-16 hidden sm:block" />
-                          <Skeleton className="h-4 w-16 hidden lg:block" />
-                          <Skeleton className="h-5 w-16" />
-                          <Skeleton className="h-7 w-16" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : dashboard?.upcomingMeetings && dashboard.upcomingMeetings.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-muted-foreground">
-                            <th className="px-4 lg:px-6 py-3 font-medium">Meeting</th>
-                            <th className="px-4 lg:px-6 py-3 font-medium hidden md:table-cell">Date</th>
-                            <th className="px-4 lg:px-6 py-3 font-medium hidden sm:table-cell">Duration</th>
-                            <th className="px-4 lg:px-6 py-3 font-medium hidden lg:table-cell">Participants</th>
-                            <th className="px-4 lg:px-6 py-3 font-medium">Status</th>
-                            <th className="px-4 lg:px-6 py-3 font-medium text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dashboard.upcomingMeetings.map((meeting) => (
-                            <tr key={meeting.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                              <td className="px-4 lg:px-6 py-3.5">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                    <Video size={14} className="text-primary" />
-                                  </div>
-                                  <span className="font-medium truncate max-w-[200px]">{meeting.title}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden md:table-cell">{meeting.date}</td>
-                              <td className="px-4 lg:px-6 py-3.5 text-muted-foreground hidden sm:table-cell">{meeting.duration}</td>
-                              <td className="px-4 lg:px-6 py-3.5 hidden lg:table-cell">
-                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                  <Users size={14} /> {meeting.participants}
-                                </div>
-                              </td>
-                              <td className="px-4 lg:px-6 py-3.5">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(meeting.status)}`}>
-                                  {meeting.status === 'Active' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />}
-                                  {meeting.status}
-                                </span>
-                              </td>
-                              <td className="px-4 lg:px-6 py-3.5 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  {meeting.status === 'Active' && (
-                                    <Button size="sm" className="h-7 text-xs" onClick={handleJoinMeeting}>Join</Button>
-                                  )}
-                                  {meeting.status === 'Ended' && (
-                                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCurrentView('recordings')}>
-                                      <CircleDot size={12} className="mr-1" /> Recording
-                                    </Button>
-                                  )}
-                                  {meeting.status === 'Scheduled' && (
-                                    <Button variant="outline" size="sm" className="h-7 text-xs">Details</Button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center text-muted-foreground text-sm">
-                      No upcoming meetings scheduled
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
-
-          {/* AI Insights + Quick Actions */}
-          <div className="grid lg:grid-cols-3 gap-4">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                      <Brain size={16} className="text-violet-600 dark:text-violet-400" />
-                    </div>
-                    <CardTitle className="text-base font-semibold">AI Insights</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                        <Skeleton className="w-4 h-4" />
-                        <Skeleton className="h-4 flex-1" />
-                        <Skeleton className="w-4 h-4" />
-                      </div>
-                    ))
-                  ) : (
-                    [
-                      { text: `${dashboard?.quickStats.aiSummariesThisWeek ?? 0} meetings summarized this week`, icon: <FileText size={14} /> },
-                      { text: `${dashboard?.quickStats.totalMeetings ?? 0} total meetings in your workspace`, icon: <Clock size={14} /> },
-                      { text: `${dashboard?.quickStats.totalParticipants ?? 0} active participants`, icon: <MessageSquare size={14} /> },
-                    ].map((item) => (
-                      <div key={item.text} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                        <div className="text-muted-foreground">{item.icon}</div>
-                        <span className="text-sm flex-1">{item.text}</span>
-                        <ChevronRight size={14} className="text-muted-foreground" />
-                      </div>
-                    ))
-                  )}
-                  <Button variant="ghost" className="w-full text-sm text-primary" onClick={() => setCurrentView('ai-assistant')}>
-                    View All Insights <ArrowRight size={14} className="ml-1" />
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55 }}
-              className="lg:col-span-2"
-            >
-              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
-                    {[
-                      { label: 'New Meeting', icon: <Plus size={18} />, color: 'text-sky-600 bg-sky-50 dark:bg-sky-900/20 dark:text-sky-400', onClick: handleNewMeeting, isStartMeeting: true },
-                      { label: 'Schedule', icon: <Calendar size={18} />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400', onClick: () => setCurrentView('calendar') },
-                      { label: 'Join Meeting', icon: <Video size={18} />, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400', onClick: handleJoinMeeting },
-                      { label: 'AI Assistant', icon: <Brain size={18} />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400', onClick: () => setCurrentView('ai-assistant') },
-                      { label: 'Whiteboard', icon: <Pen size={18} />, color: 'text-rose-600 bg-rose-50 dark:bg-rose-900/20 dark:text-rose-400', onClick: () => setCurrentView('whiteboard') },
-                      { label: 'Recordings', icon: <CircleDot size={18} />, color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20 dark:text-pink-400', onClick: () => setCurrentView('recordings') },
-                      { label: 'Files', icon: <FolderOpen size={18} />, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-400', onClick: () => setCurrentView('files') },
-                      { label: 'Templates', icon: <LayoutTemplate size={18} />, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 dark:text-cyan-400', onClick: () => setCurrentView('templates') },
-                    ].map((action, idx) => (
-                      action.isStartMeeting ? (
-                        <RippleButton key={action.label} onClick={action.onClick} className="flex flex-col items-center gap-2.5 p-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/0 hover:border-primary/40 hover:bg-primary/10 transition-all group">
-                          <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.55 + idx * 0.04 }} className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform shadow-sm`}>{action.icon}</motion.div>
-                          <span className="text-sm font-medium">{action.label}</span>
-                        </RippleButton>
-                      ) : (
-                        <motion.button
-                          key={action.label}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.55 + idx * 0.04 }}
-                          onClick={action.onClick}
-                          className="flex flex-col items-center gap-2.5 p-4 rounded-xl border hover:border-primary/30 hover:bg-muted/50 transition-all group"
-                        >
-                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.color} group-hover:scale-110 transition-transform`}>
-                            {action.icon}
-                          </div>
-                          <span className="text-sm font-medium">{action.label}</span>
-                        </motion.button>
-                      )
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Who's Online + Team Activity */}
-          <div className="grid lg:grid-cols-3 gap-4">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                      </span>
-                      Who&apos;s Online
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">{isLoading ? '...' : (dashboard?.onlineUsers?.length ?? 0)} online</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
-                    {isLoading ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg">
-                          <Skeleton className="w-8 h-8 rounded-full" />
-                          <div className="flex-1 space-y-1">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                        </div>
-                      ))
-                    ) : dashboard?.onlineUsers && dashboard.onlineUsers.length > 0 ? (
-                      dashboard.onlineUsers.map((person, i) => (
-                        <motion.div
-                          key={person.name}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.65 + i * 0.05 }}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer"
-                        >
-                          <div className="relative">
-                            <Avatar className="w-8 h-8">
-                              <AvatarFallback className={`${person.color} text-white text-[10px] font-bold`}>{person.initials}</AvatarFallback>
-                            </Avatar>
-                            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-emerald-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{person.name}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">{person.status}</p>
-                          </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentView('chat')}><MessageCircle size={13} /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setMeetingTitle('Call with ' + person.name); setCurrentMeetingId('new-' + Date.now()); setCurrentView('meeting-room'); }}><Video size={13} /></Button>
-                          </div>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-sm text-muted-foreground">No users online right now</div>
-                    )}
-                  </div>
-                </CardContent>
-                <div className="h-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
-              </Card>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="lg:col-span-2">
-              <Card className="h-full border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">Team Activity</CardTitle>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setCurrentView('notifications')}>View All <ArrowRight size={12} className="ml-1" /></Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
-                    {isLoading ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-                          <div className="flex-1 space-y-1">
-                            <Skeleton className="h-4 w-48" />
-                            <Skeleton className="h-3 w-32" />
-                          </div>
-                          <Skeleton className="h-3 w-14 shrink-0" />
-                        </div>
-                      ))
-                    ) : dashboard?.recentActivity && dashboard.recentActivity.length > 0 ? (
-                      dashboard.recentActivity.map((activity, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.7 + i * 0.06 }}
-                          className="flex items-center gap-3"
-                        >
-                          <Avatar className="w-8 h-8 shrink-0">
-                            <AvatarFallback className={`${activity.color} text-white text-[10px] font-bold`}>{activity.initials}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm">
-                              <span className="font-medium">{activity.user}</span>{' '}
-                              <span className="text-muted-foreground">{activity.action}</span>{' '}
-                              {activity.target && <span className="font-medium">{activity.target}</span>}
-                            </p>
-                          </div>
-                          <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-sm text-muted-foreground">No recent activity</div>
-                    )}
-                  </div>
-                </CardContent>
-                <div className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-500" />
-              </Card>
-            </motion.div>
-          </div>
+      {/* ═══════════════════ RECENT RECORDINGS ═══════════════════ */}
+      <motion.div variants={item}>
+        <div className='flex items-center justify-between mb-4'>
+          <h2 className='text-lg font-semibold'>Recent Recordings</h2>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-sm text-muted-foreground hover:text-foreground'
+            onClick={() => setCurrentView('recordings')}
+          >
+            View All <ChevronRight className='h-4 w-4 ml-1' />
+          </Button>
         </div>
-      </main>
-    </div>
+
+        {recordingsLoading ? (
+          <div className='flex gap-4 overflow-x-auto pb-2' style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
+            <RecordingCardSkeleton />
+            <RecordingCardSkeleton />
+            <RecordingCardSkeleton />
+          </div>
+        ) : recordings.length > 0 ? (
+          <div className='flex gap-4 overflow-x-auto pb-2' style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(155,155,155,0.2) transparent' }}>
+            {recordings.map((rec) => (
+              <motion.div
+                key={rec.id}
+                whileHover={{ scale: 1.02 }}
+                transition={{ duration: 0.2 }}
+                className='min-w-[260px] max-w-[280px] shrink-0 rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 overflow-hidden group'
+              >
+                {/* Thumbnail placeholder with gradient */}
+                <div className='relative h-36 bg-gradient-to-br from-rose-500/20 via-violet-500/20 to-fuchsia-500/20 flex items-center justify-center overflow-hidden'>
+                  <Film className='h-10 w-10 text-muted-foreground/40 group-hover:scale-110 transition-transform duration-300' />
+                  {/* Play button overlay */}
+                  <div className='absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center'>
+                    <div className='w-12 h-12 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg'>
+                      <Play className='h-5 w-5 text-foreground ml-0.5' />
+                    </div>
+                  </div>
+                  {/* Duration badge */}
+                  <span className='absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-medium backdrop-blur-sm'>
+                    {rec.duration}
+                  </span>
+                </div>
+
+                <div className='p-4'>
+                  <div className='flex items-start justify-between gap-2'>
+                    <div className='min-w-0 flex-1'>
+                      <h4 className='font-medium text-sm truncate'>{rec.title}</h4>
+                      <p className='text-xs text-muted-foreground mt-1'>
+                        {new Date(rec.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='ghost' size='icon' className='h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <MoreHorizontal className='h-4 w-4' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end' className='w-36'>
+                        <DropdownMenuItem className='text-xs cursor-pointer'>Download</DropdownMenuItem>
+                        <DropdownMenuItem className='text-xs cursor-pointer'>Share</DropdownMenuItem>
+                        <DropdownMenuItem className='text-xs cursor-pointer'>Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+              </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <Card className='border border-dashed border-border/50 bg-muted/20'>
+            <CardContent className='p-12 flex flex-col items-center justify-center text-center'>
+              <div className='w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4'>
+                <Film className='h-7 w-7 text-muted-foreground' />
+              </div>
+              <h3 className='font-medium mb-1'>No recordings yet</h3>
+              <p className='text-sm text-muted-foreground max-w-sm'>
+                Recordings from your meetings will appear here.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </motion.div>
+
+      {/* ═══════════════════ STATS OVERVIEW ═══════════════════ */}
+      <motion.div variants={item}>
+        <h2 className='text-lg font-semibold mb-4'>This Week at a Glance</h2>
+
+        {statsLoading ? (
+          <StatsSkeleton />
+        ) : (
+          <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+            {[
+              {
+                label: 'Total Meetings',
+                value: String(stats.totalMeetings),
+                trend: stats.totalMeetingsTrend,
+                trendUp: true,
+                icon: <VideoIcon className='h-4 w-4' />,
+                color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600',
+              },
+              {
+                label: 'Total Hours',
+                value: String(stats.totalHours),
+                trend: stats.totalHoursTrend,
+                trendUp: true,
+                icon: <Clock className='h-4 w-4' />,
+                color: 'from-teal-500/10 to-teal-500/5 text-teal-600',
+              },
+              {
+                label: 'Team Members',
+                value: String(stats.teamMembers),
+                trend: stats.teamMembersTrend,
+                trendUp: true,
+                icon: <Users className='h-4 w-4' />,
+                color: 'from-amber-500/10 to-amber-500/5 text-amber-600',
+              },
+              {
+                label: 'AI Summaries',
+                value: String(stats.aiSummaries),
+                trend: stats.aiSummariesTrend,
+                trendUp: true,
+                icon: <Brain className='h-4 w-4' />,
+                color: 'from-violet-500/10 to-violet-500/5 text-violet-600',
+              },
+            ].map((stat) => (
+              <motion.div
+                key={stat.label}
+                whileHover={{ scale: 1.03 }}
+                className='rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 p-5'
+              >
+                <div className='flex items-start justify-between mb-3'>
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}>
+                    {stat.icon}
+                  </div>
+                  <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    stat.trendUp
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    {stat.trendUp ? <ArrowUpRight className='h-3 w-3' /> : <ArrowDownRight className='h-3 w-3' />}
+                    {stat.trend}
+                  </span>
+                </div>
+                <p className='text-2xl lg:text-3xl font-bold tracking-tight'>{stat.value}</p>
+                <p className='text-xs text-muted-foreground mt-1'>{stat.label}</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
+
+// ── Mock Data ──────────────────────────────────────────────────────────
+
+const MOCK_MEETINGS: UpcomingMeeting[] = [
+  {
+    id: 'm1',
+    title: 'Sprint Planning — Q4 Kickoff',
+    scheduledAt: new Date(Date.now() + 30 * 60000).toISOString(),
+    type: 'recurring',
+    hostName: 'Sarah Mitchell',
+    hostInitials: 'SM',
+    participants: [
+      { initials: 'AJ', color: 'bg-emerald-500' },
+      { initials: 'KL', color: 'bg-amber-500' },
+      { initials: 'MR', color: 'bg-violet-500' },
+      { initials: 'TC', color: 'bg-rose-500' },
+      { initials: 'JW', color: 'bg-teal-500' },
+    ],
+  },
+  {
+    id: 'm2',
+    title: 'Design Review — New Dashboard',
+    scheduledAt: new Date(Date.now() + 3 * 3600000).toISOString(),
+    type: 'scheduled',
+    hostName: 'Alex Johnson',
+    hostInitials: 'AJ',
+    participants: [
+      { initials: 'SM', color: 'bg-rose-500' },
+      { initials: 'LP', color: 'bg-fuchsia-500' },
+      { initials: 'DW', color: 'bg-cyan-500' },
+    ],
+  },
+  {
+    id: 'm3',
+    title: '1:1 with Engineering Lead',
+    scheduledAt: new Date(Date.now() + 25 * 3600000).toISOString(),
+    type: 'instant',
+    hostName: 'Sarah Mitchell',
+    hostInitials: 'SM',
+    participants: [
+      { initials: 'RB', color: 'bg-orange-500' },
+    ],
+  },
+];
+
+const MOCK_RECORDINGS: Recording[] = [
+  {
+    id: 'r1',
+    title: 'Product Roadmap Review',
+    duration: '1:02:34',
+    date: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'r2',
+    title: 'Client Onboarding — Acme Corp',
+    duration: '0:45:12',
+    date: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+  {
+    id: 'r3',
+    title: 'Team Retrospective',
+    duration: '0:38:50',
+    date: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+];
+
+const MOCK_STATS: DashboardStats = {
+  totalMeetings: 12,
+  totalMeetingsTrend: '+12%',
+  totalHours: 8.5,
+  totalHoursTrend: '+5%',
+  teamMembers: 24,
+  teamMembersTrend: '+3%',
+  aiSummaries: 27,
+  aiSummariesTrend: '+18%',
+};

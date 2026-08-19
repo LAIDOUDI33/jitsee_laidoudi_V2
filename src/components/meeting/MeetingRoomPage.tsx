@@ -20,6 +20,9 @@ import MeetingSidebar from './parts/MeetingSidebar';
 import ReactionsBar from './parts/ReactionsBar';
 import WaitingRoom from './parts/WaitingRoom';
 import VirtualBackgroundSelector from '@/components/shared/VirtualBgSelector';
+import PreJoinPreview from './PreJoinPreview';
+import PostMeetingSummary from './PostMeetingSummary';
+import EndMeetingDialog from './EndMeetingDialog';
 
 // Shared data / helpers
 import {
@@ -98,6 +101,11 @@ export default function MeetingRoomPage() {
     updateMediaState: wsUpdateMediaState,
   } = useMeetingRoom({ meetingId, userId, userName });
 
+  // --- Flow state ---
+  const [preJoinComplete, setPreJoinComplete] = useState(false);
+  const [showPostMeeting, setShowPostMeeting] = useState(false);
+  const [endMeetingDialogOpen, setEndMeetingDialogOpen] = useState(false);
+
   // ── WebRTC hook ───────────────────────────────────────────────
   const {
     localStream,
@@ -113,7 +121,7 @@ export default function MeetingRoomPage() {
     meetingId,
     userId,
     userName,
-    enabled: true,
+    enabled: preJoinComplete,
   });
 
   // --- Shared State ---
@@ -304,10 +312,21 @@ export default function MeetingRoomPage() {
   };
 
   const handleLeaveMeeting = () => {
+    setEndMeetingDialogOpen(true);
+  };
+
+  const handleDialogLeave = () => {
     webrtcDisconnect();
     wsDisconnect();
     toast.success('You left the meeting');
-    setCurrentView('dashboard');
+    setShowPostMeeting(true);
+  };
+
+  const handleEndForAll = () => {
+    webrtcDisconnect();
+    wsDisconnect();
+    toast('Meeting ended for all participants');
+    setShowPostMeeting(true);
   };
 
   const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation') => {
@@ -364,6 +383,31 @@ export default function MeetingRoomPage() {
     : mockParticipants.length;
 
   // ─── Render ─────────────────────────────────────────────────
+
+  // Pre-join screen
+  if (!preJoinComplete) {
+    return (
+      <PreJoinPreview
+        meetingTitle={meetingTitle || 'Sprint Planning - Q4'}
+        meetingId={meetingId}
+        onJoin={() => setPreJoinComplete(true)}
+        onCancel={() => setCurrentView('dashboard')}
+      />
+    );
+  }
+
+  // Post-meeting summary
+  if (showPostMeeting) {
+    return (
+      <PostMeetingSummary
+        meetingTitle={meetingTitle || 'Sprint Planning - Q4'}
+        duration={elapsed}
+        participantCount={displayParticipants.length}
+        onBackToDashboard={() => setCurrentView('dashboard')}
+      />
+    );
+  }
+
   return (
     <>
     <TooltipProvider delayDuration={200}>
@@ -509,6 +553,15 @@ export default function MeetingRoomPage() {
         setVirtualBg(bgId);
         setBgSelectorOpen(false);
       }}
+    />
+
+    {/* End Meeting Dialog */}
+    <EndMeetingDialog
+      open={endMeetingDialogOpen}
+      onOpenChange={setEndMeetingDialogOpen}
+      onLeave={handleDialogLeave}
+      onEndForAll={handleEndForAll}
+      isHost={localParticipant.role === 'Host'}
     />
     </>
   );

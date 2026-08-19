@@ -63,6 +63,7 @@ import SearchCommand from '@/components/shared/SearchCommand'
 import QuickStartMeeting from '@/components/shared/QuickStartMeeting'
 import OnboardingModal from '@/components/shared/OnboardingModal'
 import KeyboardShortcuts, { useKeyboardShortcuts } from '@/components/shared/KeyboardShortcuts'
+import KeyboardShortcutsOverlay from '@/components/shared/KeyboardShortcutsOverlay'
 import { useOnboarding } from '@/hooks/useOnboarding'
 
 const newBadgeViews = new Set<AppView>(['whiteboard', 'analytics'])
@@ -315,6 +316,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showSoundWave, setShowSoundWave] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [overlayOpen, setOverlayOpen] = useState(false)
   const { currentView, setCurrentView, user, clearAuth, setSearchOpen } = useAppStore()
 
   // Keyboard shortcuts
@@ -323,6 +325,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const toggleHandler = () => setShortcutsOpen(prev => !prev)
     window.addEventListener('toggle-shortcuts', toggleHandler)
     return () => window.removeEventListener('toggle-shortcuts', toggleHandler)
+  }, [])
+
+  // ? key opens the shortcuts overlay
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Only trigger ? when no input/textarea is focused
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === '?') {
+        e.preventDefault()
+        setOverlayOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   // Animate sound-wave on quick start hover
@@ -418,6 +435,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onComplete={completeOnboarding}
       />
       <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <KeyboardShortcutsOverlay open={overlayOpen} onOpenChange={setOverlayOpen} />
       <div className='h-screen flex bg-background overflow-hidden'>
         {/* Desktop sidebar */}
         <aside
