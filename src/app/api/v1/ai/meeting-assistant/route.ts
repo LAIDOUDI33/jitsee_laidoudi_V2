@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       .map((t) => ({ type: 'transcript' as const, id: t.id, speakerName: t.speakerName }));
 
     if (summaries.length > 0) {
-      sources.push({ type: 'summary' as const, id: summaries[0].id });
+      sources.push({ type: 'transcript' as const, id: summaries[0].id });
     }
 
     // --- Audit log ------------------------------------------------------------

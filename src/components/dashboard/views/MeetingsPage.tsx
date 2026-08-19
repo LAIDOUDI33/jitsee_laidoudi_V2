@@ -31,6 +31,7 @@ import {
   Sparkles,
   Check,
   Link2,
+  FileDown,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -277,6 +278,28 @@ export default function MeetingsPage() {
     }, 2000)
   }
 
+  const handleDownloadIcal = async (meetingId: string, title: string) => {
+    try {
+      const res = await authFetch(`/api/v1/meetings/ical?meetingId=${encodeURIComponent(meetingId)}`)
+      if (!res.ok) {
+        toast.error('Failed to download .ics file')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${title.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').slice(0, 50)}.ics`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('Calendar invite downloaded!')
+    } catch {
+      toast.error('Failed to download .ics file')
+    }
+  }
+
   function parseDurationMinutes(dur: string): number {
     const m = dur.match(/(\d+)h\s*(?:(\d+)m)?/)
     if (m) return parseInt(m[1]) * 60 + (parseInt(m[2]) || 0)
@@ -406,6 +429,7 @@ export default function MeetingsPage() {
                   <DropdownMenuContent align='end'>
                     <DropdownMenuItem className='gap-2' onClick={() => handleCopyLink(m.roomId, m.id)}><Copy className='h-4 w-4' /> Copy Room Link</DropdownMenuItem>
                     <DropdownMenuItem className='gap-2' onClick={() => handleJoin(m)}><Video className='h-4 w-4' /> {m.status === 'active' ? 'Join Now' : 'Start Early'}</DropdownMenuItem>
+                    <DropdownMenuItem className='gap-2' onClick={() => handleDownloadIcal(m.id, m.title)}><FileDown className='h-4 w-4' /> Download .ics</DropdownMenuItem>
                     {m.status !== 'ended' && <DropdownMenuSeparator />}
                     {m.status !== 'ended' && <DropdownMenuItem className='gap-2 text-red-600'><VideoOff className='h-4 w-4' /> Cancel Meeting</DropdownMenuItem>}
                   </DropdownMenuContent>

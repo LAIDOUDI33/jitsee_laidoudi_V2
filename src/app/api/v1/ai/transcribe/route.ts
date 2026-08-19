@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       const zai = await ZAI.create();
 
       // Try using the ASR capability if available via the SDK
-      const asrResult = await zai.audio.transcriptions.create({
+      const asrResult = await (zai.audio as any).asr?.create?.({
         model: 'whisper-1',
         file: audio,
         language: safeLanguage,

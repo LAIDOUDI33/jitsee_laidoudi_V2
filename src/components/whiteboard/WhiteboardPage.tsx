@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useRef, useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { motion } from 'framer-motion'
 import {
   Pen,
   Eraser,
@@ -10,7 +10,7 @@ import {
   Square,
   Circle,
   Minus,
-  MoveRight,
+  ArrowRight,
   Undo2,
   Redo2,
   Trash2,
@@ -18,8 +18,9 @@ import {
   ZoomOut,
   Maximize2,
   Grid3X3,
-  Users,
   Download,
+  Save,
+  Palette,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,65 +30,53 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { WhiteboardCanvas, type ToolType, type WhiteboardElement } from './WhiteboardCanvas'
+import { authFetch } from '@/lib/api'
 import { useAppStore } from '@/store/app-store'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-type ToolType =
-  | 'select'
-  | 'pen'
-  | 'eraser'
-  | 'rectangle'
-  | 'circle'
-  | 'line'
-  | 'arrow'
-  | 'text'
-
-interface DrawAction {
-  type: ToolType
-  points: { x: number; y: number }[]
-  color: string
-  width: number
-  text?: string
-}
-
-interface Collaborator {
-  id: string
-  name: string
-  color: string
-  x: number
-  y: number
-}
-
-const COLORS = [
-  '#000000',
-  '#EF4444',
-  '#3B82F6',
-  '#22C55E',
-  '#F97316',
-  '#A855F7',
-  '#EC4899',
-  '#6B7280',
+const PRESET_COLORS = [
+  { name: 'White', hex: '#ffffff' },
+  { name: 'Black', hex: '#1e293b' },
+  { name: 'Emerald', hex: '#10b981' },
+  { name: 'Teal', hex: '#14b8a6' },
+  { name: 'Amber', hex: '#f59e0b' },
+  { name: 'Rose', hex: '#f43f5e' },
+  { name: 'Cyan', hex: '#06b6d4' },
+  { name: 'Slate', hex: '#64748b' },
 ]
 
-const STROKE_WIDTHS = [2, 4, 6, 8]
-
-const TOOL_ITEMS: { tool: ToolType; icon: React.ReactElement; label: string }[] = [
-  { tool: 'select', icon: <MousePointer2 className='h-4 w-4' />, label: 'Select' },
-  { tool: 'pen', icon: <Pen className='h-4 w-4' />, label: 'Pen' },
-  { tool: 'eraser', icon: <Eraser className='h-4 w-4' />, label: 'Eraser' },
-  { tool: 'rectangle', icon: <Square className='h-4 w-4' />, label: 'Rectangle' },
-  { tool: 'circle', icon: <Circle className='h-4 w-4' />, label: 'Circle' },
-  { tool: 'line', icon: <Minus className='h-4 w-4' />, label: 'Line' },
-  { tool: 'arrow', icon: <MoveRight className='h-4 w-4' />, label: 'Arrow' },
-  { tool: 'text', icon: <Type className='h-4 w-4' />, label: 'Text' },
+const STROKE_OPTIONS = [
+  { label: 'Thin', value: 2 },
+  { label: 'Medium', value: 4 },
+  { label: 'Thick', value: 8 },
 ]
 
-const MOCK_COLLABORATORS: Collaborator[] = [
-  { id: 'c1', name: 'Sarah Chen', color: '#3B82F6', x: 320, y: 200 },
-  { id: 'c2', name: 'Alex Rivera', color: '#EF4444', x: 600, y: 350 },
-  { id: 'c3', name: 'Priya Sharma', color: '#22C55E', x: 450, y: 150 },
+const TOOL_ITEMS: { tool: ToolType; icon: React.ReactElement; label: string; shortcut: string }[] = [
+  { tool: 'select', icon: <MousePointer2 className='h-4 w-4' />, label: 'Select', shortcut: 'V' },
+  { tool: 'pen', icon: <Pen className='h-4 w-4' />, label: 'Pen', shortcut: 'P' },
+  { tool: 'line', icon: <Minus className='h-4 w-4' />, label: 'Line', shortcut: 'L' },
+  { tool: 'arrow', icon: <ArrowRight className='h-4 w-4' />, label: 'Arrow', shortcut: 'A' },
+  { tool: 'rectangle', icon: <Square className='h-4 w-4' />, label: 'Rectangle', shortcut: 'R' },
+  { tool: 'circle', icon: <Circle className='h-4 w-4' />, label: 'Circle', shortcut: 'C' },
+  { tool: 'text', icon: <Type className='h-4 w-4' />, label: 'Text', shortcut: 'T' },
+  { tool: 'eraser', icon: <Eraser className='h-4 w-4' />, label: 'Eraser', shortcut: 'E' },
 ]
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -95,354 +84,196 @@ const MOCK_COLLABORATORS: Collaborator[] = [
 export default function WhiteboardPage() {
   const { user } = useAppStore()
 
-  // Canvas refs
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const minimapRef = useRef<HTMLCanvasElement>(null)
-
   // Tool state
   const [activeTool, setActiveTool] = useState<ToolType>('pen')
-  const [activeColor, setActiveColor] = useState(COLORS[0])
-  const [activeWidth, setActiveWidth] = useState(STROKE_WIDTHS[1])
+  const [activeColor, setActiveColor] = useState('#ffffff')
+  const [activeWidth, setActiveWidth] = useState(4)
   const [showGrid, setShowGrid] = useState(true)
   const [zoom, setZoom] = useState(1)
-  const [isDrawing, setIsDrawing] = useState(false)
 
-  // History state
-  const [history, setHistory] = useState<DrawAction[][]>([[]])
-  const [historyIndex, setHistoryIndex] = useState(0)
-  const [currentAction, setCurrentAction] = useState<DrawAction | null>(null)
+  // Elements state (controlled)
+  const [elements, setElements] = useState<WhiteboardElement[]>([])
+  const hasLoadedRef = useRef(false)
 
-  // Canvas dimensions
-  const [canvasSize, setCanvasSize] = useState({ width: 1920, height: 1080 })
-  const containerRef = useRef<HTMLDivElement>(null)
+  // Dialog state
+  const [showClearDialog, setShowClearDialog] = useState(false)
 
-  // Text input state
-  const [textInput, setTextInput] = useState<{ x: number; y: number } | null>(null)
-  const [textValue, setTextValue] = useState('')
+  // Save state
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const elementsRef = useRef<WhiteboardElement[]>([])
+  const canvasRef = useRef<HTMLDivElement>(null)
 
-  // Collaborator cursor animation
-  const [collaborators, setCollaborators] = useState<Collaborator[]>(MOCK_COLLABORATORS)
+  // ── Undo / Redo ────────────────────────────────────────────────────────
+  // History managed with state so undo/redo buttons reactively disable.
+  const [undoStack, setUndoStack] = useState<WhiteboardElement[][]>([])
+  const [redoStack, setRedoStack] = useState<WhiteboardElement[][]>([])
 
-  // ─── Resize handler ──────────────────────────────────────────────────────
+  const canUndo = undoStack.length > 0
+  const canRedo = redoStack.length > 0
+
+  // ── Fetch initial data ──────────────────────────────────────────────────
   useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current) {
-        setCanvasSize({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
-        })
+    async function load() {
+      try {
+        const res = await authFetch('/api/v1/whiteboard?sessionId=default')
+        if (res.ok) {
+          const json = await res.json()
+          const data: WhiteboardElement[] = json.data?.data ?? []
+          hasLoadedRef.current = true
+          setElements(data)
+          elementsRef.current = data
+        }
+      } catch {
+        // Silently fail on load — start blank
       }
     }
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    load()
   }, [])
 
-  // ─── Draw single action ──────────────────────────────────────────────────
-  const drawAction = useCallback(
-    (ctx: CanvasRenderingContext2D, action: DrawAction) => {
-      if (!action || action.points.length === 0) return
-
-      ctx.save()
-      ctx.strokeStyle = action.color
-      ctx.lineWidth = action.width * zoom
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-
-      if (action.type === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out'
-        ctx.strokeStyle = 'rgba(0,0,0,1)'
-      }
-
-      if (action.type === 'pen' || action.type === 'eraser' || action.type === 'select') {
-        ctx.beginPath()
-        ctx.moveTo(action.points[0].x * zoom, action.points[0].y * zoom)
-        for (let i = 1; i < action.points.length; i++) {
-          const prev = action.points[i - 1]
-          const curr = action.points[i]
-          const mx = ((prev.x + curr.x) / 2) * zoom
-          const my = ((prev.y + curr.y) / 2) * zoom
-          ctx.quadraticCurveTo(prev.x * zoom, prev.y * zoom, mx, my)
-        }
-        ctx.stroke()
-      } else if (action.type === 'rectangle') {
-        const start = action.points[0]
-        const end = action.points[action.points.length - 1]
-        ctx.strokeRect(
-          start.x * zoom,
-          start.y * zoom,
-          (end.x - start.x) * zoom,
-          (end.y - start.y) * zoom
-        )
-      } else if (action.type === 'circle') {
-        const start = action.points[0]
-        const end = action.points[action.points.length - 1]
-        const rx = Math.abs((end.x - start.x) / 2) * zoom
-        const ry = Math.abs((end.y - start.y) / 2) * zoom
-        const cx = ((start.x + end.x) / 2) * zoom
-        const cy = ((start.y + end.y) / 2) * zoom
-        ctx.beginPath()
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
-        ctx.stroke()
-      } else if (action.type === 'line') {
-        const start = action.points[0]
-        const end = action.points[action.points.length - 1]
-        ctx.beginPath()
-        ctx.moveTo(start.x * zoom, start.y * zoom)
-        ctx.lineTo(end.x * zoom, end.y * zoom)
-        ctx.stroke()
-      } else if (action.type === 'arrow') {
-        const start = action.points[0]
-        const end = action.points[action.points.length - 1]
-        const sx = start.x * zoom
-        const sy = start.y * zoom
-        const ex = end.x * zoom
-        const ey = end.y * zoom
-        const angle = Math.atan2(ey - sy, ex - sx)
-        const headLen = 14 * zoom
-        ctx.beginPath()
-        ctx.moveTo(sx, sy)
-        ctx.lineTo(ex, ey)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.moveTo(ex, ey)
-        ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI / 6), ey - headLen * Math.sin(angle - Math.PI / 6))
-        ctx.moveTo(ex, ey)
-        ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI / 6), ey - headLen * Math.sin(angle + Math.PI / 6))
-        ctx.stroke()
-      } else if (action.type === 'text' && action.text) {
-        ctx.fillStyle = action.color
-        ctx.font = `${action.width * 4 * zoom}px Inter, system-ui, sans-serif`
-        ctx.fillText(action.text, action.points[0].x * zoom, action.points[0].y * zoom)
-      }
-      ctx.restore()
-    },
-    [zoom]
-  )
-
-  // ─── Redraw canvas ──────────────────────────────────────────────────────
-  const redrawCanvas = useCallback(
-    (ctx: CanvasRenderingContext2D, actions: DrawAction[][]) => {
-      const w = canvasSize.width
-      const h = canvasSize.height
-      ctx.clearRect(0, 0, w, h)
-
-      // Draw grid
-      if (showGrid) {
-        ctx.save()
-        ctx.fillStyle = '#94a3b8'
-        const spacing = 24 * zoom
-        for (let x = 0; x < w; x += spacing) {
-          for (let y = 0; y < h; y += spacing) {
-            ctx.beginPath()
-            ctx.arc(x, y, 1 * zoom, 0, Math.PI * 2)
-            ctx.fill()
+  // ── Debounced save ─────────────────────────────────────────────────────
+  const debouncedSave = useCallback(
+    (newElements: WhiteboardElement[]) => {
+      elementsRef.current = newElements
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      setSaveStatus('idle')
+      saveTimerRef.current = setTimeout(async () => {
+        try {
+          setSaveStatus('saving')
+          const res = await authFetch('/api/v1/whiteboard', {
+            method: 'PUT',
+            body: JSON.stringify({ sessionId: 'default', data: elementsRef.current }),
+          })
+          if (res.ok) {
+            setSaveStatus('saved')
+          } else {
+            setSaveStatus('error')
           }
+        } catch {
+          setSaveStatus('error')
         }
-        ctx.restore()
-      }
-
-      // Draw all actions
-      for (const action of actions.flat()) {
-        drawAction(ctx, action)
-      }
+      }, 1500)
     },
-    [canvasSize, showGrid, zoom, drawAction]
+    []
   )
 
-  // ─── Canvas effect ───────────────────────────────────────────────────────
+  const handleElementAdd = useCallback(
+    (newElement: WhiteboardElement, allElements: WhiteboardElement[]) => {
+      // Skip undo tracking on initial load
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true
+      } else {
+        // Push current elements to undo stack
+        setUndoStack((stack) => {
+          const next = [...stack, elements]
+          return next.length > 100 ? next.slice(-100) : next
+        })
+        setRedoStack([])
+      }
+      setElements(allElements)
+      debouncedSave(allElements)
+    },
+    [elements, debouncedSave]
+  )
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return
+    const prev = undoStack[undoStack.length - 1]
+    setRedoStack((r) => [...r, elements])
+    setUndoStack((u) => u.slice(0, -1))
+    setElements(prev)
+    elementsRef.current = prev
+    debouncedSave(prev)
+  }, [undoStack, elements, debouncedSave])
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return
+    const next = redoStack[redoStack.length - 1]
+    setUndoStack((u) => [...u, elements])
+    setRedoStack((r) => r.slice(0, -1))
+    setElements(next)
+    elementsRef.current = next
+    debouncedSave(next)
+  }, [redoStack, elements, debouncedSave])
+
+  const handleClear = useCallback(() => {
+    setShowClearDialog(false)
+    setUndoStack((u) => [...u, elements])
+    setRedoStack([])
+    setElements([])
+    elementsRef.current = []
+    debouncedSave([])
+  }, [elements, debouncedSave])
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
-    canvas.width = canvasSize.width
-    canvas.height = canvasSize.height
+      // Ctrl/Cmd+Z for undo, Ctrl/Cmd+Shift+Z for redo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) handleRedo()
+        else handleUndo()
+        return
+      }
 
-    const snapshot = [...history.slice(0, historyIndex + 1)]
-    redrawCanvas(ctx, snapshot)
-
-    // Draw current action being drawn
-    if (currentAction) {
-      drawAction(ctx, currentAction)
+      // Tool shortcuts
+      const toolShortcut: Record<string, ToolType> = {
+        v: 'select', p: 'pen', l: 'line', a: 'arrow',
+        r: 'rectangle', c: 'circle', t: 'text', e: 'eraser',
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        const lower = e.key.toLowerCase()
+        if (toolShortcut[lower]) {
+          setActiveTool(toolShortcut[lower])
+        }
+      }
     }
-  }, [canvasSize, history, historyIndex, currentAction, redrawCanvas])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleUndo, handleRedo])
 
-  // ─── Minimap effect ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const minimap = minimapRef.current
-    const canvas = canvasRef.current
-    if (!minimap || !canvas) return
-    const mctx = minimap.getContext('2d')
-    if (!mctx) return
+  // ── Zoom controls ───────────────────────────────────────────────────────
+  const handleZoomIn = useCallback(() => setZoom((z) => Math.min(z + 0.15, 4)), [])
+  const handleZoomOut = useCallback(() => setZoom((z) => Math.max(z - 0.15, 0.25)), [])
+  const handleZoomFit = useCallback(() => setZoom(1), [])
 
-    const mw = 180
-    const mh = Math.round((mw / canvasSize.width) * canvasSize.height)
-    minimap.width = mw
-    minimap.height = mh
-    minimap.style.height = `${mh}px`
-
-    mctx.fillStyle = '#ffffff'
-    mctx.fillRect(0, 0, mw, mh)
-    mctx.drawImage(canvas, 0, 0, mw, mh)
-    mctx.strokeStyle = '#94a3b8'
-    mctx.lineWidth = 1
-    mctx.strokeRect(0, 0, mw, mh)
-  }, [canvasSize, history, historyIndex, currentAction])
-
-  // ─── Get position from mouse/touch event ─────────────────────────────────
-  function getPosition(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    let clientX: number, clientY: number
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX
-      clientY = e.touches[0].clientY
-    } else {
-      clientX = e.clientX
-      clientY = e.clientY
-    }
-    return {
-      x: (clientX - rect.left) / zoom,
-      y: (clientY - rect.top) / zoom,
-    }
-  }
-
-  // ─── Mouse / Touch handlers ─────────────────────────────────────────────
-  function handlePointerDown(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    const pos = getPosition(e)
-
-    if (activeTool === 'text') {
-      setTextInput({ x: pos.x, y: pos.y })
-      setTextValue('')
-      return
-    }
-
-    setIsDrawing(true)
-    const action: DrawAction = {
-      type: activeTool,
-      points: [pos],
-      color: activeColor,
-      width: activeWidth,
-    }
-    setCurrentAction(action)
-  }
-
-  function handlePointerMove(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    if (!isDrawing || !currentAction) return
-    const pos = getPosition(e)
-    setCurrentAction({ ...currentAction, points: [...currentAction.points, pos] })
-  }
-
-  function handlePointerUp() {
-    if (!isDrawing || !currentAction) {
-      setIsDrawing(false)
-      return
-    }
-    setIsDrawing(false)
-
-    if (currentAction.points.length > 0) {
-      const newHistory = [...history.slice(0, historyIndex + 1), [...history[historyIndex], currentAction]]
-      setHistory(newHistory)
-      setHistoryIndex(newHistory.length - 1)
-    }
-    setCurrentAction(null)
-  }
-
-  // ─── Text submit handler ──────────────────────────────────────────────────
-  function handleTextSubmit() {
-    if (!textInput || !textValue.trim()) {
-      setTextInput(null)
-      return
-    }
-    const action: DrawAction = {
-      type: 'text',
-      points: [{ x: textInput.x, y: textInput.y }],
-      color: activeColor,
-      width: activeWidth,
-      text: textValue,
-    }
-    const newHistory = [...history.slice(0, historyIndex + 1), [...history[historyIndex], action]]
-    setHistory(newHistory)
-    setHistoryIndex(newHistory.length - 1)
-    setTextInput(null)
-    setTextValue('')
-  }
-
-  // ─── Undo / Redo ─────────────────────────────────────────────────────────
-  function handleUndo() {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1)
-    }
-  }
-
-  function handleRedo() {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1)
-    }
-  }
-
-  // ─── Clear canvas ─────────────────────────────────────────────────────────
-  function handleClear() {
-    setHistory([[]])
-    setHistoryIndex(0)
-    setCurrentAction(null)
-  }
-
-  // ─── Zoom controls ───────────────────────────────────────────────────────
-  function handleZoomIn() {
-    setZoom((z) => Math.min(z + 0.1, 3))
-  }
-
-  function handleZoomOut() {
-    setZoom((z) => Math.max(z - 0.1, 0.3))
-  }
-
-  function handleZoomFit() {
-    setZoom(1)
-  }
-
-  // ─── Collaborator cursor animation ────────────────────────────────────────
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCollaborators((prev) =>
-        prev.map((c) => ({
-          ...c,
-          x: c.x + (Math.random() - 0.5) * 30,
-          y: c.y + (Math.random() - 0.5) * 30,
-        }))
-      )
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // ─── Export canvas ───────────────────────────────────────────────────────
-  function handleExport() {
-    const canvas = canvasRef.current
+  // ── Export ──────────────────────────────────────────────────────────────
+  const handleExport = useCallback(() => {
+    const canvas = canvasRef.current?.querySelector('canvas') as HTMLCanvasElement | null
     if (!canvas) return
     const link = document.createElement('a')
     link.download = 'alvision-whiteboard.png'
     link.href = canvas.toDataURL()
     link.click()
-  }
+  }, [])
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ── Save status icon ────────────────────────────────────────────────────
+  const saveStatusIcon =
+    saveStatus === 'saving' ? (
+      <div className='h-3 w-3 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin' />
+    ) : saveStatus === 'saved' ? (
+      <div className='h-3 w-3 rounded-full bg-emerald-500' />
+    ) : saveStatus === 'error' ? (
+      <div className='h-3 w-3 rounded-full bg-rose-500' />
+    ) : null
 
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <TooltipProvider delayDuration={200}>
-      <div className='relative h-screen w-screen overflow-hidden bg-background flex flex-col'>
+      {/* Full-screen overlay */}
+      <div className='fixed inset-0 z-[100] bg-slate-900 flex flex-col'>
         {/* ─── Top Toolbar ──────────────────────────────────────────────── */}
         <motion.div
           initial={{ y: -56, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className='z-50 flex items-center gap-1 px-3 py-2 bg-white/80 dark:bg-card/80 backdrop-blur-xl border-b border-border/50 shadow-sm relative before:content-[\"\"] before:absolute before:bottom-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/40 before:via-emerald-500/40 before:to-primary/0'
+          className='z-50 flex items-center gap-1 px-3 py-2 bg-slate-800/90 backdrop-blur-xl border-b border-slate-700/50 shadow-lg'
         >
-          {/* Drawing tools */}
+          {/* Drawing tools — group 1: select, pen, line, arrow */}
           <div className='flex items-center gap-0.5'>
-            {TOOL_ITEMS.map((item) => (
+            {TOOL_ITEMS.slice(0, 4).map((item) => (
               <Tooltip key={item.tool}>
                 <TooltipTrigger asChild>
                   <Button
@@ -450,8 +281,8 @@ export default function WhiteboardPage() {
                     size='icon'
                     className={`h-8 w-8 ${
                       activeTool === item.tool
-                        ? 'shadow-md shadow-primary/20'
-                        : 'hover:bg-muted/80'
+                        ? 'bg-emerald-600 hover:bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                     }`}
                     onClick={() => setActiveTool(item.tool)}
                   >
@@ -459,67 +290,142 @@ export default function WhiteboardPage() {
                     <span className='sr-only'>{item.label}</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side='bottom' className='text-xs'>
-                  {item.label}
+                <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                  {item.label} <kbd className='ml-1 text-[10px] text-slate-400 bg-slate-700 px-1 rounded'>{item.shortcut}</kbd>
                 </TooltipContent>
               </Tooltip>
             ))}
           </div>
 
-          <Separator orientation='vertical' className='mx-2 h-6' />
+          {/* Drawing tools — group 2: rectangle, circle, text, eraser */}
+          <div className='flex items-center gap-0.5'>
+            {TOOL_ITEMS.slice(4).map((item) => (
+              <Tooltip key={item.tool}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activeTool === item.tool ? 'default' : 'ghost'}
+                    size='icon'
+                    className={`h-8 w-8 ${
+                      activeTool === item.tool
+                        ? 'bg-emerald-600 hover:bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
+                    }`}
+                    onClick={() => setActiveTool(item.tool)}
+                  >
+                    {item.icon}
+                    <span className='sr-only'>{item.label}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                  {item.label} <kbd className='ml-1 text-[10px] text-slate-400 bg-slate-700 px-1 rounded'>{item.shortcut}</kbd>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+
+          <Separator orientation='vertical' className='mx-2 h-6 bg-slate-600/50' />
 
           {/* Color picker */}
-          <div className='flex items-center gap-1'>
-            {COLORS.map((color) => (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-8 w-8 text-slate-300 hover:bg-slate-700 relative'
+              >
+                <div
+                  className='h-4 w-4 rounded-full border-2 border-slate-400'
+                  style={{ backgroundColor: activeColor }}
+                />
+                <span className='sr-only'>Color</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className='w-auto p-2 bg-slate-800 border-slate-700' align='start'>
+              <div className='flex flex-col gap-2'>
+                <p className='text-xs text-slate-400 font-medium px-1'>Colors</p>
+                <div className='flex flex-wrap gap-1.5'>
+                  {PRESET_COLORS.map((c) => (
+                    <button
+                      key={c.hex}
+                      className={`h-7 w-7 rounded-full border-2 transition-all duration-150 hover:scale-110 ${
+                        activeColor === c.hex
+                          ? 'border-emerald-400 ring-2 ring-emerald-400/30 scale-110'
+                          : 'border-slate-600 hover:border-slate-400'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      onClick={() => setActiveColor(c.hex)}
+                      title={c.name}
+                    />
+                  ))}
+                </div>
+                <Separator className='bg-slate-600/50' />
+                <div className='flex items-center gap-2 px-1'>
+                  <Palette className='h-3.5 w-3.5 text-slate-400' />
+                  <input
+                    type='color'
+                    value={activeColor}
+                    onChange={(e) => setActiveColor(e.target.value)}
+                    className='h-6 w-6 cursor-pointer rounded border-0 bg-transparent'
+                    title='Custom color'
+                  />
+                  <span className='text-xs text-slate-400'>Custom</span>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Quick color swatches */}
+          <div className='hidden sm:flex items-center gap-0.5'>
+            {PRESET_COLORS.slice(0, 5).map((c) => (
               <button
-                key={color}
-                className={`h-6 w-6 rounded-full border-2 transition-all duration-150 hover:scale-110 ${
-                  activeColor === color
-                    ? 'border-foreground ring-2 ring-primary/30 scale-110'
-                    : 'border-transparent hover:border-muted-foreground/50'
+                key={c.hex}
+                className={`h-5 w-5 rounded-full border transition-all duration-100 hover:scale-125 ${
+                  activeColor === c.hex
+                    ? 'border-emerald-400 scale-125'
+                    : 'border-slate-600'
                 }`}
-                style={{ backgroundColor: color }}
-                onClick={() => setActiveColor(color)}
-                aria-label={`Color ${color}`}
+                style={{ backgroundColor: c.hex }}
+                onClick={() => setActiveColor(c.hex)}
+                title={c.name}
               />
             ))}
           </div>
 
-          <Separator orientation='vertical' className='mx-2 h-6' />
+          <Separator orientation='vertical' className='mx-2 h-6 bg-slate-600/50' />
 
           {/* Stroke width */}
-          <div className='flex items-center gap-1'>
-            {STROKE_WIDTHS.map((w) => (
-              <Tooltip key={w}>
+          <div className='flex items-center gap-0.5'>
+            {STROKE_OPTIONS.map((sw) => (
+              <Tooltip key={sw.value}>
                 <TooltipTrigger asChild>
                   <Button
-                    variant={activeWidth === w ? 'default' : 'ghost'}
+                    variant={activeWidth === sw.value ? 'default' : 'ghost'}
                     size='icon'
                     className={`h-8 w-8 ${
-                      activeWidth === w
-                        ? 'shadow-md shadow-primary/20'
-                        : 'hover:bg-muted/80'
+                      activeWidth === sw.value
+                        ? 'bg-emerald-600 hover:bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                     }`}
-                    onClick={() => setActiveWidth(w)}
+                    onClick={() => setActiveWidth(sw.value)}
                   >
                     <span
                       className='rounded-full bg-current'
                       style={{
-                        width: `${Math.min(w * 2, 14)}px`,
-                        height: `${Math.min(w * 2, 14)}px`,
+                        width: `${Math.min(sw.value * 2, 14)}px`,
+                        height: `${Math.min(sw.value * 2, 14)}px`,
                       }}
                     />
-                    <span className='sr-only'>{w}px stroke</span>
+                    <span className='sr-only'>{sw.label} ({sw.value}px)</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side='bottom' className='text-xs'>
-                  {w}px
+                <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                  {sw.label} ({sw.value}px)
                 </TooltipContent>
               </Tooltip>
             ))}
           </div>
 
-          <Separator orientation='vertical' className='mx-2 h-6' />
+          <Separator orientation='vertical' className='mx-2 h-6 bg-slate-600/50' />
 
           {/* Undo / Redo / Clear */}
           <div className='flex items-center gap-0.5'>
@@ -528,48 +434,54 @@ export default function WhiteboardPage() {
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-muted/80'
+                  className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                   onClick={handleUndo}
-                  disabled={historyIndex === 0}
+                  disabled={!canUndo}
                 >
                   <Undo2 className='h-4 w-4' />
                   <span className='sr-only'>Undo</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Undo</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Undo <kbd className='ml-1 text-[10px] text-slate-400 bg-slate-700 px-1 rounded'>⌘Z</kbd>
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-muted/80'
+                  className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                   onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1}
+                  disabled={!canRedo}
                 >
                   <Redo2 className='h-4 w-4' />
                   <span className='sr-only'>Redo</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Redo</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Redo <kbd className='ml-1 text-[10px] text-slate-400 bg-slate-700 px-1 rounded'>⌘⇧Z</kbd>
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-destructive/10 hover:text-destructive'
-                  onClick={handleClear}
+                  className='h-8 w-8 text-slate-300 hover:bg-rose-500/20 hover:text-rose-400'
+                  onClick={() => setShowClearDialog(true)}
                 >
                   <Trash2 className='h-4 w-4' />
-                  <span className='sr-only'>Clear</span>
+                  <span className='sr-only'>Clear all</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Clear canvas</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Clear all
+              </TooltipContent>
             </Tooltip>
           </div>
 
-          <Separator orientation='vertical' className='mx-2 h-6' />
+          <Separator orientation='vertical' className='mx-2 h-6 bg-slate-600/50' />
 
           {/* Zoom controls */}
           <div className='flex items-center gap-0.5'>
@@ -578,15 +490,18 @@ export default function WhiteboardPage() {
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-muted/80'
+                  className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                   onClick={handleZoomOut}
                 >
                   <ZoomOut className='h-4 w-4' />
+                  <span className='sr-only'>Zoom out</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Zoom out</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Zoom out
+              </TooltipContent>
             </Tooltip>
-            <span className='text-xs text-muted-foreground w-12 text-center font-mono'>
+            <span className='text-xs text-slate-400 w-11 text-center font-mono select-none'>
               {Math.round(zoom * 100)}%
             </span>
             <Tooltip>
@@ -594,30 +509,36 @@ export default function WhiteboardPage() {
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-muted/80'
+                  className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                   onClick={handleZoomIn}
                 >
                   <ZoomIn className='h-4 w-4' />
+                  <span className='sr-only'>Zoom in</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Zoom in</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Zoom in
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
-                  className='h-8 w-8 hover:bg-muted/80'
+                  className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                   onClick={handleZoomFit}
                 >
                   <Maximize2 className='h-4 w-4' />
+                  <span className='sr-only'>Fit to screen</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='bottom' className='text-xs'>Fit to screen</TooltipContent>
+              <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                Fit to screen
+              </TooltipContent>
             </Tooltip>
           </div>
 
-          <Separator orientation='vertical' className='mx-2 h-6' />
+          <Separator orientation='vertical' className='mx-2 h-6 bg-slate-600/50' />
 
           {/* Grid toggle */}
           <Tooltip>
@@ -625,14 +546,18 @@ export default function WhiteboardPage() {
               <Button
                 variant={showGrid ? 'default' : 'ghost'}
                 size='icon'
-                className={`h-8 w-8 ${showGrid ? 'shadow-md shadow-primary/20' : 'hover:bg-muted/80'}`}
+                className={`h-8 w-8 ${
+                  showGrid
+                    ? 'bg-emerald-600 hover:bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
+                }`}
                 onClick={() => setShowGrid(!showGrid)}
               >
                 <Grid3X3 className='h-4 w-4' />
                 <span className='sr-only'>Toggle grid</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent side='bottom' className='text-xs'>
+            <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
               Toggle grid
             </TooltipContent>
           </Tooltip>
@@ -643,190 +568,106 @@ export default function WhiteboardPage() {
               <Button
                 variant='ghost'
                 size='icon'
-                className='h-8 w-8 hover:bg-muted/80'
+                className='h-8 w-8 text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                 onClick={handleExport}
               >
                 <Download className='h-4 w-4' />
-                <span className='sr-only'>Export</span>
+                <span className='sr-only'>Export PNG</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent side='bottom' className='text-xs'>Export as PNG</TooltipContent>
+            <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+              Export as PNG
+            </TooltipContent>
           </Tooltip>
 
           {/* Spacer */}
           <div className='flex-1' />
 
-          {/* Collaboration indicators */}
-          <div className='flex items-center gap-3'>
-            {/* Live indicator */}
-            <Badge
-              variant='outline'
-              className='gap-1.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-xs py-0.5 px-2'
-            >
-              <span className='relative flex h-2 w-2'>
-                <span className='animate-breathe absolute inline-flex h-full w-full rounded-full bg-emerald-400' />
-                <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500' />
-              </span>
-              Live
-            </Badge>
-
-            {/* Participants */}
-            <div className='flex items-center gap-1'>
-              <Users className='h-4 w-4 text-muted-foreground' />
-              <span className='text-xs text-muted-foreground font-medium'>
-                {collaborators.length + 1}
-              </span>
-              <div className='flex -space-x-2 ml-1'>
-                {collaborators.map((c) => (
-                  <div
-                    key={c.id}
-                    className='h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white'
-                    style={{ backgroundColor: c.color }}
-                    title={c.name}
-                  >
-                    {c.name.charAt(0)}
+          {/* Save status + info */}
+          <div className='flex items-center gap-2'>
+            {saveStatusIcon && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-700/50'>
+                    {saveStatusIcon}
+                    <span className='text-[10px] text-slate-400'>
+                      {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save failed'}
+                    </span>
                   </div>
-                ))}
-                <div className='h-6 w-6 rounded-full border-2 border-background bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground'>
-                  {user?.name?.charAt(0) || 'Y'}
-                </div>
-              </div>
+                </TooltipTrigger>
+                <TooltipContent side='bottom' className='text-xs bg-slate-800 text-slate-200 border-slate-700'>
+                  Auto-saved to cloud
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            <div className='hidden sm:flex items-center gap-1.5 text-slate-500'>
+              <Save className='h-3.5 w-3.5' />
+              <span className='text-[10px]'>Auto-save</span>
             </div>
+
+            {/* Element count */}
+            <span className='text-[10px] text-slate-500 font-mono'>{elements.length} objects</span>
           </div>
         </motion.div>
 
         {/* ─── Canvas Area ──────────────────────────────────────────────── */}
-        <div ref={containerRef} className='flex-1 relative overflow-hidden'>
-          <canvas
-            ref={canvasRef}
-            className='absolute inset-0 cursor-crosshair'
-            style={{
-              width: canvasSize.width,
-              height: canvasSize.height,
-              touchAction: 'none',
-            }}
-            onMouseDown={handlePointerDown}
-            onMouseMove={handlePointerMove}
-            onMouseUp={handlePointerUp}
-            onMouseLeave={handlePointerUp}
-            onTouchStart={handlePointerDown}
-            onTouchMove={handlePointerMove}
-            onTouchEnd={handlePointerUp}
+        <div ref={canvasRef} className='flex-1 relative overflow-hidden'>
+          <WhiteboardCanvas
+            elements={elements}
+            onElementAdd={handleElementAdd}
+            activeTool={activeTool}
+            activeColor={activeColor}
+            activeWidth={activeWidth}
+            showGrid={showGrid}
+            zoom={zoom}
           />
 
-          {/* Custom cursor styles for tools */}
-          <style jsx>{`
-            canvas.tool-eraser { cursor: cell !important; }
-            canvas.tool-select { cursor: default !important; }
-            canvas.tool-text { cursor: text !important; }
-          `}</style>
-
-          {/* ─── Text Input Overlay ──────────────────────────────────────── */}
-          <AnimatePresence>
-            {textInput && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.15 }}
-                className='absolute z-40'
-                style={{
-                  left: textInput.x * zoom,
-                  top: textInput.y * zoom,
-                }}
-              >
-                <input
-                  type='text'
-                  autoFocus
-                  className='bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-primary/40 rounded-md px-2 py-1 text-sm shadow-lg outline-none ring-2 ring-primary/20 min-w-[120px]'
-                  placeholder='Type here...'
-                  value={textValue}
-                  onChange={(e) => setTextValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleTextSubmit()
-                    if (e.key === 'Escape') {
-                      setTextInput(null)
-                      setTextValue('')
-                    }
-                  }}
-                  onBlur={handleTextSubmit}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ─── Mock Collaborator Cursors ────────────────────────────────── */}
-          {collaborators.map((c) => (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                x: c.x * zoom,
-                y: c.y * zoom,
-              }}
-              transition={{ type: 'spring', stiffness: 120, damping: 14, duration: 0.8 }}
-              className='absolute z-30 pointer-events-none'
-            >
-              {/* Cursor SVG */}
-              <svg
-                width='16'
-                height='20'
-                viewBox='0 0 16 20'
-                fill='none'
-                className='drop-shadow-sm'
-              >
-                <path
-                  d='M1 1L6 18L8.5 11L15 9.5L1 1Z'
-                  fill={c.color}
-                  stroke='white'
-                  strokeWidth='1.5'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              {/* Name label */}
-              <span
-                className='absolute left-4 top-4 text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white whitespace-nowrap shadow-lg'
-                style={{ backgroundColor: c.color }}
-              >
-                {c.name.split(' ')[0]}
-              </span>
-            </motion.div>
-          ))}
-
-          {/* ─── Mini-map ─────────────────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, x: 20 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
-            className='absolute bottom-4 right-4 z-40 rounded-lg border border-border/50 bg-white/90 dark:bg-card/90 backdrop-blur-sm shadow-lg shadow-primary/5 overflow-hidden before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/40 before:to-primary/0'
-          >
-            <canvas ref={minimapRef} className='block' />
-          </motion.div>
-
-          {/* ─── Tool label indicator (bottom-left) ──────────────────────── */}
+          {/* ─── Bottom-left tool indicator ──────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4, type: 'spring', stiffness: 200, damping: 20 }}
-            className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-white/90 dark:bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2 shadow-lg shadow-primary/5 relative before:content-[\"\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-emerald-500/40 before:to-emerald-500/0'
+            transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
+            className='absolute bottom-4 left-4 z-40 flex items-center gap-2 bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-lg px-3 py-2 shadow-lg'
           >
             {React.cloneElement(
               TOOL_ITEMS.find((t) => t.tool === activeTool)!.icon as React.ReactElement<{ className?: string }>,
-              { className: 'h-3.5 w-3.5 text-muted-foreground' }
+              { className: 'h-3.5 w-3.5 text-emerald-400' }
             )}
-            <span className='text-xs text-muted-foreground font-medium'>
+            <span className='text-xs text-slate-300 font-medium'>
               {TOOL_ITEMS.find((t) => t.tool === activeTool)?.label}
             </span>
-            <Separator orientation='vertical' className='h-4 mx-1' />
+            <Separator orientation='vertical' className='h-4 mx-1 bg-slate-600/50' />
             <div
-              className='h-3.5 w-3.5 rounded-full border'
-              style={{ borderColor: activeColor, backgroundColor: activeColor }}
+              className='h-3.5 w-3.5 rounded-full border border-slate-500'
+              style={{ backgroundColor: activeColor }}
             />
-            <span className='text-xs text-muted-foreground'>{activeWidth}px</span>
+            <span className='text-xs text-slate-400'>{activeWidth}px</span>
           </motion.div>
         </div>
+
+        {/* ─── Clear Confirmation Dialog ────────────────────────────────── */}
+        <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+          <AlertDialogContent className='bg-slate-800 border-slate-700'>
+            <AlertDialogHeader>
+              <AlertDialogTitle className='text-slate-100'>Clear entire whiteboard?</AlertDialogTitle>
+              <AlertDialogDescription className='text-slate-400'>
+                This will remove all drawings, shapes, and text from the whiteboard. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className='bg-slate-700 text-slate-200 hover:bg-slate-600 border-slate-600'>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleClear}
+                className='bg-rose-600 text-white hover:bg-rose-700'
+              >
+                Clear all
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TooltipProvider>
   )

@@ -17,6 +17,9 @@ import MeetingHeader from './parts/MeetingHeader';
 import VideoGrid from './parts/VideoGrid';
 import MeetingToolbar from './parts/MeetingToolbar';
 import MeetingSidebar from './parts/MeetingSidebar';
+import ReactionsBar from './parts/ReactionsBar';
+import WaitingRoom from './parts/WaitingRoom';
+import VirtualBackgroundSelector from '@/components/shared/VirtualBgSelector';
 
 // Shared data / helpers
 import {
@@ -128,6 +131,8 @@ export default function MeetingRoomPage() {
   const [enhancedReactionsOpen, setEnhancedReactionsOpen] = useState(false);
   const [virtualBgOpen, setVirtualBgOpen] = useState(false);
   const [virtualBg, setVirtualBg] = useState<string>('none');
+  const [showWaitingRoom, setShowWaitingRoom] = useState(false);
+  const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [pollBuilderOpen, setPollBuilderOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const captionKey = useMemo(() => Date.now(), [wsCaption]);
@@ -316,10 +321,10 @@ export default function MeetingRoomPage() {
     toast(pinnedParticipant === id ? 'Unpinned participant' : 'Pinned participant');
   };
 
-  const handleToggleHand = () => {
+  const handleToggleHand = useCallback(() => {
     if (handRaised) { wsLowerHand(); setHandRaised(false); toast('Hand lowered'); }
-    else { wsRaiseHand(); setHandRaised(true); toast('\u{1F64B} Hand raised'); }
-  };
+    else { wsRaiseHand(); setHandRaised(true); wsSendMessage(`✋ ${userName} raised their hand`); toast('\u{1F64B} Hand raised'); }
+  }, [handRaised, wsLowerHand, wsRaiseHand, wsSendMessage, userName]);
 
   const handleCreatePoll = (config: PollConfig) => {
     wsCreatePoll(config.question, config.options);
@@ -416,6 +421,7 @@ export default function MeetingRoomPage() {
           remoteStreams={remoteStreams}
           localAudioLevel={webrtcStats.localAudioLevel}
           webrtcStats={webrtcStats}
+          virtualBg={virtualBg}
         />
 
         <MeetingToolbar
@@ -432,7 +438,7 @@ export default function MeetingRoomPage() {
           onToggleRecording={() => { const next = !isRecording; if (!next) setRecordingTime(0); setIsRecording(next); toast(next ? 'Recording started' : 'Recording stopped'); }}
           onToggleCaptions={() => setCaptionsVisible(!captionsVisible)}
           onToggleTranscription={() => setTranscriptionOpen(!transcriptionOpen)}
-          onOpenVirtualBg={() => setVirtualBgOpen(true)}
+          onOpenVirtualBg={() => setBgSelectorOpen(true)}
           onToggleSidebar={toggleSidebar}
           onSendReaction={handleSendReaction}
           onToggleEnhancedReactions={() => setEnhancedReactionsOpen(!enhancedReactionsOpen)}
@@ -466,12 +472,44 @@ export default function MeetingRoomPage() {
     </div>
     </TooltipProvider>
 
+    {/* Reactions floating bar */}
+    <ReactionsBar
+      handRaised={handRaised}
+      onSendReaction={handleSendReaction}
+      onToggleHand={handleToggleHand}
+    />
+
     {/* External Overlays */}
     <AnimatePresence>
       {transcriptionOpen && <LiveTranscriptionPanel />}
     </AnimatePresence>
     <PollBuilder open={pollBuilderOpen} onOpenChange={setPollBuilderOpen} onCreatePoll={handleCreatePoll} />
     <VirtualBackgrounds open={virtualBgOpen} onOpenChange={setVirtualBgOpen} selectedId={virtualBg} onApply={handleApplyVirtualBg} />
+
+    {/* Waiting Room Overlay */}
+    <AnimatePresence>
+      {showWaitingRoom && (
+        <WaitingRoom
+          meetingTitle={meetingTitle || 'Sprint Planning - Q4'}
+          hostName={'Meeting Host'}
+          onLeave={() => {
+            setShowWaitingRoom(false);
+            handleLeaveMeeting();
+          }}
+        />
+      )}
+    </AnimatePresence>
+
+    {/* Virtual Background Selector Popover (toolbar-level) */}
+    <VirtualBackgroundSelector
+      open={bgSelectorOpen}
+      onOpenChange={setBgSelectorOpen}
+      selectedBg={virtualBg}
+      onSelect={(bgId) => {
+        setVirtualBg(bgId);
+        setBgSelectorOpen(false);
+      }}
+    />
     </>
   );
 }

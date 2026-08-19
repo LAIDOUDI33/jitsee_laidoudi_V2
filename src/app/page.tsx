@@ -556,9 +556,9 @@ function StatCard({ prefix, target, suffix, label, delay }: { prefix: string; ta
   return (
     <FadeUp delay={delay}>
       <div className="text-center p-8 rounded-2xl bg-slate-900/30 border border-slate-800/40">
-        <div className="text-4xl sm:text-5xl font-bold text-white mb-2 tabular-nums" ref={ref}>
+        <span className="text-4xl sm:text-5xl font-bold text-white mb-2 tabular-nums inline-block" ref={ref as React.Ref<HTMLSpanElement>}>
           {prefix}{count}{suffix}
-        </div>
+        </span>
         <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">{label}</p>
       </div>
     </FadeUp>

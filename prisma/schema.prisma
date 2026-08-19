@@ -35,6 +35,7 @@ model User {
   templates    Template[]
   sessions     Session[]
   aiConversations AiConversation[]
+  polls        Poll[]
 
   @@index([organizationId])
   @@index([role])
@@ -246,16 +247,22 @@ model ActionItem {
 }
 
 model Poll {
-  id        String   @id @default(uuid())
-  meetingId String
-  question  String
-  options   String   @default("[]") // JSON array
-  results   String   @default("{}") // JSON object
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  meetingId  String
+  question   String
+  options    String   @default("[]") // JSON array of option strings
+  results    String   @default("{}") // JSON object { "0": 3, "1": 5, ... } option index -> vote count
+  status     String   @default("active") // active, ended
+  multiSelect Boolean @default(false)
+  votes      String   @default("{}") // JSON object { "userId": [optionIndices], ... }
+  createdBy  String
+  createdAt  DateTime @default(now())
 
-  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  creator    User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
+  @@index([createdBy])
 }
 
 model Event {

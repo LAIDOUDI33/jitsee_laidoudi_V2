@@ -42,14 +42,10 @@ export async function GET(request: NextRequest) {
       where.user = { organizationId: user.organizationId };
     }
 
-    if (startDate) {
-      const existing = (where.createdAt as Prisma.DateTimeNullableFilter) || {};
-      where.createdAt = { ...existing, gte: startDate };
-    }
-    if (endDate) {
-      const existing = (where.createdAt as Prisma.DateTimeNullableFilter) || {};
-      where.createdAt = { ...existing, lte: endDate };
-    }
+    const dateFilter: Record<string, Date> = {};
+    if (startDate) dateFilter.gte = startDate;
+    if (endDate) dateFilter.lte = endDate;
+    if (Object.keys(dateFilter).length > 0) where.createdAt = dateFilter;
     if (actionFilter) {
       where.action = { contains: actionFilter };
     }

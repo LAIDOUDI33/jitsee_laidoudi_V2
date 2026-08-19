@@ -116,7 +116,7 @@ export default function AdminAuditPage() {
       setTotal(t ?? apiEntries.length)
       setWarningCount(wc ?? 0)
       setCriticalCount(cc ?? 0)
-      setAvailableActions(actions)
+      setAvailableActions(actions as string[])
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to load audit logs')
     } finally {

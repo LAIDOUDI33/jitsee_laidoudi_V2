@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { MicOff, VideoOff, Hand, Pin, PinOff, Wifi, Signal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -113,6 +113,9 @@ interface ParticipantTileProps {
   mediaStream?: MediaStream | null;
   isLocal?: boolean;
   audioLevel?: number;
+  videoStyle?: React.CSSProperties;
+  bgGradient?: string;
+  bgBlur?: boolean;
 }
 
 function ParticipantTile({
@@ -126,6 +129,9 @@ function ParticipantTile({
   mediaStream,
   isLocal = false,
   audioLevel,
+  videoStyle,
+  bgGradient,
+  bgBlur,
 }: ParticipantTileProps) {
   const [hovered, setHovered] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -154,6 +160,14 @@ function ParticipantTile({
         isSpeaker ? 'ring-1 ring-white/10' : 'ring-1 ring-white/[0.06]'
       } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'}`}
     >
+      {/* Virtual background layer (behind video for local) */}
+      {isLocal && (bgBlur || bgGradient) && (
+        <div className="absolute inset-0 z-0">
+          {bgGradient && <div className="absolute inset-0" style={{ background: bgGradient }} />}
+          {bgBlur && !bgGradient && <div className="absolute inset-0 bg-slate-700" />}
+        </div>
+      )}
+
       {/* Video element (when real stream available) */}
       {hasVideoStream ? (
         <video
@@ -162,6 +176,7 @@ function ParticipantTile({
           playsInline
           muted={isLocal}
           className={`absolute inset-0 w-full h-full object-cover ${isLocal ? '[transform:scaleX(-1)]' : ''}`}
+          style={videoStyle}
         />
       ) : (
         <>
@@ -254,6 +269,14 @@ function ParticipantTile({
 }
 
 // ─── Props ─────────────────────────────────────────────────────
+// ─── Virtual Background Config ──────────────────────────
+const BG_GRADIENTS: Record<string, string> = {
+  office: 'linear-gradient(135deg, #78350f 0%, #92400e 30%, #b45309 60%, #d97706 100%)',
+  nature: 'linear-gradient(135deg, #065f46 0%, #047857 30%, #10b981 60%, #6ee7b7 100%)',
+  abstract: 'linear-gradient(135deg, #0f172a 0%, #1e293b 30%, #0f172a 50%, #334155 100%)',
+  city: 'linear-gradient(135deg, #1e293b 0%, #334155 30%, #475569 60%, #64748b 100%)',
+};
+
 export interface VideoGridProps {
   displayParticipants: Participant[];
   gridLayout: 'grid' | 'speaker' | 'gallery';
@@ -267,6 +290,27 @@ export interface VideoGridProps {
   remoteStreams?: Map<string, MediaStream>;
   localAudioLevel?: number;
   webrtcStats?: { rtt: number; bitrate: number; localVideoResolution: string };
+  virtualBg?: string;
+}
+
+// ─── Helper: compute local participant virtual bg props ────────
+function getLocalBgProps(virtualBg: string) {
+  if (virtualBg === 'blur') {
+    return {
+      videoStyle: { filter: 'blur(8px) saturate(1.2)' } as React.CSSProperties,
+      bgGradient: undefined,
+      bgBlur: true,
+    };
+  }
+  const gradient = BG_GRADIENTS[virtualBg];
+  if (gradient) {
+    return {
+      videoStyle: { filter: 'blur(2px) saturate(1.2)', mixBlendMode: 'normal' } as React.CSSProperties,
+      bgGradient: gradient,
+      bgBlur: false,
+    };
+  }
+  return { videoStyle: undefined, bgGradient: undefined, bgBlur: false };
 }
 
 // ─── Component ─────────────────────────────────────────────────
@@ -283,7 +327,11 @@ export default function VideoGrid({
   remoteStreams,
   localAudioLevel,
   webrtcStats,
+  virtualBg = 'none',
 }: VideoGridProps) {
+  // Pre-compute virtual bg props for local participant
+  const localBgProps = useMemo(() => getLocalBgProps(virtualBg), [virtualBg]);
+
   return (
     <div className="flex-1 relative z-10">
       {/* ── Network Quality Indicator ── */}
@@ -334,6 +382,9 @@ export default function VideoGrid({
                   mediaStream={displayParticipants[0].isLocal ? localStream : (remoteStreams?.get(displayParticipants[0].id) ?? null)}
                   isLocal={displayParticipants[0].isLocal}
                   audioLevel={displayParticipants[0].isLocal ? localAudioLevel : undefined}
+                  videoStyle={displayParticipants[0].isLocal ? localBgProps.videoStyle : undefined}
+                  bgGradient={displayParticipants[0].isLocal ? localBgProps.bgGradient : undefined}
+                  bgBlur={displayParticipants[0].isLocal ? localBgProps.bgBlur : undefined}
                 />
             </div>
             {/* Thumbnail strip */}
@@ -375,6 +426,9 @@ export default function VideoGrid({
                 mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
                 isLocal={p.isLocal}
                 audioLevel={p.isLocal ? localAudioLevel : undefined}
+                videoStyle={p.isLocal ? localBgProps.videoStyle : undefined}
+                bgGradient={p.isLocal ? localBgProps.bgGradient : undefined}
+                bgBlur={p.isLocal ? localBgProps.bgBlur : undefined}
               />
             ))}
           </div>
