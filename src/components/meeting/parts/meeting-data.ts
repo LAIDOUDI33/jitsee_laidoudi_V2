@@ -35,6 +35,13 @@ export interface BreakoutRoom {
   timerSeconds: number;
 }
 
+export interface ParticipantPermissions {
+  canShareScreen: boolean;
+  canChat: boolean;
+  canUnmute: boolean;
+  canUseReactions: boolean;
+}
+
 export interface WaitingParticipant {
   id: string;
   name: string;

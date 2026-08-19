@@ -24,12 +24,14 @@ import VirtualBackgroundSelector from '@/components/shared/VirtualBgSelector';
 import PreJoinPreview from './PreJoinPreview';
 import PostMeetingSummary from './PostMeetingSummary';
 import EndMeetingDialog from './EndMeetingDialog';
+import MeetingStatsPanel from './parts/MeetingStatsPanel';
 
 // Shared data / helpers
 import {
   type Participant,
   type FloatingReaction,
   type WaitingParticipant,
+  type ParticipantPermissions,
   mockParticipants,
   wsMsgToLocal,
   wsPollToLocal,
@@ -146,6 +148,34 @@ export default function MeetingRoomPage() {
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [pollBuilderOpen, setPollBuilderOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [spotlightedParticipant, setSpotlightedParticipant] = useState<string | null>(null);
+  const [cohosts, setCohosts] = useState<Set<string>>(new Set(['2']));
+  const [meetingLocked, setMeetingLocked] = useState(false);
+  const [participantPermissions, setParticipantPermissions] = useState<Record<string, ParticipantPermissions>>({});
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
+
+  // ── Mock Meeting Stats ──────────────────────────────────────
+  const [stats, setStats] = useState({
+    durationSeconds: 0, currentParticipants: 6, maxParticipants: 50,
+    participantHistory: [4, 5, 5, 6, 6],
+    totalMessages: 24, messagesPerMinute: 3.2, totalReactions: 15,
+    networkQuality: 'Good' as const,
+    isRecording: false, recordingDurationSeconds: 0,
+    transcriptionWordCount: 1842, transcriptionLanguage: 'en',
+    aiFeatures: { summary: true, transcription: true, translation: false },
+  });
+  useEffect(() => {
+    const t = setInterval(() => {
+      setStats(prev => ({
+        ...prev,
+        durationSeconds: prev.durationSeconds + 1,
+        totalMessages: prev.totalMessages + (Math.random() > 0.85 ? 1 : 0),
+        totalReactions: prev.totalReactions + (Math.random() > 0.9 ? 1 : 0),
+        messagesPerMinute: Math.max(0.5, prev.messagesPerMinute + (Math.random() - 0.5) * 0.3),
+      }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
   const captionKey = useMemo(() => Date.now(), [wsCaption]);
 
   // ── Host Waiting Room (mock data) ─────────────────────────────
@@ -397,6 +427,40 @@ export default function MeetingRoomPage() {
 
   const handleApplyVirtualBg = (bg: VirtualBgOption) => setVirtualBg(bg.id);
 
+  const handleSpotlightChange = useCallback((id: string | null) => {
+    setSpotlightedParticipant(id);
+    setPinnedParticipant(id);
+  }, []);
+
+  const handleCohostToggle = useCallback((id: string) => {
+    setCohosts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        toast.success('Co-host removed');
+      } else {
+        next.add(id);
+        toast.success('Co-host assigned');
+      }
+      return next;
+    });
+  }, []);
+
+  const handleMuteAll = useCallback(() => {
+    toast.success('All participants have been muted');
+  }, []);
+
+  const handlePermissionsChange = useCallback((id: string, perms: ParticipantPermissions) => {
+    setParticipantPermissions(prev => ({ ...prev, [id]: perms }));
+  }, []);
+
+  const handleToggleMeetingLock = useCallback(() => {
+    setMeetingLocked(prev => {
+      toast(prev ? 'Meeting unlocked' : 'Meeting locked');
+      return !prev;
+    });
+  }, []);
+
   // Media toggle handlers — WebRTC + WS media state broadcast
   const handleToggleMic = useCallback(async () => {
     await webrtcToggleAudio();
@@ -490,9 +554,28 @@ export default function MeetingRoomPage() {
           formatTime={formatTime}
         />
 
+        {/* Meeting Locked Banner */}
+        <AnimatePresence>
+          {meetingLocked && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-30"
+            >
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 backdrop-blur-xl">
+                <span className="text-amber-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                </span>
+                <span className="text-[11px] font-medium text-amber-300">Meeting is locked — new participants cannot join</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* WebRTC Connection Indicator */}
         {localStream && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30">
+          <div className={`absolute left-1/2 -translate-x-1/2 z-30 ${meetingLocked ? 'top-[3.75rem]' : 'top-16'}`}>
             <WebRTCIndicator state={webrtcConnectionState} />
           </div>
         )}
@@ -541,10 +624,23 @@ export default function MeetingRoomPage() {
           waitingRoomOpen={hostWaitingRoomOpen}
           waitingRoomNotification={waitingNotification}
           onToggleWaitingRoom={() => { setSidebarOpen(false); setHostWaitingRoomOpen(!hostWaitingRoomOpen); }}
+          meetingLocked={meetingLocked}
+          onToggleMeetingLock={handleToggleMeetingLock}
+          statsPanelOpen={showStatsPanel}
+          onToggleStatsPanel={() => { setSidebarOpen(false); setHostWaitingRoomOpen(false); setShowStatsPanel(!showStatsPanel); }}
         />
       </div>
 
       {/* Right Sidebar */}
+      <AnimatePresence>
+        {showStatsPanel && !sidebarOpen && !hostWaitingRoomOpen && (
+          <MeetingStatsPanel
+            open={showStatsPanel && !sidebarOpen && !hostWaitingRoomOpen}
+            onOpenChange={(o) => { if (!o) setShowStatsPanel(false); }}
+            stats={stats}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {hostWaitingRoomOpen && !sidebarOpen && (
           <HostWaitingRoomPanel
@@ -575,6 +671,14 @@ export default function MeetingRoomPage() {
             onVotePoll={wsVotePoll}
             onCreatePoll={handleCreatePoll}
             onOpenPollBuilder={() => setPollBuilderOpen(true)}
+            spotlightedParticipant={spotlightedParticipant}
+            onSpotlightChange={handleSpotlightChange}
+            cohosts={cohosts}
+            onCohostToggle={handleCohostToggle}
+            onMuteAll={handleMuteAll}
+            participantPermissions={participantPermissions}
+            onPermissionsChange={handlePermissionsChange}
+            isHost={localParticipant.role === 'Host'}
           />
         )}
       </AnimatePresence>

@@ -1,0 +1,844 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { motion, AnimatePresence, useInView, useMotionValue, useTransform } from 'framer-motion';
+import {
+  Shield,
+  Globe,
+  Lock,
+  Server,
+  Video,
+  Brain,
+  Users,
+  Radio,
+  Mic,
+  Languages,
+  Sparkles,
+  FileText,
+  CheckSquare,
+  Search,
+  ShieldCheck,
+  Building2,
+  Wifi,
+  Plug,
+  Cloud,
+  Activity,
+  ArrowRight,
+  ArrowUp,
+  Check,
+  Zap,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  Calendar,
+  Clock,
+  User,
+  MousePointer2,
+  Star,
+  Quote,
+  Trophy,
+  Mail,
+  Monitor,
+  BarChart3,
+  MessageSquare,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
+import { useAppStore } from '@/store/app-store';
+import Navbar from '@/components/landing/Navbar';
+import Footer from '@/components/landing/Footer';
+
+/* -------------------------------------------------------------------------- */
+/*                                   TYPES                                    */
+/* -------------------------------------------------------------------------- */
+
+interface PricingTier {
+  name: string;
+  price: string;
+  period?: string;
+  description: string;
+  features: string[];
+  highlighted?: boolean;
+  cta: string;
+  ctaVariant: 'default' | 'outline' | 'ghost';
+}
+
+interface Integration {
+  name: string;
+  description: string;
+}
+
+interface StatItem {
+  target?: number;
+  value: number;
+  suffix: string;
+  label: string;
+}
+
+interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 DATA / CONSTS                              */
+/* -------------------------------------------------------------------------- */
+
+const TRUST_BADGES = [
+  { icon: Shield, label: 'E2E Encrypted' },
+  { icon: Globe, label: 'Multi-language AI' },
+  { icon: Lock, label: 'Zero-Trust Security' },
+  { icon: Server, label: 'On-Premise Ready' },
+] as const;
+
+const PLATFORM_FEATURES = [
+  {
+    icon: Video,
+    title: 'Video & Audio Conferencing',
+    description:
+      'HD 1080p video, adaptive bitrate, noise suppression, background blur. SFU architecture for scalable multi-party calls.',
+  },
+  {
+    icon: Brain,
+    title: 'AI Intelligence Suite',
+    description:
+      'Real-time transcription in 73+ languages, instant translation, AI meeting assistant, automatic summaries, action item extraction.',
+  },
+  {
+    icon: Users,
+    title: 'Team Collaboration',
+    description:
+      'Channels, threaded chat, file sharing, task management, calendar integration. Everything your team needs in one place.',
+  },
+  {
+    icon: Radio,
+    title: 'Enterprise Events',
+    description:
+      'Webinars, town halls, live streaming, registration, Q&A, polls, engagement analytics. Reach thousands simultaneously.',
+  },
+] as const;
+
+const AI_FEATURES = [
+  {
+    icon: Mic,
+    title: 'Live Transcription',
+    description:
+      'Real-time speech-to-text with speaker identification and confidence scores.',
+  },
+  {
+    icon: Languages,
+    title: 'Instant Translation',
+    description:
+      'Cross-language communication. Speak in any language, read in yours.',
+  },
+  {
+    icon: Sparkles,
+    title: 'AI Meeting Assistant',
+    description:
+      'Ask questions during meetings. Get answers from the conversation context.',
+  },
+  {
+    icon: FileText,
+    title: 'Smart Summaries',
+    description:
+      'Automatic meeting summaries with key topics, decisions, risks, and action items.',
+  },
+  {
+    icon: CheckSquare,
+    title: 'Action Extraction',
+    description:
+      'AI identifies commitments, assigns owners, sets deadlines. Integrates with Jira, Trello.',
+  },
+  {
+    icon: Search,
+    title: 'Knowledge Search',
+    description:
+      'Enterprise RAG. Search across all meetings, documents, and chats with permission-aware AI.',
+  },
+] as const;
+
+const ARCHITECTURE_PILLARS = [
+  {
+    icon: ShieldCheck,
+    title: 'Security',
+    description: 'OAuth 2.0, SAML SSO, MFA, RBAC, zero-trust, audit logging.',
+  },
+  {
+    icon: Building2,
+    title: 'Multi-Tenancy',
+    description: 'Complete tenant isolation at every layer.',
+  },
+  {
+    icon: Wifi,
+    title: 'WebRTC Core',
+    description: 'STUN/TURN, DTLS-SRTP, simulcast, adaptive bitrate.',
+  },
+  {
+    icon: Plug,
+    title: 'Interoperability',
+    description: 'SIP/H.323 gateway for legacy conference systems.',
+  },
+  {
+    icon: Cloud,
+    title: 'Deployment',
+    description: 'SaaS, private cloud, on-premise, hybrid, sovereign.',
+  },
+  {
+    icon: Activity,
+    title: 'Observability',
+    description: 'OpenTelemetry, metrics, logs, distributed tracing.',
+  },
+] as const;
+
+const INTEGRATIONS: Integration[] = [
+  { name: 'Microsoft 365', description: 'Teams, Outlook, OneDrive, SharePoint sync' },
+  { name: 'Google Workspace', description: 'Calendar, Drive, Meet interoperability' },
+  { name: 'Jira', description: 'Action items auto-synced to issues' },
+  { name: 'Trello', description: 'Meeting tasks pushed to boards' },
+  { name: 'Slack', description: 'Cross-platform notifications and commands' },
+  { name: 'LDAP / AD', description: 'Enterprise directory authentication' },
+  { name: 'SAML IdP', description: 'Single sign-on with Okta, Azure AD, OneLogin' },
+  { name: 'CalDAV', description: 'Calendar integration for scheduling' },
+];
+
+const STATS: StatItem[] = [
+  { value: 99.9, suffix: '%', label: 'Uptime SLA' },
+  { value: 256, suffix: '-bit', label: 'Encryption' },
+  { value: 73, suffix: '+', label: 'Languages' },
+  { value: 10000, suffix: '+', label: 'Concurrent Users' },
+];
+
+const PRICING_TIERS: PricingTier[] = [
+  {
+    name: 'Free',
+    price: '$0',
+    description: 'For individuals and small teams getting started.',
+    features: [
+      'Up to 20 participants',
+      '45-minute meeting limit',
+      'Basic chat & channels',
+      '1 team',
+      'Screen sharing',
+      'Standard video quality',
+    ],
+    cta: 'Get Started Free',
+    ctaVariant: 'outline',
+  },
+  {
+    name: 'Professional',
+    price: '$15',
+    period: '/user/mo',
+    description: 'For growing teams that need AI-powered collaboration.',
+    features: [
+      'Up to 100 participants',
+      'Unlimited meeting duration',
+      'Cloud recordings & transcripts',
+      'Full AI features suite',
+      '10 teams',
+      'Priority support',
+      'Custom backgrounds & branding',
+      'Calendar integrations',
+    ],
+    highlighted: true,
+    cta: 'Start 14-Day Trial',
+    ctaVariant: 'default',
+  },
+  {
+    name: 'Enterprise',
+    price: 'Custom',
+    description: 'For organizations that need full control and compliance.',
+    features: [
+      'Unlimited participants',
+      'Unlimited everything',
+      'SSO / SAML / LDAP',
+      'On-premise deployment',
+      '99.99% SLA',
+      'Dedicated support engineer',
+      'Full API access',
+      'Custom AI model training',
+      'Compliance & audit reports',
+    ],
+    cta: 'Contact Sales',
+    ctaVariant: 'outline',
+  },
+];
+
+const COMPARISON_FEATURES = [
+  { feature: 'AI Meeting Summaries', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Real-time Translation (10+ langs)', alvision: true, zoom: false, teams: false, meet: false },
+  { feature: 'Live Transcription', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Smart Action Items Extraction', alvision: true, zoom: false, teams: false, meet: false },
+  { feature: 'Virtual Backgrounds', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Breakout Rooms', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Real-time Reactions', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Meeting Polls', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Whiteboard', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'E2E Encryption', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'On-Premise Deployment', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'SAML/OIDC SSO', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Custom Branding', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'AI Meeting Assistant Q&A', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'Pre-Join Device Test', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'PWA / Offline Support', alvision: true, zoom: false, teams: false, meet: false },
+];
+
+const COMPARISON_HEADERS = [
+  { key: 'alvision', name: 'ALVISION', highlight: true },
+  { key: 'zoom', name: 'Zoom', highlight: false },
+  { key: 'teams', name: 'Teams', highlight: false },
+  { key: 'meet', name: 'Google Meet', highlight: false },
+];
+
+const FAQ_ITEMS: FaqItem[] = [
+  {
+    question: 'How does ALVISION handle data encryption?',
+    answer:
+      'All data is encrypted in transit using TLS 1.3 and at rest using AES-256. We support end-to-end encryption for meeting content, and encryption keys can be managed by your own KMS for maximum control. Zero-knowledge architecture ensures even ALVISION cannot access your meeting content.',
+  },
+  {
+    question: 'Can ALVISION be deployed on-premise?',
+    answer:
+      'Yes. ALVISION supports SaaS, private cloud, on-premise, hybrid, and sovereign cloud deployments. Our Enterprise tier includes full deployment flexibility with Kubernetes Helm charts, Docker Compose configurations, and dedicated installation support.',
+  },
+  {
+    question: 'What compliance certifications does ALVISION hold?',
+    answer:
+      'ALVISION is SOC 2 Type II certified, HIPAA compliant, GDPR compliant, and FedRAMP authorized. We undergo annual third-party security audits and penetration testing. Enterprise customers receive detailed compliance documentation and audit logs.',
+  },
+  {
+    question: 'How does the AI transcription and translation work?',
+    answer:
+      'Our AI engine processes audio in real-time using proprietary speech models optimized for business conversations. Transcription includes speaker identification (diarization), punctuation, and domain-specific terminology. Translation supports 73+ languages with context-aware accuracy. All AI processing can be confined to your own infrastructure.',
+  },
+  {
+    question: 'What is the maximum number of meeting participants?',
+    answer:
+      'The Free tier supports up to 20 participants, Professional supports up to 100, and Enterprise has no hard limit. Our SFU architecture has been tested with 10,000+ concurrent users in a single meeting. Performance scales linearly with additional media server nodes.',
+  },
+  {
+    question: 'Does ALVISION integrate with existing conference room systems?',
+    answer:
+      'Yes. ALVISION includes a SIP/H.323 gateway that enables interoperability with legacy conference room systems from Cisco, Poly, Lifesize, and others. This allows traditional room systems to join ALVISION meetings without hardware replacement.',
+  },
+  {
+    question: 'How is multi-tenancy implemented?',
+    answer:
+      'ALVISION provides complete tenant isolation at every layer: database, application, and network. Each tenant has isolated data stores, dedicated encryption keys, separate caching, and isolated API contexts. Cross-tenant data access is architecturally impossible.',
+  },
+  {
+    question: 'What happens to AI-processed data?',
+    answer:
+      'AI processing data (transcripts, summaries, action items) belongs entirely to you. We do not use your data to train our models. Data retention policies are fully configurable, and you can request immediate deletion. On-premise deployments ensure data never leaves your infrastructure.',
+  },
+];
+
+const HERO_STATS = [
+  { icon: Building2, value: '10K+', label: 'Organizations' },
+  { icon: Clock, value: '500M+', label: 'Meeting Minutes' },
+  { icon: Activity, value: '99.99%', label: 'Uptime' },
+  { icon: Globe, value: '150+', label: 'Countries' },
+] as const;
+
+/* NEW: Company logos for social proof */
+const COMPANY_LOGOS = [
+  'Acme Corp', 'TechStart', 'GlobalBank', 'NovaTech', 'Meridian', 'DataFlow', 'CloudSync', 'Apex',
+] as const;
+
+/* NEW: Social proof animated counters */
+const SOCIAL_PROOF_STATS = [
+  { target: 10000, suffix: '+', label: 'Meetings Daily' },
+  { target: 500000, suffix: '+', label: 'Active Users', format: true },
+  { target: 99.9, suffix: '%', label: 'Uptime', decimal: true },
+] as const;
+
+/* NEW: Typewriter words */
+const TYPEWRITER_WORDS = ['for Teams', 'for Enterprise', 'for Education', 'for Everyone'];
+
+/* NEW: Testimonials for carousel (pick 3 from existing) */
+const CAROUSEL_TESTIMONIALS = [
+  {
+    name: 'Sarah Mitchell',
+    role: 'VP of Engineering',
+    company: 'TechCorp Global',
+    initials: 'SM',
+    color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+    rating: 5,
+    text: 'ALVISION transformed our remote meetings. The AI summaries alone save our team 5+ hours per week. The transcription accuracy in our technical discussions is remarkable.',
+  },
+  {
+    name: 'James Chen',
+    role: 'CTO',
+    company: 'FinanceFlow',
+    initials: 'JC',
+    color: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    rating: 5,
+    text: "Security was our top priority. ALVISION's zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.",
+  },
+  {
+    name: 'Marcus Johnson',
+    role: 'CEO',
+    company: 'StartupLaunch',
+    initials: 'MJ',
+    color: 'bg-gradient-to-br from-teal-500 to-emerald-600',
+    rating: 5,
+    text: 'We switched from three different tools to just ALVISION. Video calls, chat, whiteboards, and AI notes - all in one platform. Our team productivity increased by 40%.',
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                              HELPER FUNCTIONS                             */
+/* -------------------------------------------------------------------------- */
+
+function generateRoomId(): string {
+  const group = () =>
+    Array.from({ length: 3 }, () =>
+      String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+    ).join('');
+  return `${group()}-${group()}-${group()}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                        TYPEWRITER TEXT COMPONENT                          */
+/* -------------------------------------------------------------------------- */
+
+function TypewriterText({ words }: { words: readonly string[] }) {
+  const [wordIndex, setWordIndex] = useState(0);
+  const [text, setText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentWord = words[wordIndex];
+    const timeout = setTimeout(
+      () => {
+        if (!isDeleting) {
+          setText(currentWord.slice(0, text.length + 1));
+          if (text.length + 1 === currentWord.length) {
+            setTimeout(() => setIsDeleting(true), 1800);
+          }
+        } else {
+          setText(currentWord.slice(0, text.length - 1));
+          if (text.length === 0) {
+            setIsDeleting(false);
+            setWordIndex((prev) => (prev + 1) % words.length);
+          }
+        }
+      },
+      isDeleting ? 50 : 100,
+    );
+    return () => clearTimeout(timeout);
+  }, [text, isDeleting, wordIndex, words]);
+
+  return (
+    <span className="inline-flex">
+      <span>{text}</span>
+      <motion.span
+        animate={{ opacity: [1, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, repeatType: 'reverse' }}
+        className="ml-0.5 inline-block w-[3px] h-[1em] bg-emerald-500 align-text-bottom"
+      />
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       FLOATING GEOMETRIC SHAPES                           */
+/* -------------------------------------------------------------------------- */
+
+function FloatingShape({
+  type,
+  size,
+  className,
+  delay = 0,
+  duration = 20,
+}: {
+  type: 'circle' | 'hexagon';
+  size: number;
+  className?: string;
+  delay?: number;
+  duration?: number;
+}) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay, duration: 1 }}
+    >
+      <motion.svg
+        width={size}
+        height={size}
+        viewBox="0 0 100 100"
+        animate={{
+          y: [0, -20, 10, -15, 0],
+          x: [0, 10, -8, 12, 0],
+          rotate: type === 'hexagon' ? [0, 15, -10, 20, 0] : [0, 5, -5, 3, 0],
+        }}
+        transition={{
+          duration,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay,
+        }}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      >
+        {type === 'circle' ? (
+          <circle cx="50" cy="50" r="40" />
+        ) : (
+          <polygon points="50,5 93,27.5 93,72.5 50,95 7,72.5 7,27.5" />
+        )}
+      </motion.svg>
+    </motion.div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         MOCK BROWSER WINDOW                               */
+/* -------------------------------------------------------------------------- */
+
+function MockBrowserWindow() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 40, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+      className="relative w-full max-w-[560px]"
+    >
+      {/* Glow behind browser */}
+      <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-500/20 rounded-3xl blur-2xl" />
+
+      {/* Browser chrome */}
+      <div className="relative rounded-2xl border border-border/60 dark:border-border/40 bg-white dark:bg-slate-900 shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
+        {/* Title bar */}
+        <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 dark:bg-slate-800/80 border-b border-border/40">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-400/80" />
+            <div className="w-3 h-3 rounded-full bg-amber-400/80" />
+            <div className="w-3 h-3 rounded-full bg-emerald-400/80" />
+          </div>
+          <div className="flex-1 mx-2">
+            <div className="h-7 rounded-lg bg-muted dark:bg-slate-700/60 flex items-center px-3 gap-2">
+              <Lock className="w-3 h-3 text-emerald-500" />
+              <span className="text-xs text-muted-foreground truncate">app.alvision.com/dashboard</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard content */}
+        <div className="p-4 space-y-4">
+          {/* Sidebar + main area mock */}
+          <div className="flex gap-3">
+            {/* Sidebar */}
+            <div className="w-12 shrink-0 space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className={`h-8 rounded-lg ${i === 1 ? 'bg-emerald-500/20 dark:bg-emerald-500/15' : 'bg-muted/50 dark:bg-slate-800/50'}`}
+                />
+              ))}
+            </div>
+            {/* Main content */}
+            <div className="flex-1 space-y-3">
+              {/* Header bar */}
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-32 rounded bg-muted/70 dark:bg-slate-800/70" />
+                <div className="h-8 w-24 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500" />
+              </div>
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { icon: Video, label: 'Active', val: '24' },
+                  { icon: Users, label: 'Online', val: '1.2K' },
+                  { icon: MessageSquare, label: 'Messages', val: '847' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 p-3 border border-emerald-100/50 dark:border-emerald-900/30"
+                  >
+                    <stat.icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1.5" />
+                    <div className="text-lg font-bold text-foreground">{stat.val}</div>
+                    <div className="text-[10px] text-muted-foreground">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Mini chart placeholder */}
+              <div className="rounded-xl bg-muted/30 dark:bg-slate-800/40 p-3 border border-border/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="h-3 w-24 rounded bg-muted/70 dark:bg-slate-700/60" />
+                  <div className="h-3 w-16 rounded bg-emerald-500/20 dark:bg-emerald-500/15" />
+                </div>
+                <div className="flex items-end gap-1 h-12">
+                  {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((h, i) => (
+                    <motion.div
+                      key={i}
+                      className="flex-1 rounded-sm bg-gradient-to-t from-emerald-500 to-teal-400 dark:from-emerald-600 dark:to-teal-500"
+                      initial={{ height: 0 }}
+                      animate={{ height: `${h}%` }}
+                      transition={{ duration: 0.6, delay: 0.5 + i * 0.05, ease: 'easeOut' }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          ANIMATED COUNTER COMPONENT                       */
+/* -------------------------------------------------------------------------- */
+
+function AnimatedCounter({ target, value, suffix, label }: StatItem) {
+  const countTarget = target ?? value;
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+
+    const duration = 2000;
+    const steps = 60;
+    const increment = countTarget / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= countTarget) {
+        setCount(countTarget);
+        clearInterval(timer);
+      } else {
+        setCount(current);
+      }
+    }, duration / steps);
+
+    return () => clearInterval(timer);
+  }, [isInView, countTarget]);
+
+  const displayValue =
+    countTarget % 1 !== 0 ? count.toFixed(1) : Math.round(count).toLocaleString();
+
+  return (
+    <div className="text-center">
+      <div className="text-4xl md:text-5xl font-bold tracking-tight">
+        <span ref={ref}>{displayValue}</span>
+        <span className="gradient-text">{suffix}</span>
+      </div>
+      <p className="mt-2 text-muted-foreground text-sm font-medium">{label}</p>
+    </div>
+  );
+}
+
+/* NEW: Social proof counter with useInView */
+function SocialProofCounter({
+  target,
+  suffix,
+  label,
+  format = false,
+  decimal = false,
+}: {
+  target: number;
+  suffix: string;
+  label: string;
+  format?: boolean;
+  decimal?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+    const duration = 2500;
+    const steps = 80;
+    const increment = target / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(current);
+      }
+    }, duration / steps);
+    return () => clearInterval(timer);
+  }, [isInView, target]);
+
+  const display = decimal
+    ? count.toFixed(1)
+    : format
+      ? `${Math.round(count / 1000)}K`
+      : Math.round(count).toLocaleString();
+
+  return (
+    <div ref={ref} className="text-center">
+      <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+        <span>{display}</span>
+        <span className="gradient-text">{suffix}</span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground font-medium">{label}</p>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       TESTIMONIAL CAROUSEL CARD                           */
+/* -------------------------------------------------------------------------- */
+
+function TestimonialCard({
+  t,
+}: {
+  t: (typeof CAROUSEL_TESTIMONIALS)[number];
+}) {
+  return (
+    <div className="w-[340px] sm:w-[400px] lg:w-[440px] shrink-0 px-2">
+      <div className="h-full rounded-2xl bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl border border-white/40 dark:border-white/10 p-6 sm:p-8 shadow-lg shadow-black/5 dark:shadow-black/20 hover:shadow-xl transition-shadow duration-300">
+        <Quote className="h-8 w-8 text-emerald-500/30 mb-4" />
+        <p className="text-sm sm:text-base leading-relaxed text-foreground/85 mb-6">
+          {t.text}
+        </p>
+        <div className="flex items-center gap-1 mb-4">
+          {Array.from({ length: t.rating }).map((_, i) => (
+            <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold shadow-lg`}
+          >
+            {t.initials}
+          </div>
+          <div>
+            <p className="text-sm font-semibold">{t.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {t.role}, {t.company}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            SECTION ANIMATION                              */
+/* -------------------------------------------------------------------------- */
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: 'easeOut' as const },
+  },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+  },
+};
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
+};
+
+/* NEW: Enhanced card variant with gradient border glow */
+const glowCardItem = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: 'easeOut' as const },
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                           LANDING PAGE COMPONENT                          */
+/* -------------------------------------------------------------------------- */
+
+export default function LandingPage() {
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
+  const setCurrentMeetingId = useAppStore((s) => s.setCurrentMeetingId);
+  const [roomName, setRoomName] = useState('');
+  const [starting, setStarting] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ctaEmail, setCtaEmail] = useState('');
+
+  /* Carousel state */
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > window.innerHeight * 0.8);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  /* Auto-scroll carousel */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % CAROUSEL_TESTIMONIALS.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  /* Scroll carousel to active card */
+  useEffect(() => {
+    if (!carouselRef.current) return;
+    const cardWidth = carouselRef.current.scrollWidth / CAROUSEL_TESTIMONIALS.length;
+    carouselRef.current.scrollTo({ left: carouselIndex * cardWidth, behavior: 'smooth' });
+  }, [carouselIndex]);
+
+  const handleStartMeeting = useCallback(async () => {
+    const roomId = generateRoomId();
+    setStarting(true);
+    try {
+      const res = await authFetch('/api/v1/meetings', {
+        method: 'POST',
+        body: JSON.stringify({
+          roomId,
+          title: roomName || `Meeting ${roomId}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to create meeting');
+      const result = await res.json();
+      const meeting = result.data?.meeting || result;
+      toast.success('Meeting created successfully');
+      setCurrentMeetingId(meeting.meetingId || meeting.id);
+      setCurrentView('meeting-room');
+    } catch {
+      toast.error('Failed to create meeting. Please try again.');
+    } finally {
+      setStarting(false);
+    }
+  }, [roomName, setCurrentView, setCurrentMeetingId]);
+
+  const handleCtaSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!ctaEmail.trim()) return;
+      toast.success('Welcome aboard! Check your email to get started.');
+      setCtaEmail('');
+    },
+    [ctaEmail],
+  );
+
+  return (
+REMOVED REST

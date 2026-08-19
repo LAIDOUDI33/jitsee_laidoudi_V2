@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { authFetch } from '@/lib/api'
-import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -223,7 +222,6 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [submitting, setSubmitting] = useState(false)
-  const [showTimezones, setShowTimezones] = useState(false)
 
   const localTimezone = useMemo(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }

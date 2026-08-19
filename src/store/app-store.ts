@@ -45,6 +45,7 @@ export type AppView =
   | 'activity-reports'
   | 'recording-playback'
   | 'recurring-meetings'
+  | 'activity-feed'
 
 export interface NotificationItem {
   id: string

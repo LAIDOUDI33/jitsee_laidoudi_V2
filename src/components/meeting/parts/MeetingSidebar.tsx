@@ -10,7 +10,7 @@ import PollsPanel from './PollsPanel';
 import BreakoutRoomsPanel from './BreakoutRoomsPanel';
 import TranscriptionPanel from './TranscriptionPanel';
 import TranslationPanel from './TranslationPanel';
-import { type ChatMessage, type PollData } from './meeting-data';
+import { type ChatMessage, type PollData, type ParticipantPermissions } from './meeting-data';
 
 // ─── Props ─────────────────────────────────────────────────────
 export interface MeetingSidebarProps {
@@ -28,6 +28,14 @@ export interface MeetingSidebarProps {
   onVotePoll: (pollId: string, optionLabel: string) => void;
   onCreatePoll: (config: { question: string; options: string[] }) => void;
   onOpenPollBuilder: () => void;
+  spotlightedParticipant: string | null;
+  onSpotlightChange: (id: string | null) => void;
+  cohosts: Set<string>;
+  onCohostToggle: (id: string) => void;
+  onMuteAll: () => void;
+  participantPermissions: Record<string, ParticipantPermissions>;
+  onPermissionsChange: (id: string, perms: ParticipantPermissions) => void;
+  isHost: boolean;
 }
 
 // ─── Component ─────────────────────────────────────────────────
@@ -46,6 +54,14 @@ export default function MeetingSidebar({
   onVotePoll,
   onCreatePoll,
   onOpenPollBuilder,
+  spotlightedParticipant,
+  onSpotlightChange,
+  cohosts,
+  onCohostToggle,
+  onMuteAll,
+  participantPermissions,
+  onPermissionsChange,
+  isHost,
 }: MeetingSidebarProps) {
   return (
     <motion.div
@@ -88,6 +104,14 @@ export default function MeetingSidebar({
           <ParticipantList
             effectiveHandRaisedIds={effectiveHandRaisedIds}
             onlineCount={onlineCount}
+            spotlightedParticipant={spotlightedParticipant}
+            onSpotlightChange={onSpotlightChange}
+            cohosts={cohosts}
+            onCohostToggle={onCohostToggle}
+            onMuteAll={onMuteAll}
+            participantPermissions={participantPermissions}
+            onPermissionsChange={onPermissionsChange}
+            isHost={isHost}
           />
         )}
         {activeTab === 'ai' && (

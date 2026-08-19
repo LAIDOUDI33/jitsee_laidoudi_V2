@@ -6,7 +6,7 @@ import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
   Hand, Phone, CircleDot, Sparkles, Check, Plus, LayoutGrid, User, PanelRight,
   Subtitles, SmilePlus, Pen, FileText, ImageIcon,
-  MoreHorizontal, DoorOpen, Bell, BellRing,
+  MoreHorizontal, DoorOpen, Bell, BellRing, Lock, LockOpen, BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -86,6 +86,10 @@ export interface MeetingToolbarProps {
   waitingRoomCount: number;
   waitingRoomOpen: boolean;
   waitingRoomNotification: boolean;
+  meetingLocked: boolean;
+  onToggleMeetingLock: () => void;
+  statsPanelOpen: boolean;
+  onToggleStatsPanel: () => void;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
@@ -136,6 +140,10 @@ export default function MeetingToolbar({
   waitingRoomCount,
   waitingRoomOpen,
   waitingRoomNotification,
+  meetingLocked,
+  onToggleMeetingLock,
+  statsPanelOpen,
+  onToggleStatsPanel,
 }: MeetingToolbarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -494,6 +502,14 @@ export default function MeetingToolbar({
                       )}
                     </button>
                   </div>
+                  {/* Security */}
+                  <div className="p-1.5 border-b border-white/10">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Security</p>
+                    <button onClick={() => { onToggleMeetingLock(); setShowMoreMenu(false); }} className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${meetingLocked ? 'bg-amber-500/10 text-amber-300' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
+                      {meetingLocked ? <Lock size={16} /> : <LockOpen size={16} />}
+                      {meetingLocked ? 'Unlock Meeting' : 'Lock Meeting'}
+                    </button>
+                  </div>
                   {/* Tools */}
                   <div className="p-1.5 border-b border-white/10">
                     <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
@@ -534,6 +550,17 @@ export default function MeetingToolbar({
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+
+          {/* Lock Meeting */}
+          <div className="hidden md:block">
+            <ToolbarButton
+              active={meetingLocked}
+              icon={meetingLocked ? <Lock size={20} /> : <LockOpen size={20} />}
+              label={meetingLocked ? 'Unlock Meeting' : 'Lock Meeting'}
+              onClick={onToggleMeetingLock}
+              glowColor={meetingLocked ? 'amber' : undefined}
+            />
           </div>
 
           {/* Separator */}

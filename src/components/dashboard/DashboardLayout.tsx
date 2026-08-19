@@ -104,6 +104,7 @@ const mainNavItems: NavItem[] = [
   { label: 'Meeting Notes', icon: <NotebookPen className='h-4 w-4' />, view: 'meeting-notes' },
   { label: 'Smart Action Items', icon: <ListTodo className='h-4 w-4' />, view: 'action-items' },
   { label: 'Session History', icon: <History className='h-4 w-4' />, view: 'session-history' },
+  { label: 'Activity Feed', icon: <Activity className='h-4 w-4' />, view: 'activity-feed' },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -375,6 +376,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'meeting-notes': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Meeting Notes' }],
     'action-items': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Smart Action Items' }],
     'session-history': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Session History' }],
+    'activity-feed': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Activity Feed' }],
     'org-settings': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Org Settings' }],
     admin: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration' }, { label: 'Admin Overview' }],
     'admin-users': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'User Management' }],
@@ -419,6 +421,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'meeting-notes': 'Meeting Notes',
     'action-items': 'Smart Action Items',
     'session-history': 'Session History',
+    'activity-feed': 'Activity Feed',
     'org-settings': 'Org Settings',
   }
 

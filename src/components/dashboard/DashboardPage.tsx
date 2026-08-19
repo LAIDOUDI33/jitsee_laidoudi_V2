@@ -5,7 +5,7 @@ import { authFetch } from '@/lib/api';
 import {
   Video, CalendarPlus, Hash, Sparkles, Users, Clock, FileText, Brain,
   ChevronRight, Play, MoreHorizontal, Film, ArrowUpRight, ArrowDownRight,
-  VideoIcon, Calendar, Mic, Monitor, Share2,
+  VideoIcon, Calendar, Mic, Monitor, Share2, Activity, UserPlus, CheckCircle2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -763,6 +763,35 @@ export default function DashboardPage() {
         )}
       </motion.div>
 
+      {/* ═══════════════════ RECENT ACTIVITY WIDGET ═══════════════════ */}
+      <motion.div variants={item}>
+        <div className='flex items-center justify-between mb-4'>
+          <h2 className='text-lg font-semibold'>Recent Activity</h2>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-sm text-muted-foreground hover:text-foreground'
+            onClick={() => setCurrentView('activity-feed')}
+          >
+            View All <ChevronRight className='h-4 w-4 ml-1' />
+          </Button>
+        </div>
+        <Card className='border border-border/50 bg-gradient-to-br from-card to-card/80'>
+          <CardContent className='p-4 space-y-0'>
+            {RECENT_ACTIVITIES.map((act) => (
+              <div
+                key={act.id}
+                className='flex items-center gap-3 py-3 last:pb-0 first:pt-0 border-b border-border/30 last:border-0'
+              >
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${act.dotColor}`} />
+                <span className='text-sm truncate flex-1 min-w-0'>{act.title}</span>
+                <span className='text-xs text-muted-foreground whitespace-nowrap shrink-0'>{act.timeAgo}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Meeting Invite Dialog */}
       {inviteMeeting && (
         <MeetingInviteDialog
@@ -841,6 +870,23 @@ const MOCK_RECORDINGS: Recording[] = [
     duration: '0:38:50',
     date: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
+];
+
+// ── Recent Activity Mock Data (compact) ────────────────────────────────
+
+interface CompactActivity {
+  id: string;
+  title: string;
+  timeAgo: string;
+  dotColor: string;
+}
+
+const RECENT_ACTIVITIES: CompactActivity[] = [
+  { id: 'ra1', title: 'Joined Sprint Planning — Q4 Kickoff', timeAgo: '30m ago', dotColor: 'bg-emerald-500' },
+  { id: 'ra2', title: 'AI Summary Generated — Product Roadmap Review', timeAgo: '1h ago', dotColor: 'bg-violet-500' },
+  { id: 'ra3', title: 'Recording Ready — Client Onboarding', timeAgo: '1.5h ago', dotColor: 'bg-rose-500' },
+  { id: 'ra4', title: 'Q4-Roadmap.pdf shared by Alex Johnson', timeAgo: '2h ago', dotColor: 'bg-amber-500' },
+  { id: 'ra5', title: 'Action Item Completed — API Documentation', timeAgo: '4h ago', dotColor: 'bg-teal-500' },
 ];
 
 const MOCK_STATS: DashboardStats = {

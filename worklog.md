@@ -3137,3 +3137,191 @@ Stage Summary:
   4. `scripts/seed.ts` — Added 10 varied notification seeds for superadmin
 - **Response format**: `{ success: true, data: { notifications: [...], pagination: { page, limit, total, unreadCount, totalPages } } }`
 - **Lint: 0 errors, 0 warnings**
+---
+Task ID: 13-1
+Agent: Enhanced Chat Agent
+Task: Enhance Meeting Chat with reactions, file sharing, reply threads
+
+Work Log:
+- Read worklog.md (last 80 lines), MeetingChat.tsx, meeting-data.ts, MeetingSidebar.tsx, useMeetingRoom.ts to understand current implementation
+- Read available shadcn/ui components: Popover, DropdownMenu, Tooltip, Button, Input, ScrollArea, Avatar
+- Verified toast pattern: `import { toast } from 'sonner'`
+- Identified that chatMessages come from WebSocket via wsMsgToLocal() mapping, component uses MeetingChatProps interface
+- Rewrote MeetingChat.tsx with 5 major feature enhancements:
+  1. **Message Reactions**: Enhanced reaction system with Reactor tracking (name, initials, color), avatar stack display for 2+ reactors, Popover-based emoji picker (5 emojis: 👍❤️😂🎉🤔) with whileHover/whileTap animations, emerald highlight for user's own reactions, quick-reaction buttons in hover toolbar
+  2. **File Sharing UI**: Added Paperclip attachment button with DropdownMenu (Upload File, Share Screen, Insert Link), hidden file input with common type acceptance, FileAttachmentCard sub-component with type-specific icons (FileText/ImageIcon/FileArchive/File), file size formatting, Download button with toast feedback, LinkAttachmentCard sub-component with hover effects
+  3. **Reply Threads**: Reply button in hover toolbar, replyingTo state with quoted preview bar (emerald accent, sender name, truncated text, X to cancel), thread visual connection (left emerald border, indent via ml-3/pl-3), reply reference block shown on each reply message, reply count indicator on parent messages, reply counts tracked in localReplyCounts state
+  4. **Message Actions Menu**: Three-dot DropdownMenu on hover (ml-auto, opacity transition), options: Reply (teal), Copy Text (emerald, uses navigator.clipboard), Pin/Unpin Message (amber, with pinned message banner at top), Delete (rose, own messages only, variant="destructive"), toast notifications for all actions
+  5. **Rich Message Formatting**: parseMessageText() function with URL detection (auto-linked in teal), RichTextSpan() component parsing **bold** → <strong>, *italic* → <em>, `code` → <code> with amber background, regex-based tokenizer preserving order
+- Added enhanced data types: EnhancedMessage (extends ChatMessage with fileAttachment, linkAttachment, replyTo, replyCount, isPinned), FileAttachment, LinkAttachment, ReplyInfo, Reactor, enhanced MessageReaction with reactors array
+- Seeded mock data: INITIAL_REACTIONS (msg-2 with 👍×3 + 🎉×1), INITIAL_REPLIES (msg-5→msg-3, msg-7→msg-5), INITIAL_REPLY_COUNTS, MOCK_FILES (Q4-Roadmap.pdf), MOCK_LINKS, INITIAL_PINS (msg-3)
+- Local message management: localMessages state merged with incoming WS messages, displayMessages useMemo for seamless integration
+- Changed color palette: input focus from violet to teal (`focus:border-teal-500/50`), send button from violet to teal (`bg-teal-600 hover:bg-teal-700`)
+- Preserved all existing features: @mentions, typing indicator, auto-scroll, WebSocket integration via same MeetingChatProps interface
+- Fixed lint: renamed `Image` import to `ImageIcon` to avoid jsx-a11y/alt-text false positive, removed unused `Participant` import
+- Final lint: 0 errors, 0 warnings
+
+Stage Summary:
+- **1 file modified:** `src/components/meeting/parts/MeetingChat.tsx` — Complete enhancement with reactions (Popover picker + avatar stacks), file sharing (attachment dropdown + file/link cards), reply threads (quoted preview + visual connection + reply count), message actions menu (reply/copy/pin/delete with toasts), rich text formatting (bold/italic/code/URLs)
+- **Color palette:** emerald (reactions, reply accents, copy action), teal (input focus, links, reply button, file download), amber (pin, code highlighting, link insert), rose (delete, file icon) — no blue/indigo
+- **Props interface unchanged** — fully backward-compatible with MeetingSidebar.tsx
+- **Lint: 0 errors, 0 warnings**
+---
+Task ID: 13-2
+Agent: Participant Management Agent
+Task: Add Spotlight, Co-host, Meeting Lock, Mute All features
+
+Work Log:
+- Read worklog.md (last 80 lines) and source files: ParticipantList.tsx, meeting-data.ts, MeetingRoomPage.tsx, MeetingToolbar.tsx, MeetingSidebar.tsx
+- Added `ParticipantPermissions` interface to meeting-data.ts with fields: canShareScreen, canChat, canUnmute, canUseReactions
+- Rewrote ParticipantList.tsx with 5 major features:
+  1. **Spotlight Participant**: Dropdown "Spotlight" option (host only), golden Star icon with fill, spotlighted participants sorted first with amber border/bg accent, synced to pinnedParticipant in VideoGrid
+  2. **Co-host Assignment**: "Make Co-host"/"Remove Co-host" in dropdown (host only), teal Crown icon (filled), teal "Co-host" badge, managed via Set<string> state from parent
+  3. **Participant Permissions Panel**: "More" button (3-dot icon, host-only) opens Dialog with Switch toggles for 4 permissions (Share Screen, Chat, Unmute, Reactions), each toggle fires toast notification, uses shadcn Switch + Dialog components
+  4. **Mute All**: Button in header (host only), triggers AlertDialog confirmation before action, rose-colored confirm button, toast after action
+  5. **Enhanced sorting**: Spotlighted participants first, then co-hosts, then others
+- Changed search input focus border from violet to emerald (`focus:border-emerald-500/50`)
+- Changed "You" badge from blue to emerald (`bg-emerald-500/20 text-emerald-300`)
+- Added `PermissionsPanel` sub-component with participant info header, icon-labeled Switch rows
+- Updated MeetingToolbar.tsx: Added Lock/LockOpen imports, `meetingLocked` + `onToggleMeetingLock` props, desktop Lock Meeting ToolbarButton (amber glow when active), Security section in mobile More menu
+- Updated MeetingSidebar.tsx: Added `ParticipantPermissions` import, 7 new props (spotlightedParticipant, onSpotlightChange, cohosts, onCohostToggle, onMuteAll, participantPermissions, onPermissionsChange, isHost), passed through to ParticipantList
+- Updated MeetingRoomPage.tsx: Added state for `spotlightedParticipant`, `cohosts` (Set, pre-seeded with id '2'), `meetingLocked`, `participantPermissions` map
+- Added handlers: `handleSpotlightChange` (syncs to pinnedParticipant), `handleCohostToggle` (with toast), `handleMuteAll` (with toast), `handlePermissionsChange`, `handleToggleMeetingLock` (with toast)
+- Added meeting locked banner (AnimatePresence, amber pill, lock SVG icon, subtle text) below MeetingHeader, with WebRTC indicator offset adjustment
+- Passed all new props through MeetingToolbar and MeetingSidebar
+- Lint: 0 errors, 0 warnings
+
+Stage Summary:
+- **4 files modified, 1 type added:**
+  1. `src/components/meeting/parts/meeting-data.ts` — Added `ParticipantPermissions` interface
+  2. `src/components/meeting/parts/ParticipantList.tsx` — Complete rewrite: spotlight (Star icon, amber accent, first-in-list), co-host (Crown icon, teal badge, Set-based), permissions Dialog (4 Switch toggles with toasts), Mute All (AlertDialog confirmation), enhanced sorting
+  3. `src/components/meeting/parts/MeetingToolbar.tsx` — Lock Meeting button (desktop + mobile Security section), Lock/LockOpen icons, amber glow when locked
+  4. `src/components/meeting/parts/MeetingSidebar.tsx` — 8 new props pass-through to ParticipantList
+  5. `src/components/meeting/MeetingRoomPage.tsx` — 4 new state variables, 5 handler callbacks, locked meeting banner (AnimatePresence), all props wired
+- **Color palette:** amber (spotlight star, locked banner, lock button glow, mute all), teal (co-host badge/crown, permissions switch), emerald (search focus, You badge), rose (mute all confirm) — no blue/indigo
+- **Lint: 0 errors, 0 warnings**
+---
+Task ID: 14-3
+Agent: Activity Feed Agent
+Task: Create Activity Feed page and dashboard widget
+
+Work Log:
+- Read worklog.md (last 50 lines) to understand current project state
+- Read DashboardPage.tsx (856 lines) to understand component patterns, mock data, query fetching, animation variants, and card layouts
+- Read MeetingsPage.tsx (first 50 lines) to understand data fetching pattern with authFetch
+- Read app-store.ts for AppView type, page.tsx for routing (dashboardSubViews), and DashboardLayout.tsx for sidebar navigation items, breadcrumbs, and viewLabels
+- Created `src/components/dashboard/views/ActivityFeedPage.tsx` with:
+  1. **Activity Timeline**: Vertical timeline with colored dots (emerald for joins, amber for meetings, rose for recordings, violet for AI, teal for actions) on left side, each entry has icon inside dot, avatar, title, description, relative timestamp ("30m ago", "1h ago", "2d ago"), and rich detail cards
+  2. **Entry Types**: Meeting Joined, Meeting Created, Recording Ready, AI Summary Generated, Team Member Joined, File Shared, Action Item Completed — 7 types total
+  3. **Filter Bar**: Horizontal filter chips (All, Meetings, Recordings, AI, Team, Files) with active chip in emerald, plus search input for text filtering
+  4. **Activity Groups**: Grouped by date — "Today" (6), "Yesterday" (4), "This Week" (7), "Earlier" (5), each with count badge
+  5. **Rich Entry Cards**: Meeting entries show title/duration/participant count; Recording entries show gradient thumbnail placeholder with play button overlay and duration badge; AI entries show Sparkles icon, truncated summary snippet (line-clamp-2), and "View Full Summary" link navigating to ai-assistant; File entries show file type icon, name, size, share button
+  6. **Load More**: Button at bottom showing remaining count, loads 10 more entries
+  7. **Empty State**: Inbox icon illustration, "No activities found" message, contextual text based on search vs filter, "Clear filters" button
+  8. **Mock Data**: 22 activities spanning 14 days with varied types and dates
+- Enhanced `src/components/dashboard/DashboardPage.tsx`:
+  - Added "Recent Activity" widget card after "This Week at a Glance" stats section
+  - Card shows header "Recent Activity" with "View All" link navigating to activity-feed
+  - 5 compact entries with colored dots (emerald/violet/rose/amber/teal), truncated titles, and time-ago labels
+  - Added CompactActivity interface and RECENT_ACTIVITIES mock data
+  - Added Activity, UserPlus, CheckCircle2 imports (available but unused flagged clean by lint)
+- Updated `src/store/app-store.ts`: Added `'activity-feed'` to AppView union type
+- Updated `src/app/page.tsx`: Added dynamic import for ActivityFeedPage and mapped `'activity-feed': ActivityFeedPage` in dashboardSubViews
+- Updated `src/components/dashboard/DashboardLayout.tsx`: Added sidebar nav item `{ label: 'Activity Feed', icon: <Activity />, view: 'activity-feed' }` in mainNavItems, breadcrumb entry, and viewLabel entry
+
+Stage Summary:
+- **1 new file, 4 modified files:**
+  1. `src/components/dashboard/views/ActivityFeedPage.tsx` — Full activity feed page with vertical timeline, 7 entry types, filter chips (emerald active), search, date groups with count badges, rich detail cards (meeting/recording/AI/file), load more, empty state
+  2. `src/components/dashboard/DashboardPage.tsx` — Added mini "Recent Activity" widget (5 compact entries, colored dots, "View All" link), CompactActivity type, RECENT_ACTIVITIES mock data
+  3. `src/store/app-store.ts` — Added `'activity-feed'` to AppView union
+  4. `src/app/page.tsx` — Added dynamic import + dashboardSubViews mapping for activity-feed
+  5. `src/components/dashboard/DashboardLayout.tsx` — Sidebar nav item, breadcrumb, and viewLabel for Activity Feed
+- **Color palette:** emerald (filter chips, meeting-joined dots, file share CTA), amber (meeting-created, file-shared dots), rose (recording-ready dots, thumbnail gradient), violet (AI summary dots, AI detail card border/bg), teal (action-completed dots) — no blue/indigo
+- **22 mock activities** spanning Today (6), Yesterday (4), This Week (7), Earlier (5)
+- **Lint: 0 errors, 0 warnings**
+---
+Task ID: 14-1
+Agent: Landing Page Polish Agent
+Task: Enhance landing page with animations, social proof, testimonials
+
+Work Log:
+- Read worklog.md (last 50 lines) to understand current project state
+- Read LandingPage.tsx (1725 lines) fully to understand all existing sections, components, data, and animation patterns
+- Identified existing implementations: TypewriterText (char-by-char), FloatingShape, MockBrowserWindow, AnimatedCounter, SocialProofCounter, TestimonialCard, hero orbs, social proof section, testimonials carousel, CTA section
+- **COMPANY_LOGOS**: Updated from 8 generic names to 6 specific companies: Acme Corp, TechStart, GlobalBank, EduLearn, HealthPlus, MediaFlow
+- **SOCIAL_PROOF_STATS**: Added `icon` property to each stat (Video, Users, Zap) and updated label to match task spec ("Daily Meetings", "Active Users", "Uptime")
+- **TypewriterText component**: Rewrote from character-by-character typing/deleting to clean word rotation using useState + setInterval (2500ms cycle) with AnimatePresence fade/slide-up animation (opacity 0→1, y 12→0 on enter; opacity 1→0, y 0→-12 on exit)
+- **Hero headline gradient**: Wrapped "Enterprise Video\nConferencing." in `<span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">` for emerald-to-teal gradient text effect
+- **Typewriter color**: Changed from `text-emerald-600 dark:text-emerald-400` to `text-teal-600 dark:text-teal-400` for the rotating phrases
+- **Hero background orbs**: Lowered opacity from 20-30% to 10-12% (dark mode 6-10%), added `pointer-events-none` to the background container, added 4th teal orb (300px, blur-2xl, 8% opacity) with slow floating animation
+- **Social proof section**: Replaced `border-y border-border/30` with gradient dividers (`bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent`), updated heading text to "Trusted by innovative teams worldwide"
+- **SocialProofCounter component**: Added `icon` prop (React.ComponentType), renders icon in rounded-xl emerald container above the number
+- **TestimonialCard**: Changed from `bg-white/60 dark:bg-slate-800/40` to glassmorphism `bg-white/5 backdrop-blur-xl border border-white/10 dark:bg-white/[0.03] dark:border-white/[0.06]`, added whileInView stagger entrance animation (opacity 0→1, y 24→0), moved stars above quote text, added hover bg effect
+- **CTA section**: Updated bottom text to use bullet separator: "No credit card required • Free forever for small teams"
+
+Stage Summary:
+- **1 file modified:** `src/components/landing/LandingPage.tsx`
+- **Key enhancements:**
+  1. Hero headline now uses emerald-400→teal-400 gradient text on main heading
+  2. Typewriter rewritten with clean AnimatePresence fade/slide word rotation in teal color
+  3. 4 floating orbs at 8-12% opacity with pointer-events-none + 1 new blurred teal orb
+  4. Social proof logos updated to 6 specific companies with gradient dividers
+  5. Animated counters now display icons (Video, Users, Zap) above numbers
+  6. Testimonial cards have glassmorphism styling with stagger entrance animation
+  7. CTA text uses bullet separator format
+- **Color palette:** emerald/teal/amber — no blue/indigo
+- **Lint: 0 errors, 0 warnings**
+
+---
+Task ID: 12-13-14
+Agent: Main Orchestrator
+Task: Phases 12-14 — Enterprise Features, Enhanced Meeting Room, Landing Polish
+
+Work Log:
+- Planned Phase 12 (Waiting Room, Speaker View, Notifications Backend, Scheduler Timezone)
+- Launched 4 parallel sub-agents for Phase 12 features
+- Fixed MeetingScheduler.tsx lint error (malformed JSX comments from sub-agent, rewrote timezone block cleanly)
+- Fixed MeetingStatsPanel.tsx lint error (setState-in-effect rule, refactored useAnimatedNumber hook)
+- Wired MeetingStatsPanel into MeetingRoomPage with mock live-updating stats data
+- Planned Phase 13 (Enhanced Chat, Participant Management, Meeting Stats)
+- Launched 3 parallel sub-agents for Phase 13 features
+- Planned Phase 14 (Landing Polish, Activity Feed)
+- Launched 2 parallel sub-agents for Phase 14 features
+- Performed browser QA verification: landing page, login flow, dashboard, meeting room
+
+Stage Summary:
+- **Phases 12-14 Complete — 9 major features delivered across 3 phases:**
+
+**Phase 12 — Enterprise Foundation:**
+1. Host Waiting Room Panel (admit/reject participants, bulk actions, notification pulse)
+2. Speaker View + Layout Toggle (Gallery/Speaker/Sidebar views, smart speaker detection)
+3. Notifications Backend API (DB model, CRUD endpoints, seed data, creation utilities)
+4. Meeting Scheduler Timezone Support (14 timezones, time comparison, recurring meetings page)
+
+**Phase 13 — Meeting Room Enhancement:**
+5. Enhanced Meeting Chat (emoji reactions with avatar stacks, file sharing UI, reply threads, message actions, rich text formatting)
+6. Participant Management (spotlight, co-host assignment, permissions panel, mute all, meeting lock)
+7. Meeting Stats Live Dashboard (animated counters, sparklines, duration timer, quality metrics)
+
+**Phase 14 — UX Polish:**
+8. Landing Page Polish (gradient headline, typewriter word rotation, glassmorphism testimonials, social proof logos, animated counters)
+9. Activity Feed Page (vertical timeline, 7 entry types, filter chips, date groups, rich cards) + Dashboard widget
+
+- **Total files across Phases 12-14:** ~12 new, ~15 modified
+- **Total feature count: 28+ dashboard views, 60+ API endpoints, 20+ shared components, 15+ meeting room components**
+- **Lint: 0 errors, 0 warnings**
+- **Browser QA: ✅ Landing page, login, dashboard, meeting room all verified**
+
+### Unresolved Issues / Risks:
+- Meeting Scheduler timezone comparison section simplified (removed Collapsible expandable due to ESLint/SWC parse issues)
+- Breakout Rooms timer/broadcast enhancement from 13-3 agent may not have fully applied (agent output was truncated)
+- Real SAML/OIDC, ASR (Whisper), recording, email delivery, and SFU remain architectural limitations (external service dependencies)
+- No new cron job set for continuous development in this session
+
+### Recommended Next Phase Priorities:
+1. Breakout Rooms timer/broadcast completion
+2. Onboarding flow wizard with product tour tooltips
+3. Meeting Notes AI auto-summarize integration
+4. Calendar view enhancement (week/month views with meeting blocks)
+5. Admin dashboard analytics widgets (real DB queries)
+6. Profile page enhancement (avatar upload, status message, presence)

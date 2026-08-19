@@ -36,6 +36,8 @@ import {
   Star,
   Quote,
   Trophy,
+  Mail,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -165,8 +167,7 @@ const ARCHITECTURE_PILLARS = [
   {
     icon: ShieldCheck,
     title: 'Security',
-    description:
-      'OAuth 2.0, SAML SSO, MFA, RBAC, zero-trust, audit logging.',
+    description: 'OAuth 2.0, SAML SSO, MFA, RBAC, zero-trust, audit logging.',
   },
   {
     icon: Building2,
@@ -268,10 +269,6 @@ const PRICING_TIERS: PricingTier[] = [
   },
 ];
 
-/* -------------------------------------------------------------------------- */
-/*                    FEATURE COMPARISON TABLE DATA                           */
-/* -------------------------------------------------------------------------- */
-
 const COMPARISON_FEATURES = [
   { feature: 'AI Meeting Summaries', alvision: true, zoom: true, teams: true, meet: false },
   { feature: 'Real-time Translation (10+ langs)', alvision: true, zoom: false, teams: false, meet: false },
@@ -348,13 +345,25 @@ const HERO_STATS = [
   { icon: Globe, value: '150+', label: 'Countries' },
 ] as const;
 
-const TESTIMONIALS = [
+const COMPANY_LOGOS = [
+  'Acme Corp', 'TechStart', 'GlobalBank', 'EduLearn', 'HealthPlus', 'MediaFlow',
+] as const;
+
+const SOCIAL_PROOF_STATS = [
+  { icon: Video, target: 10000, suffix: '+', label: 'Daily Meetings', format: false, decimal: false },
+  { icon: Users, target: 500000, suffix: '+', label: 'Active Users', format: true, decimal: false },
+  { icon: Zap, target: 99.9, suffix: '%', label: 'Uptime', format: false, decimal: true },
+] as const;
+
+const TYPEWRITER_WORDS = ['for Teams', 'for Enterprise', 'for Education', 'for Everyone'];
+
+const CAROUSEL_TESTIMONIALS = [
   {
     name: 'Sarah Mitchell',
     role: 'VP of Engineering',
     company: 'TechCorp Global',
     initials: 'SM',
-    color: 'bg-gradient-to-br from-rose-500 to-pink-600',
+    color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
     rating: 5,
     text: 'ALVISION transformed our remote meetings. The AI summaries alone save our team 5+ hours per week. The transcription accuracy in our technical discussions is remarkable.',
   },
@@ -363,45 +372,18 @@ const TESTIMONIALS = [
     role: 'CTO',
     company: 'FinanceFlow',
     initials: 'JC',
-    color: 'bg-gradient-to-br from-teal-500 to-emerald-600',
+    color: 'bg-gradient-to-br from-amber-500 to-orange-600',
     rating: 5,
-    text: 'Security was our top priority. ALVISION\'s zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.',
-  },
-  {
-    name: 'Priya Sharma',
-    role: 'Head of Operations',
-    company: 'MediCare Solutions',
-    initials: 'PS',
-    color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
-    rating: 5,
-    text: 'HIPAA compliance was non-negotiable. ALVISION delivered on every requirement and their support team went above and beyond during our compliance audit.',
+    text: "Security was our top priority. ALVISION's zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.",
   },
   {
     name: 'Marcus Johnson',
     role: 'CEO',
     company: 'StartupLaunch',
     initials: 'MJ',
-    color: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    color: 'bg-gradient-to-br from-teal-500 to-emerald-600',
     rating: 5,
     text: 'We switched from three different tools to just ALVISION. Video calls, chat, whiteboards, and AI notes — all in one platform. Our team productivity increased by 40%.',
-  },
-  {
-    name: 'Elena Rodriguez',
-    role: 'Director of HR',
-    company: 'GlobalEdge Inc',
-    initials: 'ER',
-    color: 'bg-gradient-to-br from-violet-500 to-purple-600',
-    rating: 5,
-    text: 'The live translation feature is a game-changer for our international offices. Teams in Tokyo, Berlin, and São Paulo now collaborate seamlessly in their native languages.',
-  },
-  {
-    name: 'David Park',
-    role: 'Product Manager',
-    company: 'DataSync',
-    initials: 'DP',
-    color: 'bg-gradient-to-br from-cyan-500 to-sky-600',
-    rating: 5,
-    text: 'The AI action extraction automatically creates Jira tickets from our sprint reviews. What used to take 30 minutes of manual work now happens instantly. Incredible.',
   },
 ];
 
@@ -418,6 +400,169 @@ function generateRoomId(): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                        TYPEWRITER TEXT COMPONENT                          */
+/* -------------------------------------------------------------------------- */
+
+function TypewriterText({ words }: { words: readonly string[] }) {
+  const [wordIndex, setWordIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWordIndex((prev) => (prev + 1) % words.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [words]);
+
+  return (
+    <span className="relative inline-flex overflow-hidden h-[1.3em] align-text-bottom">
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={words[wordIndex]}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          transition={{ duration: 0.35, ease: 'easeInOut' }}
+          className="inline-block"
+        >
+          {words[wordIndex]}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       FLOATING GEOMETRIC SHAPES                           */
+/* -------------------------------------------------------------------------- */
+
+function FloatingShape({
+  type,
+  size,
+  className,
+  delay = 0,
+  duration = 20,
+}: {
+  type: 'circle' | 'hexagon';
+  size: number;
+  className?: string;
+  delay?: number;
+  duration?: number;
+}) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay, duration: 1 }}
+    >
+      <motion.svg
+        width={size}
+        height={size}
+        viewBox="0 0 100 100"
+        animate={{
+          y: [0, -20, 10, -15, 0],
+          x: [0, 10, -8, 12, 0],
+          rotate: type === 'hexagon' ? [0, 15, -10, 20, 0] : [0, 5, -5, 3, 0],
+        }}
+        transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      >
+        {type === 'circle' ? (
+          <circle cx="50" cy="50" r="40" />
+        ) : (
+          <polygon points="50,5 93,27.5 93,72.5 50,95 7,72.5 7,27.5" />
+        )}
+      </motion.svg>
+    </motion.div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         MOCK BROWSER WINDOW                               */
+/* -------------------------------------------------------------------------- */
+
+function MockBrowserWindow() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 40, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+      className="relative w-full max-w-[560px]"
+    >
+      <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-500/20 rounded-3xl blur-2xl" />
+      <div className="relative rounded-2xl border border-border/60 dark:border-border/40 bg-white dark:bg-slate-900 shadow-2xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 dark:bg-slate-800/80 border-b border-border/40">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-400/80" />
+            <div className="w-3 h-3 rounded-full bg-amber-400/80" />
+            <div className="w-3 h-3 rounded-full bg-emerald-400/80" />
+          </div>
+          <div className="flex-1 mx-2">
+            <div className="h-7 rounded-lg bg-muted dark:bg-slate-700/60 flex items-center px-3 gap-2">
+              <Lock className="w-3 h-3 text-emerald-500" />
+              <span className="text-xs text-muted-foreground truncate">app.alvision.com/dashboard</span>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="flex gap-3">
+            <div className="w-12 shrink-0 space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className={`h-8 rounded-lg ${i === 1 ? 'bg-emerald-500/20 dark:bg-emerald-500/15' : 'bg-muted/50 dark:bg-slate-800/50'}`}
+                />
+              ))}
+            </div>
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-32 rounded bg-muted/70 dark:bg-slate-800/70" />
+                <div className="h-8 w-24 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { icon: Video, label: 'Active', val: '24' },
+                  { icon: Users, label: 'Online', val: '1.2K' },
+                  { icon: MessageSquare, label: 'Messages', val: '847' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 p-3 border border-emerald-100/50 dark:border-emerald-900/30"
+                  >
+                    <stat.icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1.5" />
+                    <div className="text-lg font-bold text-foreground">{stat.val}</div>
+                    <div className="text-[10px] text-muted-foreground">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl bg-muted/30 dark:bg-slate-800/40 p-3 border border-border/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="h-3 w-24 rounded bg-muted/70 dark:bg-slate-700/60" />
+                  <div className="h-3 w-16 rounded bg-emerald-500/20 dark:bg-emerald-500/15" />
+                </div>
+                <div className="flex items-end gap-1 h-12">
+                  {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((h, i) => (
+                    <motion.div
+                      key={i}
+                      className="flex-1 rounded-sm bg-gradient-to-t from-emerald-500 to-teal-400 dark:from-emerald-600 dark:to-teal-500"
+                      initial={{ height: 0 }}
+                      animate={{ height: `${h}%` }}
+                      transition={{ duration: 0.6, delay: 0.5 + i * 0.05, ease: 'easeOut' }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*                          ANIMATED COUNTER COMPONENT                       */
 /* -------------------------------------------------------------------------- */
 
@@ -429,7 +574,6 @@ function AnimatedCounter({ target, value, suffix, label }: StatItem) {
 
   useEffect(() => {
     if (!isInView) return;
-
     const duration = 2000;
     const steps = 60;
     const increment = countTarget / steps;
@@ -443,7 +587,6 @@ function AnimatedCounter({ target, value, suffix, label }: StatItem) {
         setCount(current);
       }
     }, duration / steps);
-
     return () => clearInterval(timer);
   }, [isInView, countTarget]);
 
@@ -462,7 +605,113 @@ function AnimatedCounter({ target, value, suffix, label }: StatItem) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                              SECTION ANIMATION                            */
+/*                    SOCIAL PROOF COUNTER COMPONENT                         */
+/* -------------------------------------------------------------------------- */
+
+function SocialProofCounter({
+  icon: Icon,
+  target,
+  suffix,
+  label,
+  format = false,
+  decimal = false,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  target: number;
+  suffix: string;
+  label: string;
+  format?: boolean;
+  decimal?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+    const duration = 2500;
+    const steps = 80;
+    const increment = target / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(current);
+      }
+    }, duration / steps);
+    return () => clearInterval(timer);
+  }, [isInView, target]);
+
+  const display = decimal
+    ? count.toFixed(1)
+    : format
+      ? `${Math.round(count / 1000)}K`
+      : Math.round(count).toLocaleString();
+
+  return (
+    <div ref={ref} className="text-center">
+      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
+        <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+      </div>
+      <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+        <span>{display}</span>
+        <span className="gradient-text">{suffix}</span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground font-medium">{label}</p>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       TESTIMONIAL CAROUSEL CARD                           */
+/* -------------------------------------------------------------------------- */
+
+function TestimonialCard({
+  t,
+}: {
+  t: (typeof CAROUSEL_TESTIMONIALS)[number];
+}) {
+  return (
+    <div className="w-[340px] sm:w-[400px] lg:w-[440px] shrink-0 px-2">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="h-full rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 dark:bg-white/[0.03] dark:border-white/[0.06] p-6 sm:p-8 shadow-lg shadow-black/5 dark:shadow-black/20 hover:shadow-xl hover:bg-white/[0.08] dark:hover:bg-white/[0.05] transition-all duration-300"
+      >
+        <Quote className="h-8 w-8 text-emerald-500/30 mb-4" />
+        <div className="flex items-center gap-1 mb-4">
+          {Array.from({ length: t.rating }).map((_, i) => (
+            <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+          ))}
+        </div>
+        <p className="text-sm sm:text-base leading-relaxed text-foreground/85 mb-6">
+          {t.text}
+        </p>
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold shadow-lg`}
+          >
+            {t.initials}
+          </div>
+          <div>
+            <p className="text-sm font-semibold">{t.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {t.role}, {t.company}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            SECTION ANIMATION                              */
 /* -------------------------------------------------------------------------- */
 
 const sectionVariants = {
@@ -487,6 +736,15 @@ const staggerItem = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
 
+const glowCardItem = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: 'easeOut' as const },
+  },
+};
+
 /* -------------------------------------------------------------------------- */
 /*                           LANDING PAGE COMPONENT                          */
 /* -------------------------------------------------------------------------- */
@@ -497,12 +755,28 @@ export default function LandingPage() {
   const [roomName, setRoomName] = useState('');
   const [starting, setStarting] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ctaEmail, setCtaEmail] = useState('');
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > window.innerHeight * 0.8);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % CAROUSEL_TESTIMONIALS.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!carouselRef.current) return;
+    const cardWidth = carouselRef.current.scrollWidth / CAROUSEL_TESTIMONIALS.length;
+    carouselRef.current.scrollTo({ left: carouselIndex * cardWidth, behavior: 'smooth' });
+  }, [carouselIndex]);
 
   const handleStartMeeting = useCallback(async () => {
     const roomId = generateRoomId();
@@ -528,234 +802,211 @@ export default function LandingPage() {
     }
   }, [roomName, setCurrentView, setCurrentMeetingId]);
 
+  const handleCtaSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!ctaEmail.trim()) return;
+      toast.success('Welcome aboard! Check your email to get started.');
+      setCtaEmail('');
+    },
+    [ctaEmail],
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* ------------------------------------------------------------------ */}
-      {/*  NAVBAR                                                           */}
-      {/* ------------------------------------------------------------------ */}
       <Navbar />
 
       <main className="flex-1">
-        {/* ============================================================== */}
-        {/* 1. HERO SECTION                                             */}
-        {/* ============================================================== */}
-        <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden" id="hero">
-          {/* Animated gradient mesh background with floating orbs */}
-          <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-emerald-50/20 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" />
-            {/* Subtle grid/mesh pattern */}
+        {/* HERO SECTION */}
+        <section
+          className="relative min-h-[92vh] flex items-center justify-center overflow-hidden"
+          id="hero"
+        >
+          {/* Animated gradient mesh background */}
+          <div className="absolute inset-0 -z-10 pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" />
             <div
-              className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
+              className="absolute inset-0 opacity-[0.04] dark:opacity-[0.06]"
               style={{
                 backgroundImage:
                   'repeating-linear-gradient(0deg, currentColor 0px, transparent 1px, transparent 60px), repeating-linear-gradient(90deg, currentColor 0px, transparent 1px, transparent 60px)',
               }}
             />
-            {/* Floating orbs */}
-            <div className="absolute top-[10%] left-[15%] h-72 w-72 rounded-full bg-emerald-400/15 dark:bg-emerald-500/10 blur-3xl animate-pulse" />
-            <div
-              className="absolute top-[50%] right-[10%] h-96 w-96 rounded-full bg-cyan-400/15 dark:bg-cyan-500/10 blur-3xl animate-pulse"
-              style={{ animationDelay: '1s' }}
-            />\n            <div
-              className="absolute bottom-[10%] left-[40%] h-64 w-64 rounded-full bg-violet-400/15 dark:bg-violet-500/10 blur-3xl animate-pulse"
-              style={{ animationDelay: '2s' }}
-            />\n            <div
-              className="absolute top-[30%] left-[60%] h-48 w-48 rounded-full bg-sky-300/20 dark:bg-sky-400/10 blur-3xl animate-pulse"
-              style={{ animationDelay: '0.5s' }}
-            />\n          </div>
+            <motion.div
+              className="absolute h-[500px] w-[500px] rounded-full opacity-[0.12] dark:opacity-[0.10]"
+              style={{
+                background: 'radial-gradient(circle, #10b981 0%, transparent 70%)',
+                top: '5%',
+                left: '10%',
+              }}
+              animate={{
+                x: [0, 60, -30, 40, 0],
+                y: [0, -40, 20, -20, 0],
+                scale: [1, 1.1, 0.95, 1.05, 1],
+              }}
+              transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+              className="absolute h-[600px] w-[600px] rounded-full opacity-[0.10] dark:opacity-[0.10]"
+              style={{
+                background: 'radial-gradient(circle, #14b8a6 0%, transparent 70%)',
+                top: '40%',
+                right: '5%',
+              }}
+              animate={{
+                x: [0, -50, 30, -40, 0],
+                y: [0, 30, -50, 20, 0],
+                scale: [1, 0.9, 1.1, 0.95, 1],
+              }}
+              transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+            />
+            <motion.div
+              className="absolute h-[400px] w-[400px] rounded-full opacity-[0.10] dark:opacity-[0.08]"
+              style={{
+                background: 'radial-gradient(circle, #f59e0b 0%, transparent 70%)',
+                bottom: '10%',
+                left: '35%',
+              }}
+              animate={{
+                x: [0, 40, -20, 30, 0],
+                y: [0, -30, 40, -10, 0],
+                scale: [1, 1.05, 0.9, 1.1, 1],
+              }}
+              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
+            />
+            <motion.div
+              className="absolute h-[300px] w-[300px] rounded-full bg-teal-500 opacity-[0.08] dark:opacity-[0.06] blur-2xl"
+              style={{ top: '15%', right: '25%' }}
+              animate={{
+                y: [0, -25, 15, -20, 0],
+                x: [0, 15, -20, 10, 0],
+                scale: [1, 1.08, 0.94, 1.04, 1],
+              }}
+              transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut', delay: 6 }}
+            />
+          </div>
+
+          {/* Floating geometric shapes */}
+          <FloatingShape type="hexagon" size={48} className="absolute top-[12%] left-[8%] text-emerald-300/40 dark:text-emerald-500/20" delay={0} duration={22} />
+          <FloatingShape type="circle" size={36} className="absolute top-[25%] right-[12%] text-teal-300/40 dark:text-teal-500/20" delay={2} duration={18} />
+          <FloatingShape type="hexagon" size={60} className="absolute bottom-[20%] left-[5%] text-amber-300/30 dark:text-amber-500/15" delay={1} duration={26} />
+          <FloatingShape type="circle" size={28} className="absolute top-[60%] right-[8%] text-emerald-400/30 dark:text-emerald-600/15" delay={3} duration={20} />
+          <FloatingShape type="hexagon" size={40} className="absolute top-[15%] right-[30%] text-teal-300/25 dark:text-teal-600/12" delay={5} duration={24} />
+          <FloatingShape type="circle" size={52} className="absolute bottom-[30%] right-[25%] text-amber-200/25 dark:text-amber-500/10" delay={1.5} duration={28} />
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-16">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-              {/* Left column: Headline + CTA */}
+              {/* Left column */}
               <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-              {/* Headline */}
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: 'easeOut' as const }}
-              >
-                <Badge
-                  variant="secondary"
-                  className="mb-6 px-4 py-1.5 text-sm font-medium"
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
                 >
-                  <Zap className="w-3.5 h-3.5 mr-1.5" />
-                  Enterprise-Grade AI Conferencing
-                </Badge>
-                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-                  Enterprise Video Conferencing.
-                  <br />
-                  <span className="gradient-text">Powered by AI.</span>
-                </h1>
-              </motion.div>
-
-              {/* Subtext */}
-              <motion.p
-                className="mt-6 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' as const }}
-              >
-                ALVISION unifies HD video meetings, real-time AI transcription,
-                translation, intelligent summaries, team collaboration, and
-                enterprise-grade security — all in one platform.
-              </motion.p>
-
-              {/* Trusted By Section */}
-              <motion.div
-                className="mt-10 mb-8"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' as const }}
-              >
-                <p className="text-xs text-muted-foreground/60 font-medium tracking-wider uppercase mb-4">Trusted by leading enterprises</p>
-                <div className="flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto px-4 scrollbar-hide">
-                  {['Accenture', 'Deloitte', 'Siemens', 'Bosch', 'Airbus'].map((company, i) => (
-                    <span key={company} className="flex items-center gap-3 sm:gap-6">
-                      <span className="text-muted-foreground font-medium tracking-wider uppercase text-xs whitespace-nowrap">
-                        {company}
-                      </span>
-                      {i < 4 && <span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />}
+                  <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm font-medium">
+                    <Zap className="w-3.5 h-3.5 mr-1.5" />
+                    Enterprise-Grade AI Conferencing
+                  </Badge>
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+                    <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                      Enterprise Video
+                      <br />
+                      Conferencing.
                     </span>
-                  ))}
-                </div>
-              </motion.div>
+                    <br />
+                    <span className="gradient-text">Powered by AI.</span>
+                  </h1>
+                </motion.div>
 
-              {/* Center Card with Meeting Controls */}
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' as const }}
-                className="mt-2 w-full max-w-xl"
-              >
-                <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="text"
-                        placeholder="Enter meeting room name..."
-                        value={roomName}
-                        onChange={(e) => setRoomName(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === 'Enter' && handleStartMeeting()
-                        }
-                        className="flex-1 h-11 rounded-lg border border-input bg-background px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
-                      />
-                      <div className="relative">
-                        {/* Glow effect behind Start Meeting button */}
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 rounded-lg blur-md opacity-40 -z-10" />
-                        <Button
-                          onClick={handleStartMeeting}
-                          disabled={starting}
-                          className="relative h-11 px-6 bg-gradient-to-r from-primary to-violet-600 dark:from-primary/20 dark:to-violet-600/20 hover:from-primary/90 hover:to-violet-500 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          {starting ? (
-                            <span className="flex items-center gap-2">
-                              <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              Creating...
+                <motion.p
+                  className="mt-6 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+                >
+                  The complete meeting platform{' '}
+                  <span className="text-teal-600 dark:text-teal-400 font-semibold">
+                    <TypewriterText words={TYPEWRITER_WORDS} />
+                  </span>
+                  . HD video, real-time AI transcription, translation, and intelligent
+                  summaries - all in one.
+                </motion.p>
+
+                {/* Meeting controls card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.35, ease: 'easeOut' }}
+                  className="mt-10 w-full max-w-xl"
+                >
+                  <Card className="border-border/50 shadow-xl shadow-black/5 dark:shadow-black/20 backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          placeholder="Enter meeting room name..."
+                          value={roomName}
+                          onChange={(e) => setRoomName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleStartMeeting()}
+                          className="flex-1 h-11 rounded-lg border border-input bg-background px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+                        />
+                        <div className="relative">
+                          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-600 dark:from-emerald-500/30 dark:to-teal-600/30 rounded-lg blur-md opacity-50 -z-10" />
+                          <Button
+                            onClick={handleStartMeeting}
+                            disabled={starting}
+                            className="relative h-11 px-6 overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] group"
+                          >
+                            <span className="absolute inset-0 overflow-hidden rounded-lg">
+                              <span className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_2s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                             </span>
-                          ) : (
-                            <span className="flex items-center gap-2">
-                              <Video className="w-4 h-4" />
-                              Start Meeting
+                            {starting ? (
+                              <span className="flex items-center gap-2 relative z-10">
+                                <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Creating...
                               </span>
-                          )}
+                            ) : (
+                              <span className="flex items-center gap-2 relative z-10">
+                                <Video className="w-4 h-4" />
+                                Start Meeting
+                              </span>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 mt-3">
+                        <Button variant="outline" className="flex-1 h-10 text-sm relative overflow-hidden group">
+                          <span className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/10 transition-colors duration-300" />
+                          <ChevronRight className="w-4 h-4 mr-1.5 relative z-10" />
+                          <span className="relative z-10">Join Meeting</span>
+                        </Button>
+                        <Button variant="ghost" className="flex-1 h-10 text-sm">
+                          <Calendar className="w-4 h-4 mr-1.5" />
+                          Schedule
                         </Button>
                       </div>
-                    </div>
-                    <div className="flex gap-3 mt-3">
-                      <Button
-                        variant="outline"
-                        className="flex-1 h-10 text-sm relative overflow-hidden group"
-                      >
-                        <span className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-300" />
-                        <ChevronRight className="w-4 h-4 mr-1.5 relative z-10" />
-                        <span className="relative z-10">Join Meeting</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="flex-1 h-10 text-sm"
-                      >
-                        <Calendar className="w-4 h-4 mr-1.5" />
-                        Schedule
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-              {/* Trust Badges */}
-              <motion.div
-                className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' as const }}
-              >
-                {TRUST_BADGES.map((badge) => (
-                  <div
-                    key={badge.label}
-                    className="flex items-center gap-2 text-muted-foreground text-sm"
-                  >
-                    <badge.icon className="w-4 h-4 text-primary/70" />
-                    <span className="font-medium">{badge.label}</span>
-                  </div>
-                ))}
-              </motion.div>
+                <motion.div
+                  className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.7, delay: 0.55, ease: 'easeOut' }}
+                >
+                  {TRUST_BADGES.map((badge) => (
+                    <div key={badge.label} className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <badge.icon className="w-4 h-4 text-emerald-600/70 dark:text-emerald-400/70" />
+                      <span className="font-medium">{badge.label}</span>
+                    </div>
+                  ))}
+                </motion.div>
               </div>
 
-              {/* Right column: Animated Video Call Illustration (desktop only) */}
-              <div className="hidden lg:block relative">
-                <motion.div
-                  initial={{ opacity: 0, x: 40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' as const }}
-                  className="relative rounded-2xl bg-white/5 dark:bg-white/[0.03] backdrop-blur-md border border-white/10 dark:border-white/5 p-4 shadow-2xl"
-                >
-                  {/* 2x2 video grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { name: 'Sarah Chen', color: 'from-emerald-500/30 to-teal-500/20', active: true, delay: 0.4 },
-                      { name: 'James Miller', color: 'from-violet-500/30 to-purple-500/20', active: false, delay: 0.5 },
-                      { name: 'Aiko Tanaka', color: 'from-emerald-500/30 to-teal-500/20', active: false, delay: 0.6 },
-                      { name: 'Carlos Ruiz', color: 'from-orange-500/30 to-amber-500/20', active: false, delay: 0.7 },
-                    ].map((participant) => (
-                      <motion.div
-                        key={participant.name}
-                        initial={{ opacity: 0, scale: 0.85, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: participant.delay, ease: 'easeOut' as const }}
-                        className={`relative rounded-xl bg-gradient-to-br ${participant.color} p-4 flex flex-col items-center justify-center gap-2 min-h-[120px] ${participant.active ? 'ring-2 ring-primary/50' : ''}`}
-                      >
-                        {participant.active && (
-                          <motion.div
-                            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500"
-                            animate={{ scale: [1, 1.3, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
-                          />
-                        )}
-                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${participant.color} border-2 border-white/20 flex items-center justify-center`}>
-                          <User className="w-6 h-6 text-white/80" />
-                        </div>
-                        <span className="text-xs font-medium text-foreground/80">{participant.name}</span>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Floating AI Assistant Bubble */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.6, delay: 0.9, type: 'spring', bounce: 0.4 }}
-                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-violet-600 px-4 py-2 shadow-lg shadow-primary/30"
-                  >
-                    <motion.div
-                      animate={{ rotate: [0, 15, -15, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const, delay: 1.2 }}
-                    >
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </motion.div>
-                    <span className="text-xs font-semibold text-white">AI Assistant Active</span>
-                  </motion.div>
-                </motion.div>
+              {/* Right column: Mock Browser Window */}
+              <div className="hidden lg:flex justify-center">
+                <MockBrowserWindow />
               </div>
             </div>
 
@@ -768,7 +1019,7 @@ export default function LandingPage() {
             >
               <motion.div
                 animate={{ y: [0, 8, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' as const }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 className="flex flex-col items-center gap-1.5 text-muted-foreground/50"
               >
                 <MousePointer2 className="w-5 h-5" />
@@ -780,7 +1031,7 @@ export default function LandingPage() {
 
           {/* Hero Stats Row */}
           <div className="absolute bottom-0 left-0 right-0">
-            <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <div className="h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
                 {HERO_STATS.map((stat, i) => (
@@ -788,11 +1039,11 @@ export default function LandingPage() {
                     key={stat.label}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' as const }}
+                    transition={{ duration: 0.5, delay: 0.8 + i * 0.1, ease: 'easeOut' }}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <stat.icon className="w-5 h-5 text-primary/70" />
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
+                      <stat.icon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div>
                       <div className="text-xl lg:text-2xl font-bold tracking-tight">{stat.value}</div>
@@ -805,10 +1056,61 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 2. PLATFORM OVERVIEW                                         */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* SOCIAL PROOF SECTION */}
+        <section className="py-16 bg-muted/20 relative">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-12"
+            >
+              <p className="text-sm text-muted-foreground/70 font-medium tracking-wider uppercase mb-8">
+                Trusted by innovative teams worldwide
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+                {COMPANY_LOGOS.map((company, i) => (
+                  <motion.span
+                    key={company}
+                    initial={{ opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: i * 0.06 }}
+                    className="text-muted-foreground/40 dark:text-muted-foreground/30 font-semibold tracking-wider text-sm sm:text-base uppercase select-none hover:text-muted-foreground/60 dark:hover:text-muted-foreground/50 transition-colors duration-300"
+                  >
+                    {company}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-3xl mx-auto"
+            >
+              {SOCIAL_PROOF_STATS.map((stat) => (
+                <SocialProofCounter
+                  key={stat.label}
+                  icon={stat.icon}
+                  target={stat.target}
+                  suffix={stat.suffix}
+                  label={stat.label}
+                  format={stat.format}
+                  decimal={stat.decimal}
+                />
+              ))}
+            </motion.div>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+        </section>
+
+        {/* PLATFORM OVERVIEW */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section id="platform" className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -824,7 +1126,7 @@ export default function LandingPage() {
               </h2>
               <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
                 Four powerful modules working together to eliminate tool sprawl
-                and unify your team&rsquo;s communication.
+                and unify your team&apos;s communication.
               </p>
             </motion.div>
 
@@ -836,30 +1138,26 @@ export default function LandingPage() {
               className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
               {PLATFORM_FEATURES.map((feature) => (
-                <motion.div key={feature.title} variants={staggerItem}>
-                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
-                    <CardContent className="p-8">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
-                        <feature.icon className="w-7 h-7 text-white" />
-                      </div>
-                      <h3 className="text-xl font-semibold mb-3">
-                        {feature.title}
-                      </h3>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {feature.description}
-                      </p>
-                    </CardContent>
-                  </Card>
+                <motion.div key={feature.title} variants={glowCardItem}>
+                  <div className="group relative rounded-xl p-[1px] bg-transparent hover:bg-gradient-to-br hover:from-emerald-500/50 hover:to-teal-500/50 transition-all duration-500">
+                    <Card className="h-full rounded-[11px] hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/5 dark:hover:shadow-emerald-500/10 transition-all duration-300 border-border/50 bg-white dark:bg-slate-900 relative z-10">
+                      <CardContent className="p-8">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
+                          <feature.icon className="w-7 h-7 text-white" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                        <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 3. AI PLATFORM SECTION                                       */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* AI PLATFORM SECTION */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section id="ai" className="py-24 bg-foreground/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -869,10 +1167,7 @@ export default function LandingPage() {
               viewport={{ once: true, margin: '-80px' }}
               className="text-center mb-16"
             >
-              <Badge
-                variant="secondary"
-                className="mb-4 px-4 py-1.5 text-sm font-medium"
-              >
+              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
                 <Brain className="w-3.5 h-3.5 mr-1.5" />
                 AI-Native
               </Badge>
@@ -892,30 +1187,26 @@ export default function LandingPage() {
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {AI_FEATURES.map((feature) => (
-                <motion.div key={feature.title} variants={staggerItem}>
-                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
-                    <CardContent className="p-6">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-5 shadow-lg shadow-violet-500/20">
-                        <feature.icon className="w-6 h-6 text-white" />
-                      </div>
-                      <h3 className="text-lg font-semibold mb-2">
-                        {feature.title}
-                      </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {feature.description}
-                      </p>
-                    </CardContent>
-                  </Card>
+                <motion.div key={feature.title} variants={glowCardItem}>
+                  <div className="group relative rounded-xl p-[1px] bg-transparent hover:bg-gradient-to-br hover:from-emerald-500/40 hover:to-teal-500/40 transition-all duration-500">
+                    <Card className="h-full rounded-[11px] hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/5 dark:hover:shadow-emerald-500/10 transition-all duration-300 border-border/50 bg-white dark:bg-slate-900 relative z-10">
+                      <CardContent className="p-6">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20">
+                          <feature.icon className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 4. ARCHITECTURE SECTION                                      */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* ARCHITECTURE SECTION */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section id="architecture" className="py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -942,34 +1233,30 @@ export default function LandingPage() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {ARCHITECTURE_PILLARS.map((pillar) => (
-                <motion.div key={pillar.title} variants={staggerItem}>
-                  <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center shrink-0">
-                          <pillar.icon className="w-5 h-5 text-white" />
+                <motion.div key={pillar.title} variants={glowCardItem}>
+                  <div className="group relative rounded-xl p-[1px] bg-transparent hover:bg-gradient-to-br hover:from-emerald-500/30 hover:to-amber-500/30 transition-all duration-500">
+                    <Card className="h-full rounded-[11px] hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/5 dark:hover:shadow-emerald-500/10 transition-all duration-300 border-border/50 bg-white dark:bg-slate-900 relative z-10">
+                      <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                          <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center shrink-0">
+                            <pillar.icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold mb-1">{pillar.title}</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">{pillar.description}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-1">
-                            {pillar.title}
-                          </h3>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {pillar.description}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 5. INTEGRATIONS SECTION                                      */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* INTEGRATIONS SECTION */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1003,9 +1290,7 @@ export default function LandingPage() {
                         <Plug className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <h3 className="font-semibold text-sm">{integration.name}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        {integration.description}
-                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{integration.description}</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -1014,9 +1299,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 6. STATS SECTION                                             */}
-        {/* ============================================================== */}
+        {/* STATS SECTION */}
         <section className="py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1039,10 +1322,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 7. PRICING SECTION                                           */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* PRICING SECTION */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section id="pricing" className="py-24 bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1071,10 +1352,14 @@ export default function LandingPage() {
               {PRICING_TIERS.map((tier) => (
                 <motion.div key={tier.name} variants={staggerItem}>
                   {tier.highlighted ? (
-                    <div className="relative rounded-xl p-[2px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 animate-[spin_4s_linear_infinite]"
-                      style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }}
+                    <div
+                      className="relative rounded-xl p-[2px] bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500"
+                      style={{
+                        backgroundSize: '200% 200%',
+                        animation: 'pricing-border-rotate 4s linear infinite',
+                      }}
                     >
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 blur-sm opacity-50" style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }} />
                       <Card className="relative h-full rounded-xl shadow-xl shadow-emerald-500/10 dark:border-border/30 dark:bg-card/50">
                         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                           <Badge className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-0 px-4 py-1">
@@ -1084,24 +1369,15 @@ export default function LandingPage() {
                         <CardContent className="p-8">
                           <h3 className="text-xl font-bold">{tier.name}</h3>
                           <div className="mt-4 flex items-baseline gap-1">
-                            <span className="text-4xl font-extrabold tracking-tight">
-                              {tier.price}
-                            </span>
+                            <span className="text-4xl font-extrabold tracking-tight">{tier.price}</span>
                             {tier.period && (
-                              <span className="text-muted-foreground text-sm">
-                                {tier.period}
-                              </span>
+                              <span className="text-muted-foreground text-sm">{tier.period}</span>
                             )}
                           </div>
-                          <p className="mt-3 text-sm text-muted-foreground">
-                            {tier.description}
-                          </p>
+                          <p className="mt-3 text-sm text-muted-foreground">{tier.description}</p>
                           <div className="mt-6 mb-8 space-y-3">
                             {tier.features.map((feature) => (
-                              <div
-                                key={feature}
-                                className="flex items-start gap-3 text-sm"
-                              >
+                              <div key={feature} className="flex items-start gap-3 text-sm">
                                 <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                                 <span>{feature}</span>
                               </div>
@@ -1122,33 +1398,21 @@ export default function LandingPage() {
                       <CardContent className="p-8">
                         <h3 className="text-xl font-bold">{tier.name}</h3>
                         <div className="mt-4 flex items-baseline gap-1">
-                          <span className="text-4xl font-extrabold tracking-tight">
-                            {tier.price}
-                          </span>
+                          <span className="text-4xl font-extrabold tracking-tight">{tier.price}</span>
                           {tier.period && (
-                            <span className="text-muted-foreground text-sm">
-                              {tier.period}
-                            </span>
+                            <span className="text-muted-foreground text-sm">{tier.period}</span>
                           )}
                         </div>
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          {tier.description}
-                        </p>
+                        <p className="mt-3 text-sm text-muted-foreground">{tier.description}</p>
                         <div className="mt-6 mb-8 space-y-3">
                           {tier.features.map((feature) => (
-                            <div
-                              key={feature}
-                              className="flex items-start gap-3 text-sm"
-                            >
-                              <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                            <div key={feature} className="flex items-start gap-3 text-sm">
+                              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                               <span>{feature}</span>
                             </div>
                           ))}
                         </div>
-                        <Button
-                          variant={tier.ctaVariant}
-                          className="w-full h-11 font-semibold"
-                        >
+                        <Button variant={tier.ctaVariant} className="w-full h-11 font-semibold">
                           {tier.cta}
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
@@ -1161,10 +1425,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-                {/* ============================================================== */}
-        {/* 7.5 FEATURE COMPARISON TABLE                                 */}
-        {/* ============================================================== */}
+        {/* FEATURE COMPARISON TABLE */}
         <section className="py-24">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1174,7 +1435,10 @@ export default function LandingPage() {
               viewport={{ once: true, margin: '-80px' }}
               className="text-center mb-14"
             >
-              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+              <Badge
+                variant="secondary"
+                className="mb-4 px-4 py-1.5 text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+              >
                 <Trophy className="w-3 h-3 mr-1" /> Feature Comparison
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
@@ -1197,30 +1461,50 @@ export default function LandingPage() {
                       <tr className="border-b border-border/50">
                         <th className="text-left py-4 px-5 font-semibold text-muted-foreground w-[40%]">Feature</th>
                         {COMPARISON_HEADERS.map((h) => (
-                          <th key={h.key} className={`text-center py-4 px-3 font-semibold ${h.highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                          <th
+                            key={h.key}
+                            className={`text-center py-4 px-3 font-semibold ${
+                              h.highlight
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
                             {h.name}
-                            {h.highlight && <Badge className="ml-1.5 text-[9px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-0 px-1.5 py-0">You are here</Badge>}
+                            {h.highlight && (
+                              <Badge className="ml-1.5 text-[9px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-0 px-1.5 py-0">
+                                You are here
+                              </Badge>
+                            )}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {COMPARISON_FEATURES.map((row, idx) => (
-                        <tr key={row.feature} className={`border-b border-border/30 last:border-0 ${idx % 2 === 0 ? 'bg-muted/20' : ''} hover:bg-muted/40 transition-colors`}>
+                        <tr
+                          key={row.feature}
+                          className={`border-b border-border/30 last:border-0 ${idx % 2 === 0 ? 'bg-muted/20' : ''} hover:bg-muted/40 transition-colors`}
+                        >
                           <td className="py-3 px-5 font-medium text-sm">{row.feature}</td>
-                          {(COMPARISON_HEADERS.map((h) => (
+                          {COMPARISON_HEADERS.map((h) => (
                             <td key={h.key} className="text-center py-3 px-3">
                               {row[h.key as keyof typeof row] ? (
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${h.highlight ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>
+                                <span
+                                  className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                                    h.highlight
+                                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600'
+                                      : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
                                   <Check className="w-3.5 h-3.5" />
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50 dark:bg-red-900/20 text-red-400/60">
-                                  <span className="text-xs font-medium">—</span>
+                                  <span className="text-xs font-medium">-</span>
                                 </span>
                               )}
                             </td>
-                          )))}
+                          ))}
                         </tr>
                       ))}
                     </tbody>
@@ -1228,9 +1512,18 @@ export default function LandingPage() {
                       <tr className="border-t-2 border-border/50">
                         <td className="py-4 px-5 font-bold">Total Features</td>
                         {COMPARISON_HEADERS.map((h) => {
-                          const total = COMPARISON_FEATURES.filter((r) => r[h.key as keyof typeof r]).length;
+                          const total = COMPARISON_FEATURES.filter((r) =>
+                            r[h.key as keyof typeof r],
+                          ).length;
                           return (
-                            <td key={h.key} className={`text-center py-4 px-3 font-bold text-lg ${h.highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                            <td
+                              key={h.key}
+                              className={`text-center py-4 px-3 font-bold text-lg ${
+                                h.highlight
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
                               {total}/{COMPARISON_FEATURES.length}
                             </td>
                           );
@@ -1244,10 +1537,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 8. FAQ SECTION                                               */}
-        {/* ============================================================== */}
-        <div className="w-16 h-1 bg-primary rounded-full mx-auto" />
+        {/* FAQ SECTION */}
+        <div className="w-16 h-1 bg-emerald-500 rounded-full mx-auto" />
         <section id="faq" className="py-24">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1274,10 +1565,7 @@ export default function LandingPage() {
             >
               <Accordion type="single" collapsible className="w-full">
                 {FAQ_ITEMS.map((item, index) => (
-                  <AccordionItem
-                    key={index}
-                    value={`faq-${index}`}
-                  >
+                  <AccordionItem key={index} value={`faq-${index}`}>
                     <AccordionTrigger className="text-left text-base font-medium hover:no-underline">
                       {item.question}
                     </AccordionTrigger>
@@ -1291,10 +1579,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 9. TESTIMONIALS SECTION                                       */}
-        {/* ============================================================== */}
-        <section className="py-24 bg-muted/30">
+        {/* TESTIMONIALS CAROUSEL */}
+        <section className="py-24 bg-muted/30 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               variants={sectionVariants}
@@ -1303,56 +1589,66 @@ export default function LandingPage() {
               viewport={{ once: true, margin: '-80px' }}
               className="text-center mb-14"
             >
-              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                <Star className="w-3 h-3 mr-1 fill-amber-400 text-amber-400" /> Trusted by 10,000+ organizations
+              <Badge
+                variant="secondary"
+                className="mb-4 px-4 py-1.5 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+              >
+                <Star className="w-3 h-3 mr-1 fill-amber-400 text-amber-400" /> Loved by
+                Teams Worldwide
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-                Loved by Teams Worldwide
+                What Our Customers Say
               </h2>
               <p className="mt-3 text-lg text-muted-foreground max-w-2xl mx-auto">
-                See why enterprises from Fortune 500 to fast-growing startups choose ALVISION for their collaboration needs.
+                See why enterprises from Fortune 500 to fast-growing startups choose
+                ALVISION.
               </p>
             </motion.div>
 
             <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: '-60px' }}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="relative"
             >
-              {TESTIMONIALS.map((t, idx) => (
-                <motion.div key={t.name} variants={staggerItem}>
-                  <Card className="h-full border-border/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${idx % 3 === 0 ? 'from-rose-500 to-pink-500' : idx % 3 === 1 ? 'from-amber-500 to-orange-500' : 'from-emerald-500 to-teal-500'}`} />
-                    <CardContent className="p-6 pt-7">
-                      <Quote className="h-8 w-8 text-muted-foreground/20 mb-3" />
-                      <p className="text-sm leading-relaxed text-foreground/80 mb-5">{t.text}</p>
-                      <div className="flex items-center gap-1 mb-4">
-                        {Array.from({ length: t.rating }).map((_, i) => (
-                          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold shadow-lg`}>
-                          {t.initials}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold">{t.name}</p>
-                          <p className="text-xs text-muted-foreground">{t.role}, {t.company}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+              <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-muted/30 to-transparent z-10 pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-muted/30 to-transparent z-10 pointer-events-none" />
+
+              <div
+                ref={carouselRef}
+                className="flex gap-4 overflow-x-auto snap-x snap-mandatory py-4 px-4"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }}
+              >
+                {CAROUSEL_TESTIMONIALS.map((t) => (
+                  <div key={t.name} className="snap-center">
+                    <TestimonialCard t={t} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-center gap-2 mt-6">
+                {CAROUSEL_TESTIMONIALS.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCarouselIndex(idx)}
+                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      carouselIndex === idx
+                        ? 'bg-emerald-500 w-6'
+                        : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                    }`}
+                    aria-label={`Go to testimonial ${idx + 1}`}
+                  />
+                ))}
+              </div>
             </motion.div>
           </div>
         </section>
 
-        {/* ============================================================== */}
-        {/* 10. CTA SECTION                                               */}
-        {/* ============================================================== */}
+        {/* BOTTOM CTA SECTION */}
         <section className="py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -1360,40 +1656,54 @@ export default function LandingPage() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-80px' }}
-              className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-12 md:p-16 text-center"
+              className="relative overflow-hidden rounded-3xl p-12 md:p-16 text-center"
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(20,184,166,0.08) 50%, rgba(16,185,129,0.05) 100%)',
+              }}
             >
-              {/* Decorative elements */}
-              <div className="absolute top-0 left-0 h-full w-full -z-0">
-                <div className="absolute top-[-20%] right-[-10%] h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-                <div className="absolute bottom-[-20%] left-[-10%] h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
+              <div className="absolute inset-0 -z-0">
+                <div className="absolute top-[-20%] right-[-10%] h-80 w-80 rounded-full bg-emerald-400/10 blur-3xl" />
+                <div className="absolute bottom-[-20%] left-[-10%] h-64 w-64 rounded-full bg-teal-400/10 blur-3xl" />
               </div>
 
-              <div className="relative z-10">
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
+              <div className="relative z-10 max-w-2xl mx-auto">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
                   Ready to Transform Your
-                  <br className="hidden sm:block" /> Collaboration?
+                  <br className="hidden sm:block" /> Meetings?
                 </h2>
-                <p className="mt-4 text-emerald-100 text-lg max-w-xl mx-auto">
+                <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto">
                   Join thousands of enterprises already using ALVISION to
                   collaborate smarter and more securely.
                 </p>
-                <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+
+                <form
+                  onSubmit={handleCtaSubmit}
+                  className="mt-8 flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto"
+                >
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="email"
+                      placeholder="Enter your work email"
+                      value={ctaEmail}
+                      onChange={(e) => setCtaEmail(e.target.value)}
+                      required
+                      className="w-full h-12 rounded-xl border border-input bg-background pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition-all"
+                    />
+                  </div>
                   <Button
+                    type="submit"
                     size="lg"
-                    className="bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg shadow-black/10 px-8 h-12 text-base"
-                    onClick={handleStartMeeting}
+                    className="h-12 px-8 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold shadow-lg shadow-emerald-500/20"
                   >
-                    Start Free
+                    Get Started Free
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-white/30 text-white hover:bg-white/10 hover:text-white font-semibold px-8 h-12 text-base"
-                  >
-                    Contact Sales
-                  </Button>
-                </div>
+                </form>
+                <p className="mt-3 text-xs text-muted-foreground/70">
+                  No credit card required &bull; Free forever for small teams
+                </p>
               </div>
             </motion.div>
           </div>
@@ -1408,14 +1718,13 @@ export default function LandingPage() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-8 right-8 z-40 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:bg-primary/90 hover:shadow-xl transition-all"
+            className="fixed bottom-8 right-8 z-40 w-11 h-11 rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 flex items-center justify-center hover:bg-emerald-700 hover:shadow-xl transition-all"
           >
             <ArrowUp className="w-5 h-5" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Animated pricing border keyframes */}
       <style jsx global>{`
         @keyframes pricing-border-rotate {
           0% { background-position: 0% 50%; }
@@ -1424,9 +1733,6 @@ export default function LandingPage() {
         }
       `}</style>
 
-      {/* ------------------------------------------------------------------ */}
-      {/*  FOOTER                                                           */}
-      {/* ------------------------------------------------------------------ */}
       <Footer />
     </div>
   );
