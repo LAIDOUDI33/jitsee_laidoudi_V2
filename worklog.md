@@ -3037,3 +3037,103 @@ Stage Summary:
 
 - **Feature Comparison Results:** ALVISION leads with 16/16 features, Zoom 13/16, Teams 11/16, Google Meet 8/16
 - **Total feature count across all phases: 26 dashboard views, 55+ API endpoints, 15+ shared components**
+
+---
+Task ID: 12-1a
+Agent: Host Waiting Room Panel Agent
+Task: Create Host Waiting Room Management Panel for meeting hosts
+
+Work Log:
+- Read existing WaitingRoom.tsx (participant-side), MeetingToolbar.tsx, MeetingRoomPage.tsx, MeetingSidebar.tsx, and meeting-data.ts to understand patterns
+- Created `src/components/meeting/parts/HostWaitingRoomPanel.tsx` — full slide-in panel with:
+  - `useWaitingRoomNotification` hook for external notification pulse detection
+  - Per-participant row with avatar/initials, name, join time, admit (emerald) and reject (rose) buttons
+  - Animated chime icon (BellRing with wiggle animation) on new arrivals
+  - New arrival detection with green highlight border + animated dot on avatar
+  - "Admit All" / "Reject All" bulk action buttons in header
+  - Empty state with icon and descriptive text
+  - ScrollArea for long lists, footer text, consistent glassmorphic panel style
+- Modified `src/components/meeting/parts/MeetingToolbar.tsx`:
+  - Added DoorOpen, Bell, BellRing icons
+  - Added 3 new props: `waitingRoomCount`, `waitingRoomOpen`, `waitingRoomNotification`, `onToggleWaitingRoom`
+  - Added Waiting Room toolbar button (desktop) with amber badge count and pulse ring animation
+  - BellRing icon with wiggle animation when notification active
+  - Added Waiting Room entry to mobile "More" menu with badge count
+- Modified `src/components/meeting/MeetingRoomPage.tsx`:
+  - Imported HostWaitingRoomPanel, useWaitingRoomNotification, WaitingParticipant type
+  - Added `hostWaitingRoomOpen` state, `waitingParticipants` mock data (2 initial + 11 more via setInterval every 15-30s)
+  - Added admit/reject/admitAll/rejectAll handlers with toast notifications
+  - Wired waiting room panel as right sidebar (mutually exclusive with MeetingSidebar)
+  - Closing waiting room when sidebar opens and vice versa
+  - Passed all new props to MeetingToolbar
+- Fixed lint errors: deferred synchronous setState in effects via `queueMicrotask` to satisfy react-hooks/set-state-in-effect rule
+- Final lint: 0 errors, 0 warnings
+
+Stage Summary:
+- **1 new file created, 2 files modified:**
+  1. `src/components/meeting/parts/HostWaitingRoomPanel.tsx` — Host-side waiting room management panel with slide-in animation, per-participant admit/reject, bulk actions, chime notification, empty state
+  2. `src/components/meeting/parts/MeetingToolbar.tsx` — Added waiting room button with amber badge, notification pulse animation, mobile menu entry
+  3. `src/components/meeting/MeetingRoomPage.tsx` — Integrated mock waiting participants with auto-add interval, admit/reject handlers with toasts, panel toggle logic
+- **Color palette:** emerald (admit), rose (reject), amber (badge/notification) — no blue/indigo
+- **Lint: 0 errors, 0 warnings**
+---
+Task ID: 12-1b
+Agent: Speaker View Layout Agent
+Task: Add Speaker View and Layout Toggle to VideoGrid
+
+Work Log:
+- Read existing VideoGrid.tsx (gallery+basic speaker), MeetingToolbar.tsx, MeetingRoomPage.tsx, meeting-data.ts
+- Rewrote VideoGrid.tsx with 3 layout modes: Gallery (default grid), Speaker (70/30 split with green glow), Sidebar (70/30 with scrollable list)
+- Added `VideoLayout` type export (`'gallery' | 'speaker' | 'sidebar'`)
+- Created `useActiveSpeaker` hook with smart speaker detection (cycles through mic-on participants every 5-8s, pinned prioritized)
+- Added `onSelectSpeaker` prop for thumbnail click-to-switch in speaker/sidebar views
+- Active speaker gets emerald glow border (`ring-2 ring-emerald-400/70 shadow-[0_0_20px_rgba(16,185,129,0.25)]`)
+- Pinned participants get amber ring (`ring-2 ring-amber-500/60`)
+- Sidebar view includes header with participant count, live indicator, speaking dots, pinned icons
+- All layout transitions use AnimatePresence with smooth enter/exit animations
+- Modified MeetingToolbar.tsx: replaced dropdown layout menu with inline 3-button toggle group (Gallery=LayoutGrid, Speaker=User, Sidebar=PanelRight)
+- Active layout button uses emerald accent with glow and `layoutId` animated indicator
+- Mobile menu retains layout options section with emerald highlight
+- Updated MeetingRoomPage.tsx: imported VideoLayout type, changed default layout to 'gallery', added onSelectSpeaker callback, simplified displayParticipants memo
+- Fixed lint error: wrapped all synchronous setState in useEffect with queueMicrotask
+- Final lint: 0 errors, 0 warnings
+
+Stage Summary:
+- **3 files modified:**
+  1. `src/components/meeting/parts/VideoGrid.tsx` — Complete rewrite with 3 layout modes, smart speaker detection hook, AnimatePresence transitions, green/amber accent borders
+  2. `src/components/meeting/parts/MeetingToolbar.tsx` — Inline layout toggle button group (3 buttons) with emerald active state, `layoutId` animated indicator, updated types to use VideoLayout
+  3. `src/components/meeting/MeetingRoomPage.tsx` — Imported VideoLayout type, default 'gallery' layout, onSelectSpeaker wired to pinnedParticipant toggle
+- **Color palette:** emerald (active speaker, layout toggle), amber (pinned), no blue/indigo
+- **Lint: 0 errors, 0 warnings**
+---
+Task ID: 12-1c
+Agent: Notifications Backend Agent
+Task: Create Notifications Database Model, API, and Utilities
+
+Work Log:
+- Read worklog.md (last 50 lines), prisma/schema.prisma, src/lib/api-auth.ts, src/lib/roles.ts, and scripts/seed.ts to understand existing patterns
+- Added `Notification` model to `prisma/schema.prisma` with fields: id (uuid), userId, type, title, description, read, pinned, actionUrl, metadata, createdAt
+- Added indexes: `[userId]`, `[read]`, `[userId, read]`, `[userId, createdAt]`, `[createdAt]`
+- Ran `bun run db:push` — schema synced and Prisma Client regenerated
+- Created `src/lib/notifications.ts` — notification creation utility with:
+  - `NOTIFICATION_TYPES` const array and `NotificationType` type export
+  - `createNotification()` — single notification creation
+  - `createBulkNotifications()` — batch creation via `createMany`
+- Replaced existing placeholder `src/app/api/v1/notifications/route.ts` (audit-log-based fake notifications) with full CRUD API:
+  - **GET**: Lists notifications for authenticated user with query params (page, limit, unreadOnly, type), returns timeAgo and timeGroup (Today/Yesterday/Earlier) formatting, pinned-first ordering, pagination with unreadCount
+  - **POST**: Creates notification (orgadmin+ only), validates type against NOTIFICATION_TYPES
+  - **PUT**: Marks notifications as read via `{ ids }` or `{ markAllRead: true }`, returns updated unreadCount
+  - **DELETE**: Deletes notifications via `{ ids }` or `{ deleteAll: true }`, returns deletedCount
+  - All endpoints use `requireAuth()` from `src/lib/api-auth.ts`, scoped to `userId`
+- Updated `scripts/seed.ts` with 10 sample notifications for superadmin user (meeting-invite, meeting-soon, recording-ready, ai-summary, member-joined, security-alert, system-update, file-shared, mention, maintenance) with varied timestamps, read/pinned states, actionUrls, and metadata
+- Ran `npx tsx scripts/seed.ts` — seeded successfully
+- Ran `bun run lint` — 0 errors, 0 warnings
+
+Stage Summary:
+- **1 new file created, 2 files modified:**
+  1. `src/lib/notifications.ts` — Notification creation utilities (createNotification, createBulkNotifications, NOTIFICATION_TYPES)
+  2. `prisma/schema.prisma` — Added Notification model with 5 indexes
+  3. `src/app/api/v1/notifications/route.ts` — Complete rewrite: GET/POST/PUT/DELETE with auth, pagination, time grouping, type filtering
+  4. `scripts/seed.ts` — Added 10 varied notification seeds for superadmin
+- **Response format**: `{ success: true, data: { notifications: [...], pagination: { page, limit, total, unreadCount, totalPages } } }`
+- **Lint: 0 errors, 0 warnings**

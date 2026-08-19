@@ -1,121 +1,278 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { requireAuth, AuthError } from '@/lib/api-auth';
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { requireAuth, requireRole, AuthError } from '@/lib/api-auth'
+import { ROLES } from '@/lib/roles'
+import { NOTIFICATION_TYPES } from '@/lib/notifications'
 
-export async function GET() {
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function timeAgo(date: Date): string {
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const secs = Math.floor(diff / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  return `${weeks}w ago`
+}
+
+function getTimeGroup(date: Date): string {
+  const now = new Date()
+  // Reset time parts to compare dates only
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  if (targetDate.getTime() >= today.getTime()) return 'Today'
+  if (targetDate.getTime() >= yesterday.getTime()) return 'Yesterday'
+  return 'Earlier'
+}
+
+// ── GET: List notifications ──────────────────────────────────────────
+
+export async function GET(request: NextRequest) {
   try {
-    await requireAuth();
+    const user = await requireAuth()
 
-    const [recentLogs, upcomingMeetings] = await Promise.all([
-      db.auditLog.findMany({
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-        include: { user: { select: { name: true, email: true } } },
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10) || 20))
+    const unreadOnly = searchParams.get('unreadOnly') === 'true'
+    const type = searchParams.get('type')
+
+    const where: Record<string, unknown> = { userId: user.id }
+
+    if (unreadOnly) {
+      where.read = false
+    }
+
+    if (type && (NOTIFICATION_TYPES as readonly string[]).includes(type)) {
+      where.type = type
+    }
+
+    const [notifications, total, unreadCount] = await Promise.all([
+      db.notification.findMany({
+        where,
+        orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
       }),
-      db.meeting.findMany({
-        where: { status: { in: ['scheduled', 'active'] } },
-        take: 5,
-        orderBy: { startTime: 'asc' },
-        include: { host: { select: { name: true } } },
-      }),
-    ]);
+      db.notification.count({ where }),
+      db.notification.count({ where: { userId: user.id, read: false } }),
+    ])
 
-    const avatarColors = [
-      'bg-emerald-500/15 text-emerald-600',
-      'bg-violet-500/15 text-violet-600',
-      'bg-amber-500/15 text-amber-600',
-      'bg-rose-500/15 text-rose-600',
-      'bg-cyan-500/15 text-cyan-600',
-      'bg-orange-500/15 text-orange-600',
-      'bg-teal-500/15 text-teal-600',
-      'bg-pink-500/15 text-pink-600',
-    ];
+    const mapped = notifications.map((n) => ({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      description: n.description,
+      read: n.read,
+      pinned: n.pinned,
+      actionUrl: n.actionUrl,
+      metadata: n.metadata,
+      createdAt: n.createdAt.toISOString(),
+      timeAgo: timeAgo(n.createdAt),
+      timeGroup: getTimeGroup(n.createdAt),
+    }))
 
-    function getInitials(name: string): string {
-      return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    }
-
-    function timeAgo(date: Date): string {
-      const now = new Date();
-      const diff = now.getTime() - date.getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return `${mins}m ago`;
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
-      const days = Math.floor(hrs / 24);
-      return `${days}d ago`;
-    }
-
-    function getTimeGroup(date: Date): string {
-      const now = new Date();
-      const diff = now.getTime() - date.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      if (days < 1) return 'Today';
-      if (days < 2) return 'Yesterday';
-      return 'Earlier';
-    }
-
-    // Map audit logs to notifications
-    const actionTypeMap: Record<string, { type: string; title: string; description: string }> = {
-      'MEETING_CREATED': { type: 'meeting-invite', title: 'New meeting created', description: '' },
-      'USER_LOGIN': { type: 'security-alert', title: 'User login', description: '' },
-      'USER_LOGOUT': { type: 'general', title: 'User logout', description: '' },
-    };
-
-    const logNotifications = recentLogs.map((log, i) => {
-      const config = actionTypeMap[log.action] || { type: 'general', title: log.action, description: '' };
-      const userName = log.user?.name ?? 'System';
-      return {
-        id: `log-${log.id}`,
-        type: config.type,
-        title: config.title,
-        description: config.description || `${userName} performed ${log.action} on ${log.resource}${log.details ? ': ' + log.details.slice(0, 100) : ''}`,
-        time: timeAgo(log.createdAt),
-        timeGroup: getTimeGroup(log.createdAt) as string,
-        read: false,
-        sender: {
-          name: userName,
-          initials: getInitials(userName),
-          color: avatarColors[i % avatarColors.length],
+    return NextResponse.json({
+      success: true,
+      data: {
+        notifications: mapped,
+        pagination: {
+          page,
+          limit,
+          total,
+          unreadCount,
+          totalPages: Math.ceil(total / limit),
         },
-      };
-    });
-
-    // Map upcoming meetings to notifications
-    const meetingNotifications = upcomingMeetings.map((m, i) => {
-      const hostName = m.host?.name ?? 'Team';
-      return {
-        id: `meeting-${m.id}`,
-        type: 'meeting-soon',
-        title: `Upcoming: ${m.title}`,
-        description: `Scheduled by ${hostName}${m.startTime ? ' at ' + new Date(m.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`,
-        time: m.startTime ? timeAgo(new Date(m.startTime)) : 'soon',
-        timeGroup: 'Today' as string,
-        read: false,
-        sender: {
-          name: hostName,
-          initials: getInitials(hostName),
-          color: avatarColors[(i + 3) % avatarColors.length],
-        },
-      };
-    });
-
-    // Combine and sort by recency
-    const all = [...meetingNotifications, ...logNotifications];
-
-    return NextResponse.json({ success: true, data: { notifications: all } });
+      },
+    })
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
         { success: false, error: { code: error.code, message: error.message } },
-        { status: error.statusCode }
-      );
+        { status: error.statusCode },
+      )
     }
-    console.error('List notifications error:', error);
+    console.error('List notifications error:', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch notifications' } },
-      { status: 500 }
-    );
+      { status: 500 },
+    )
+  }
+}
+
+// ── POST: Create notification (superadmin / orgadmin only) ───────────
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireRole(ROLES.ORGADMIN)
+
+    const body = await request.json()
+    const { userId, type, title, description, actionUrl, metadata } = body
+
+    if (!userId || !type || !title) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'userId, type, and title are required' } },
+        { status: 400 },
+      )
+    }
+
+    if (!(NOTIFICATION_TYPES as readonly string[]).includes(type)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid notification type. Must be one of: ${NOTIFICATION_TYPES.join(', ')}` } },
+        { status: 400 },
+      )
+    }
+
+    const notification = await db.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        description: description ?? null,
+        actionUrl: actionUrl ?? null,
+        metadata: metadata ? JSON.stringify(metadata) : '{}',
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        notification: {
+          id: notification.id,
+          userId: notification.userId,
+          type: notification.type,
+          title: notification.title,
+          description: notification.description,
+          read: notification.read,
+          pinned: notification.pinned,
+          actionUrl: notification.actionUrl,
+          metadata: notification.metadata,
+          createdAt: notification.createdAt.toISOString(),
+        },
+      },
+    })
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode },
+      )
+    }
+    console.error('Create notification error:', error)
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create notification' } },
+      { status: 500 },
+    )
+  }
+}
+
+// ── PUT: Mark notifications as read ──────────────────────────────────
+
+export async function PUT(request: NextRequest) {
+  try {
+    const user = await requireAuth()
+
+    const body = await request.json()
+    const { ids, markAllRead } = body as { ids?: string[]; markAllRead?: boolean }
+
+    if (markAllRead) {
+      await db.notification.updateMany({
+        where: { userId: user.id, read: false },
+        data: { read: true },
+      })
+
+      const unreadCount = await db.notification.count({ where: { userId: user.id, read: false } })
+      return NextResponse.json({
+        success: true,
+        data: { unreadCount },
+      })
+    }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'ids array or markAllRead is required' } },
+        { status: 400 },
+      )
+    }
+
+    await db.notification.updateMany({
+      where: { id: { in: ids }, userId: user.id },
+      data: { read: true },
+    })
+
+    const unreadCount = await db.notification.count({ where: { userId: user.id, read: false } })
+    return NextResponse.json({
+      success: true,
+      data: { unreadCount },
+    })
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode },
+      )
+    }
+    console.error('Mark notifications read error:', error)
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update notifications' } },
+      { status: 500 },
+    )
+  }
+}
+
+// ── DELETE: Delete notifications ─────────────────────────────────────
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireAuth()
+
+    const body = await request.json()
+    const { ids, deleteAll } = body as { ids?: string[]; deleteAll?: boolean }
+
+    if (deleteAll) {
+      const result = await db.notification.deleteMany({
+        where: { userId: user.id },
+      })
+      return NextResponse.json({
+        success: true,
+        data: { deletedCount: result.count },
+      })
+    }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'ids array or deleteAll is required' } },
+        { status: 400 },
+      )
+    }
+
+    const result = await db.notification.deleteMany({
+      where: { id: { in: ids }, userId: user.id },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: { deletedCount: result.count },
+    })
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, error: { code: error.code, message: error.message } },
+        { status: error.statusCode },
+      )
+    }
+    console.error('Delete notifications error:', error)
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete notifications' } },
+      { status: 500 },
+    )
   }
 }

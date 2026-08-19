@@ -95,6 +95,103 @@ async function seed() {
     ],
   })
 
+  // ── Sample notifications for superadmin ───────────────────────────
+  const now = Date.now()
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: sarah.id,
+        type: 'meeting-invite',
+        title: 'Design Review Invitation',
+        description: 'Mike Johnson invited you to Design Review tomorrow at 10:00 AM.',
+        actionUrl: `/meeting/${mtg3.meetingId}`,
+        metadata: JSON.stringify({ meetingId: mtg3.id, inviterName: 'Mike Johnson' }),
+        createdAt: new Date(now - 15 * 60 * 1000), // 15 min ago
+      },
+      {
+        userId: sarah.id,
+        type: 'meeting-soon',
+        title: 'Sprint Planning starts soon',
+        description: 'Your meeting "Sprint Planning" is starting in 10 minutes.',
+        actionUrl: `/meeting/${mtg1.meetingId}`,
+        metadata: JSON.stringify({ meetingId: mtg1.id }),
+        createdAt: new Date(now - 50 * 60 * 1000), // 50 min ago
+      },
+      {
+        userId: sarah.id,
+        type: 'recording-ready',
+        title: 'Q4 Review recording is ready',
+        description: 'The recording from your meeting "Q4 Review" is now available for download.',
+        actionUrl: `/meeting/${mtg2.meetingId}`,
+        metadata: JSON.stringify({ meetingId: mtg2.id, duration: 3600 }),
+        read: true,
+        createdAt: new Date(now - 3 * 86400000), // 3 days ago
+      },
+      {
+        userId: sarah.id,
+        type: 'ai-summary',
+        title: 'AI summary available for Sprint Planning',
+        description: 'Key topics: feature roadmap, sprint velocity, team capacity planning.',
+        actionUrl: `/meeting/${mtg1.meetingId}`,
+        metadata: JSON.stringify({ meetingId: mtg1.id }),
+        createdAt: new Date(now - 2 * 86400000), // 2 days ago
+        read: true,
+      },
+      {
+        userId: sarah.id,
+        type: 'member-joined',
+        title: 'Jane Wilson joined Alvision Inc.',
+        description: 'A new member has joined your organization.',
+        metadata: JSON.stringify({ newUserId: jane.id }),
+        createdAt: new Date(now - 5 * 86400000), // 5 days ago
+        read: true,
+      },
+      {
+        userId: sarah.id,
+        type: 'security-alert',
+        title: 'Unusual login detected',
+        description: 'A login attempt was detected from IP 10.0.0.55. If this was not you, please review your security settings.',
+        pinned: true,
+        createdAt: new Date(now - 30 * 60 * 1000), // 30 min ago
+      },
+      {
+        userId: sarah.id,
+        type: 'system-update',
+        title: 'Platform updated to v2.4.0',
+        description: 'New features: speaker view, waiting rooms, and improved AI summaries.',
+        createdAt: new Date(now - 7 * 86400000), // 7 days ago
+        read: true,
+      },
+      {
+        userId: sarah.id,
+        type: 'file-shared',
+        title: 'Alex Rivera shared a file',
+        description: 'Q4-roadmap.pdf was shared in Sprint Planning.',
+        metadata: JSON.stringify({ fileName: 'Q4-roadmap.pdf', meetingId: mtg1.id }),
+        createdAt: new Date(now - 4 * 86400000), // 4 days ago
+        read: true,
+      },
+      {
+        userId: sarah.id,
+        type: 'mention',
+        title: 'You were mentioned in a meeting',
+        description: 'Mike Johnson mentioned you during Sprint Planning: "@Sarah can you follow up on the API integration?"',
+        metadata: JSON.stringify({ meetingId: mtg1.id, mentionedBy: 'Mike Johnson' }),
+        createdAt: new Date(now - 2 * 60 * 60 * 1000), // 2 hours ago
+      },
+      {
+        userId: sarah.id,
+        type: 'maintenance',
+        title: 'Scheduled maintenance window',
+        description: 'ALVISION will undergo maintenance on Saturday from 2:00 AM to 4:00 AM UTC.',
+        pinned: true,
+        createdAt: new Date(now - 10 * 86400000), // 10 days ago
+        read: true,
+      },
+    ],
+  })
+  console.log('Notifications seeded for superadmin')
+
   console.log('Seed complete!')
 }
 

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { authFetch } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ import {
   Plus,
   Loader2,
   CalendarPlus,
+  Globe,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
@@ -81,6 +83,79 @@ interface FormState {
   waitingRoom: boolean
   muteOnEntry: boolean
   description: string
+  timezone: string
+}
+
+const TIMEZONE_OPTIONS = [
+  { value: 'local', label: 'Local Timezone', abbr: 'Local' },
+  { value: 'UTC', label: 'UTC', abbr: 'UTC' },
+  { value: 'America/New_York', label: 'Eastern Time (US & Canada)', abbr: 'EST' },
+  { value: 'America/Chicago', label: 'Central Time (US & Canada)', abbr: 'CST' },
+  { value: 'America/Denver', label: 'Mountain Time (US & Canada)', abbr: 'MST' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (US & Canada)', abbr: 'PST' },
+  { value: 'Europe/London', label: 'London', abbr: 'GMT' },
+  { value: 'Europe/Paris', label: 'Paris', abbr: 'CET' },
+  { value: 'Europe/Berlin', label: 'Berlin', abbr: 'CET' },
+  { value: 'Asia/Tokyo', label: 'Tokyo', abbr: 'JST' },
+  { value: 'Asia/Shanghai', label: 'Shanghai', abbr: 'CST' },
+  { value: 'Asia/Kolkata', label: 'Kolkata', abbr: 'IST' },
+  { value: 'Africa/Lagos', label: 'Lagos', abbr: 'WAT' },
+  { value: 'Australia/Sydney', label: 'Sydney', abbr: 'AEST' },
+]
+
+const OTHER_TIMEZONES = ['America/New_York', 'Europe/London', 'Asia/Tokyo', 'Australia/Sydney']
+
+const TIMEZONE_ABBR: Record<string, string> = {
+  'UTC': 'UTC',
+  'America/New_York': 'ET',
+  'America/Chicago': 'CT',
+  'America/Denver': 'MT',
+  'America/Los_Angeles': 'PT',
+  'Europe/London': 'GMT',
+  'Europe/Paris': 'CET',
+  'Europe/Berlin': 'CET',
+  'Asia/Tokyo': 'JST',
+  'Asia/Shanghai': 'CST',
+  'Asia/Kolkata': 'IST',
+  'Africa/Lagos': 'WAT',
+  'Australia/Sydney': 'AEST',
+}
+
+function getTimezoneIana(tz: string): string {
+  if (tz === 'local' || !tz) {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  }
+  return tz
+}
+
+function formatTimeInTimezone(dateStr: string, timeStr: string, tz: string): string {
+  if (!dateStr || !timeStr) return '—'
+  const iana = getTimezoneIana(tz)
+  const dt = new Date(`${dateStr}T${timeStr}:00`)
+  if (isNaN(dt.getTime())) return '—'
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric', minute: '2-digit', hour12: true,
+      timeZone: iana,
+    }).format(dt)
+  } catch {
+    return '—'
+  }
+}
+
+function formatDateInTimezone(dateStr: string, tz: string): string {
+  if (!dateStr) return ''
+  const iana = getTimezoneIana(tz)
+  const dt = new Date(`${dateStr}T12:00:00`)
+  if (isNaN(dt.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      timeZone: iana,
+    }).format(dt)
+  } catch {
+    return ''
+  }
 }
 
 const INITIAL_FORM: FormState = {
@@ -101,6 +176,7 @@ const INITIAL_FORM: FormState = {
   waitingRoom: false,
   muteOnEntry: false,
   description: '',
+  timezone: 'local',
 }
 
 const DURATION_OPTIONS = [
@@ -147,6 +223,19 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [showTimezones, setShowTimezones] = useState(false)
+
+  const localTimezone = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  }, [])
+
+  const meetingTimezone = useMemo(() => getTimezoneIana(form.timezone), [form.timezone])
+
+  const resolvedTimezoneLabel = useMemo(() => {
+    const found = TIMEZONE_OPTIONS.find(t => t.value === form.timezone)
+    if (found) return found.label
+    return form.timezone === 'local' ? localTimezone : form.timezone
+  }, [form.timezone, localTimezone])
 
   const update = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -210,6 +299,7 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
     setSubmitting(true)
 
     const roomId = generateMeetingId()
+    const resolvedTz = form.timezone === 'local' ? localTimezone : form.timezone
     const payload: Record<string, unknown> = {
       title: form.title.trim(),
       type: form.meetingType,
@@ -224,6 +314,9 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
       muteOnEntry: form.muteOnEntry,
       description: form.description.trim() || undefined,
       participants: form.participants,
+      settings: {
+        timezone: resolvedTz,
+      },
     }
 
     if (form.meetingType === 'recurring') {
@@ -283,7 +376,7 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
     } finally {
       setSubmitting(false)
     }
-  }, [form, validate, onMeetingCreated])
+  }, [form, validate, onMeetingCreated, localTimezone])
 
   /* ----- render helpers ----- */
   const errorClass = (field: keyof FormState) =>
@@ -379,6 +472,43 @@ export default function MeetingScheduler({ onMeetingCreated, trigger }: MeetingS
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            )}
+
+            {/* ===== Timezone selector ===== */}
+            {form.meetingType !== 'instant' && (
+              <div className='space-y-1.5'>
+                <Label className='flex items-center gap-1.5 text-sm font-medium'>
+                  <Globe className='h-3.5 w-3.5 text-muted-foreground' /> Timezone
+                </Label>
+                <Select value={form.timezone} onValueChange={v => update('timezone', v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder='Select timezone' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONE_OPTIONS.map(tz => (
+                      <SelectItem key={tz.value} value={tz.value}>{tz.abbr} – {tz.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.date && form.time && (
+                  <div className='rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2'>
+                    <div className='flex items-center gap-2 text-sm'>
+                      <Clock className='h-3.5 w-3.5 text-emerald-500 shrink-0' />
+                      <span className='text-muted-foreground'>Meeting time:</span>
+                      <span className='font-medium'>{formatDateInTimezone(form.date, meetingTimezone)}{' '}{formatTimeInTimezone(form.date, form.time, meetingTimezone)}</span>
+                      <Badge variant='outline' className='text-[10px] px-1.5 py-0 ml-auto shrink-0'>{TIMEZONE_ABBR[form.timezone] || form.timezone}</Badge>
+                    </div>
+                    {form.timezone !== 'local' && (
+                      <div className='flex items-center gap-2 text-sm'>
+                        <Clock className='h-3.5 w-3.5 text-teal-500 shrink-0' />
+                        <span className='text-muted-foreground'>Your local time:</span>
+                        <span className='font-medium'>{formatDateInTimezone(form.date, 'local')}{' '}{formatTimeInTimezone(form.date, form.time, 'local')}</span>
+                        <Badge variant='outline' className='text-[10px] px-1.5 py-0 ml-auto shrink-0'>Local</Badge>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

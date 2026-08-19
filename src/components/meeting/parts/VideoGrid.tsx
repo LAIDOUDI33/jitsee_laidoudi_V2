@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { MicOff, VideoOff, Hand, Pin, PinOff, Wifi, Signal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -104,10 +104,11 @@ function NetworkQualityIndicator({ rtt = 0, bitrate = 0, resolution = '' }: { rt
 // ─── Participant Tile Component ────────────────────────────────
 interface ParticipantTileProps {
   participant: Participant;
-  isSpeaker?: boolean;
+  isActiveSpeaker?: boolean;
   isPinned?: boolean;
   isHandRaised?: boolean;
   onPin?: () => void;
+  onClick?: () => void;
   index?: number;
   compact?: boolean;
   mediaStream?: MediaStream | null;
@@ -120,10 +121,11 @@ interface ParticipantTileProps {
 
 function ParticipantTile({
   participant,
-  isSpeaker = false,
+  isActiveSpeaker = false,
   isPinned = false,
   isHandRaised = false,
   onPin,
+  onClick,
   index = 0,
   compact = false,
   mediaStream,
@@ -150,16 +152,35 @@ function ParticipantTile({
 
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.05, type: 'spring', stiffness: 260, damping: 20 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ delay: index * 0.03, type: 'spring', stiffness: 260, damping: 20 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
       className={`relative w-full h-full rounded-2xl overflow-hidden flex items-center justify-center transition-all duration-300 ${
-        isPinned ? 'ring-2 ring-violet-500/60 ring-offset-2 ring-offset-slate-950' :
-        isSpeaker ? 'ring-1 ring-white/10' : 'ring-1 ring-white/[0.06]'
-      } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'}`}
+        isPinned ? 'ring-2 ring-amber-500/60 ring-offset-2 ring-offset-slate-950' :
+        isActiveSpeaker ? 'ring-2 ring-emerald-400/70 shadow-[0_0_20px_rgba(16,185,129,0.25)] ring-offset-2 ring-offset-slate-950' :
+        'ring-1 ring-white/[0.06]'
+      } ${compact ? 'min-h-0' : 'min-h-[180px] sm:min-h-[220px]'} ${onClick ? 'cursor-pointer' : ''}`}
     >
+      {/* Active speaker green glow overlay */}
+      <AnimatePresence>
+        {isActiveSpeaker && !compact && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 rounded-2xl pointer-events-none z-0"
+            style={{
+              boxShadow: 'inset 0 0 30px rgba(16,185,129,0.08), 0 0 40px rgba(16,185,129,0.12)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Virtual background layer (behind video for local) */}
       {isLocal && (bgBlur || bgGradient) && (
         <div className="absolute inset-0 z-0">
@@ -239,9 +260,9 @@ function ParticipantTile({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            onClick={onPin}
+            onClick={(e) => { e.stopPropagation(); onPin?.(); }}
             className={`absolute top-3 right-3 z-20 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-              isPinned ? 'bg-violet-500 text-white' : 'bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60'
+              isPinned ? 'bg-amber-500 text-white' : 'bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60'
             }`}
           >
             {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -268,7 +289,6 @@ function ParticipantTile({
   );
 }
 
-// ─── Props ─────────────────────────────────────────────────────
 // ─── Virtual Background Config ──────────────────────────
 const BG_GRADIENTS: Record<string, string> = {
   office: 'linear-gradient(135deg, #78350f 0%, #92400e 30%, #b45309 60%, #d97706 100%)',
@@ -277,15 +297,19 @@ const BG_GRADIENTS: Record<string, string> = {
   city: 'linear-gradient(135deg, #1e293b 0%, #334155 30%, #475569 60%, #64748b 100%)',
 };
 
+// ─── Props ─────────────────────────────────────────────────────
+export type VideoLayout = 'gallery' | 'speaker' | 'sidebar';
+
 export interface VideoGridProps {
   displayParticipants: Participant[];
-  gridLayout: 'grid' | 'speaker' | 'gallery';
+  gridLayout: VideoLayout;
   pinnedParticipant: string | null;
   effectiveHandRaisedIds: Set<string>;
   captionsVisible: boolean;
   displayCaption: { speaker: string; text: string } | null;
   captionKey: number;
   onTogglePin: (id: string) => void;
+  onSelectSpeaker?: (id: string) => void;
   localStream?: MediaStream | null;
   remoteStreams?: Map<string, MediaStream>;
   localAudioLevel?: number;
@@ -313,6 +337,87 @@ function getLocalBgProps(virtualBg: string) {
   return { videoStyle: undefined, bgGradient: undefined, bgBlur: false };
 }
 
+// ─── Speaker Detection Hook ────────────────────────────────────
+function useActiveSpeaker(
+  participants: Participant[],
+  pinnedParticipant: string | null,
+  layout: VideoLayout,
+) {
+  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Only auto-cycle in speaker or sidebar view when no one is pinned
+    if (layout !== 'speaker' && layout !== 'sidebar') {
+      queueMicrotask(() => setActiveSpeakerId(null));
+      return;
+    }
+
+    const eligible = participants.filter(p => p.micOn);
+    if (eligible.length === 0) {
+      queueMicrotask(() => setActiveSpeakerId(participants[0]?.id ?? null));
+      return;
+    }
+
+    // If there's a pinned participant, they are the active speaker
+    if (pinnedParticipant && eligible.find(p => p.id === pinnedParticipant)) {
+      queueMicrotask(() => setActiveSpeakerId(pinnedParticipant));
+      return;
+    }
+
+    // Start with first eligible participant (deferred)
+    queueMicrotask(() => {
+      setActiveSpeakerId(prev => prev && eligible.find(p => p.id === prev) ? prev : eligible[0].id);
+    });
+
+    // Simulate speaker cycling every 5-8 seconds
+    intervalRef.current = setInterval(() => {
+      setActiveSpeakerId(prev => {
+        const idx = eligible.findIndex(p => p.id === prev);
+        const next = (idx + 1) % eligible.length;
+        return eligible[next].id;
+      });
+    }, 5000 + Math.random() * 3000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [participants, pinnedParticipant, layout]);
+
+  // Derive the sorted participants: pinned/active speaker first
+  const orderedParticipants = useMemo(() => {
+    if (layout === 'gallery') return participants;
+
+    const speakerId = activeSpeakerId || participants[0]?.id;
+    const speaker = participants.find(p => p.id === speakerId);
+    const others = participants.filter(p => p.id !== speakerId);
+
+    // Prioritize: pinned first among others, then the rest
+    const pinnedOthers = others.filter(p => p.id === pinnedParticipant);
+    const rest = others.filter(p => p.id !== pinnedParticipant);
+
+    return speaker ? [speaker, ...pinnedOthers, ...rest] : participants;
+  }, [participants, activeSpeakerId, pinnedParticipant, layout]);
+
+  return { activeSpeakerId, orderedParticipants };
+}
+
+// ─── Layout transition variants ────────────────────────────────
+const layoutVariants = {
+  gallery: {
+    opacity: 1,
+    transition: { staggerChildren: 0.03, delayChildren: 0.05 },
+  },
+  speaker: {
+    opacity: 1,
+    transition: { staggerChildren: 0.02, delayChildren: 0.05 },
+  },
+  sidebar: {
+    opacity: 1,
+    transition: { staggerChildren: 0.02, delayChildren: 0.05 },
+  },
+};
+
 // ─── Component ─────────────────────────────────────────────────
 export default function VideoGrid({
   displayParticipants,
@@ -323,6 +428,7 @@ export default function VideoGrid({
   displayCaption,
   captionKey,
   onTogglePin,
+  onSelectSpeaker,
   localStream = null,
   remoteStreams,
   localAudioLevel,
@@ -331,6 +437,36 @@ export default function VideoGrid({
 }: VideoGridProps) {
   // Pre-compute virtual bg props for local participant
   const localBgProps = useMemo(() => getLocalBgProps(virtualBg), [virtualBg]);
+
+  // Smart speaker detection
+  const { activeSpeakerId, orderedParticipants } = useActiveSpeaker(
+    displayParticipants, pinnedParticipant, gridLayout,
+  );
+
+  const handleSelectSpeaker = useCallback((id: string) => {
+    onSelectSpeaker?.(id);
+  }, [onSelectSpeaker]);
+
+  // Helper to render a tile with all common props
+  const renderTile = (p: Participant, i: number, opts?: { compact?: boolean; isActiveSpeaker?: boolean; onClick?: () => void }) => (
+    <ParticipantTile
+      key={p.id}
+      participant={p}
+      index={i}
+      isActiveSpeaker={opts?.isActiveSpeaker}
+      isPinned={pinnedParticipant === p.id}
+      isHandRaised={effectiveHandRaisedIds.has(p.id)}
+      onPin={() => onTogglePin(p.id)}
+      onClick={opts?.onClick}
+      compact={opts?.compact}
+      mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
+      isLocal={p.isLocal}
+      audioLevel={p.isLocal ? localAudioLevel : undefined}
+      videoStyle={p.isLocal ? localBgProps.videoStyle : undefined}
+      bgGradient={p.isLocal ? localBgProps.bgGradient : undefined}
+      bgBlur={p.isLocal ? localBgProps.bgBlur : undefined}
+    />
+  );
 
   return (
     <div className="flex-1 relative z-10">
@@ -362,78 +498,169 @@ export default function VideoGrid({
         )}
       </AnimatePresence>
 
-      <div className={`h-full flex items-center justify-center p-2 sm:p-4 pt-16 pb-28 sm:pb-24 ${
-        gridLayout === 'speaker' && displayParticipants.length > 1
-          ? 'flex-col sm:flex-row gap-2 sm:gap-3'
-          : ''
-      }`}>
-        {gridLayout === 'speaker' && displayParticipants.length > 1 ? (
-          /* Speaker Layout */
-          <>
-            {/* Main speaker */}
-            <div className="flex-1 min-h-0 h-full sm:h-auto w-full sm:max-w-none">
-              <ParticipantTile
-                  key={displayParticipants[0].id}
-                  participant={displayParticipants[0]}
-                  isSpeaker
-                  isPinned={pinnedParticipant === displayParticipants[0].id}
-                  isHandRaised={effectiveHandRaisedIds.has(displayParticipants[0].id)}
-                  onPin={() => onTogglePin(displayParticipants[0].id)}
-                  mediaStream={displayParticipants[0].isLocal ? localStream : (remoteStreams?.get(displayParticipants[0].id) ?? null)}
-                  isLocal={displayParticipants[0].isLocal}
-                  audioLevel={displayParticipants[0].isLocal ? localAudioLevel : undefined}
-                  videoStyle={displayParticipants[0].isLocal ? localBgProps.videoStyle : undefined}
-                  bgGradient={displayParticipants[0].isLocal ? localBgProps.bgGradient : undefined}
-                  bgBlur={displayParticipants[0].isLocal ? localBgProps.bgBlur : undefined}
-                />
+      {/* ── Layout Container ── */}
+      <AnimatePresence mode="wait">
+        {gridLayout === 'gallery' && (
+          <motion.div
+            key="gallery"
+            variants={layoutVariants}
+            initial={{ opacity: 0 }}
+            animate="gallery"
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            className={`h-full flex items-center justify-center p-2 sm:p-4 pt-16 pb-28 sm:pb-24`}
+          >
+            <div className={`grid gap-2 sm:gap-3 w-full h-full ${
+              orderedParticipants.length <= 1 ? 'grid-cols-1' :
+              orderedParticipants.length <= 2 ? 'grid-cols-2' :
+              orderedParticipants.length <= 4 ? 'grid-cols-1 sm:grid-cols-2' :
+              orderedParticipants.length <= 6 ? 'grid-cols-2 sm:grid-cols-3' :
+              'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+            }`}>
+              {orderedParticipants.map((p, i) => renderTile(p, i))}
             </div>
-            {/* Thumbnail strip */}
-            <div className="flex sm:flex-col gap-2 overflow-x-auto sm:overflow-y-auto sm:overflow-x-hidden max-h-40 sm:max-h-none sm:w-48 lg:w-56 shrink-0">
-              {displayParticipants.slice(1).map((p, i) => (
-                <div key={p.id} className="min-w-[140px] sm:min-w-0 sm:w-full h-24 sm:h-20 shrink-0">
-                  <ParticipantTile
-                    participant={p}
-                    index={i + 1}
-                    isPinned={pinnedParticipant === p.id}
-                    isHandRaised={effectiveHandRaisedIds.has(p.id)}
-                    onPin={() => onTogglePin(p.id)}
-                    compact
-                    mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
-                    isLocal={p.isLocal}
-                    audioLevel={p.isLocal ? localAudioLevel : undefined}
-                  />
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          /* Grid / Gallery Layout */
-          <div className={`grid gap-2 sm:gap-3 w-full h-full ${
-            displayParticipants.length <= 1 ? 'grid-cols-1' :
-            displayParticipants.length <= 2 ? 'grid-cols-2' :
-            displayParticipants.length <= 4 ? 'grid-cols-1 sm:grid-cols-2' :
-            displayParticipants.length <= 6 ? 'grid-cols-2 sm:grid-cols-3' :
-            'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
-          }`}>
-            {displayParticipants.map((p, i) => (
-              <ParticipantTile
-                key={p.id}
-                participant={p}
-                index={i}
-                isPinned={pinnedParticipant === p.id}
-                isHandRaised={effectiveHandRaisedIds.has(p.id)}
-                onPin={() => onTogglePin(p.id)}
-                mediaStream={p.isLocal ? localStream : (remoteStreams?.get(p.id) ?? null)}
-                isLocal={p.isLocal}
-                audioLevel={p.isLocal ? localAudioLevel : undefined}
-                videoStyle={p.isLocal ? localBgProps.videoStyle : undefined}
-                bgGradient={p.isLocal ? localBgProps.bgGradient : undefined}
-                bgBlur={p.isLocal ? localBgProps.bgBlur : undefined}
-              />
-            ))}
-          </div>
+          </motion.div>
         )}
-      </div>
+
+        {gridLayout === 'speaker' && (
+          <motion.div
+            key="speaker"
+            variants={layoutVariants}
+            initial={{ opacity: 0 }}
+            animate="speaker"
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            className="h-full flex flex-col sm:flex-row items-stretch p-2 sm:p-4 pt-16 pb-28 sm:pb-24 gap-2 sm:gap-3"
+          >
+            {/* Main Speaker — 70% of space */}
+            {orderedParticipants.length > 0 && (
+              <div className="w-full sm:w-[70%] min-h-0 h-full sm:h-auto shrink-0">
+                {renderTile(orderedParticipants[0], 0, {
+                  isActiveSpeaker: orderedParticipants[0].id === activeSpeakerId,
+                })}
+              </div>
+            )}
+
+            {/* Thumbnail Strip — 30% on desktop, horizontal strip on mobile */}
+            <AnimatePresence>
+              {orderedParticipants.length > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ delay: 0.1, duration: 0.3 }}
+                  className="w-full sm:w-[30%] h-24 sm:h-full shrink-0"
+                >
+                  <div className="flex sm:flex-col gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-y-auto sm:overflow-x-hidden h-full max-h-24 sm:max-h-none custom-scrollbar">
+                    {orderedParticipants.slice(1).map((p, i) => (
+                      <div
+                        key={p.id}
+                        className={`min-w-[120px] sm:min-w-0 sm:w-full h-20 sm:h-auto sm:flex-1 shrink-0 rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
+                          p.id === activeSpeakerId
+                            ? 'ring-2 ring-emerald-400/60'
+                            : 'hover:ring-1 hover:ring-white/20'
+                        }`}
+                        onClick={() => handleSelectSpeaker(p.id)}
+                      >
+                        {renderTile(p, i + 1, {
+                          compact: true,
+                          isActiveSpeaker: p.id === activeSpeakerId,
+                          onClick: () => handleSelectSpeaker(p.id),
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {gridLayout === 'sidebar' && (
+          <motion.div
+            key="sidebar"
+            variants={layoutVariants}
+            initial={{ opacity: 0 }}
+            animate="sidebar"
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            className="h-full flex flex-col sm:flex-row items-stretch p-2 sm:p-4 pt-16 pb-28 sm:pb-24 gap-2 sm:gap-3"
+          >
+            {/* Main Video — 70% left */}
+            {orderedParticipants.length > 0 && (
+              <div className="w-full sm:w-[70%] h-[60%] sm:h-full shrink-0 min-h-0">
+                {renderTile(orderedParticipants[0], 0, {
+                  isActiveSpeaker: orderedParticipants[0].id === activeSpeakerId,
+                })}
+              </div>
+            )}
+
+            {/* Sidebar Participant List — 30% right, scrollable */}
+            <AnimatePresence>
+              {orderedParticipants.length > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ delay: 0.1, duration: 0.3 }}
+                  className="w-full sm:w-[30%] h-[40%] sm:h-full shrink-0 min-h-0"
+                >
+                  <div className="h-full rounded-xl overflow-hidden bg-black/20 border border-white/[0.06] flex flex-col">
+                    {/* Sidebar header */}
+                    <div className="shrink-0 px-3 py-2 bg-white/[0.03] border-b border-white/[0.06] flex items-center justify-between">
+                      <span className="text-xs font-medium text-white/50">Participants ({orderedParticipants.length})</span>
+                      <span className="text-[10px] text-emerald-400/70 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Live
+                      </span>
+                    </div>
+
+                    {/* Scrollable participant thumbnails */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-1.5">
+                      {orderedParticipants.slice(1).map((p, i) => (
+                        <motion.div
+                          key={p.id}
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+                          className={`relative w-full aspect-video rounded-lg overflow-hidden cursor-pointer transition-all duration-200 ${
+                            p.id === activeSpeakerId
+                              ? 'ring-2 ring-emerald-400/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                              : pinnedParticipant === p.id
+                                ? 'ring-2 ring-amber-500/50'
+                                : 'hover:ring-1 hover:ring-white/20'
+                          }`}
+                          onClick={() => handleSelectSpeaker(p.id)}
+                        >
+                          {renderTile(p, i + 1, {
+                            compact: true,
+                            isActiveSpeaker: p.id === activeSpeakerId,
+                            onClick: () => handleSelectSpeaker(p.id),
+                          })}
+
+                          {/* Speaking indicator dot */}
+                          {p.id === activeSpeakerId && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)] z-30"
+                            />
+                          )}
+
+                          {/* Pinned indicator */}
+                          {pinnedParticipant === p.id && p.id !== activeSpeakerId && (
+                            <div className="absolute top-1.5 right-1.5 z-30">
+                              <Pin size={10} className="text-amber-400" />
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

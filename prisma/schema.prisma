@@ -471,3 +471,24 @@ model AiConversationMessage {
   @@index([conversationId])
   @@index([createdAt])
 }
+
+// ── Notifications ──────────────────────────────────────────────────
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // meeting-invite, meeting-soon, mention, recording-ready, ai-summary, file-shared, member-joined, security-alert, maintenance, system-update, message, general
+  title       String
+  description String?
+  read        Boolean  @default(false)
+  pinned      Boolean  @default(false)
+  actionUrl   String?
+  metadata    String   @default("{}") // JSON for extra data
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}

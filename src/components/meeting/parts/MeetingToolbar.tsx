@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { VideoLayout } from './VideoGrid';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageSquare, Users,
-  Hand, Phone, CircleDot, Sparkles, Check, Plus, LayoutGrid, UserCircle,
-  Subtitles, SmilePlus, Pen, LayoutDashboard, FileText, ImageIcon,
-  MoreHorizontal,
+  Hand, Phone, CircleDot, Sparkles, Check, Plus, LayoutGrid, User, PanelRight,
+  Subtitles, SmilePlus, Pen, FileText, ImageIcon,
+  MoreHorizontal, DoorOpen, Bell, BellRing,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -77,11 +78,14 @@ export interface MeetingToolbarProps {
   captionsVisible: boolean;
   transcriptionOpen: boolean;
   virtualBgActive: boolean;
-  gridLayout: 'grid' | 'speaker' | 'gallery';
+  gridLayout: VideoLayout;
   meetingSidebarTab: string;
   sidebarOpen: boolean;
   reactionCounts: Record<string, number>;
   enhancedReactionsOpen: boolean;
+  waitingRoomCount: number;
+  waitingRoomOpen: boolean;
+  waitingRoomNotification: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
@@ -93,8 +97,9 @@ export interface MeetingToolbarProps {
   onToggleSidebar: (tab: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout') => void;
   onSendReaction: (emoji: string) => void;
   onToggleEnhancedReactions: () => void;
-  onSetGridLayout: (layout: 'grid' | 'speaker' | 'gallery') => void;
+  onSetGridLayout: (layout: VideoLayout) => void;
   onOpenPollBuilder: () => void;
+  onToggleWaitingRoom: () => void;
   onLeaveMeeting: () => void;
 }
 
@@ -126,7 +131,11 @@ export default function MeetingToolbar({
   onToggleEnhancedReactions,
   onSetGridLayout,
   onOpenPollBuilder,
+  onToggleWaitingRoom,
   onLeaveMeeting,
+  waitingRoomCount,
+  waitingRoomOpen,
+  waitingRoomNotification,
 }: MeetingToolbarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -251,6 +260,50 @@ export default function MeetingToolbar({
               label="Participants"
               onClick={() => onToggleSidebar('participants')}
             />
+            {/* Waiting Room */}
+            <div className="relative">
+              <ToolbarButton
+                active={waitingRoomOpen}
+                icon={(
+                  <span className="relative">
+                    {waitingRoomNotification ? (
+                      <motion.span
+                        animate={{ rotate: [0, 14, -14, 10, -10, 0] }}
+                        transition={{ duration: 0.5, repeat: 1, ease: 'easeOut' as const }}
+                      >
+                        <BellRing size={20} className="text-amber-400" />
+                      </motion.span>
+                    ) : (
+                      <DoorOpen size={20} />
+                    )}
+                    {waitingRoomCount > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: waitingRoomNotification ? [1, 1.3, 1] : 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                        className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white px-1 shadow-lg shadow-amber-500/30"
+                      >
+                        {waitingRoomCount}
+                      </motion.span>
+                    )}
+                  </span>
+                )}
+                label="Waiting Room"
+                onClick={onToggleWaitingRoom}
+              />
+              {/* Pulse ring on notification */}
+              <AnimatePresence>
+                {waitingRoomNotification && (
+                  <motion.span
+                    className="absolute inset-0 rounded-full border-2 border-amber-400/50 pointer-events-none"
+                    initial={{ scale: 0.8, opacity: 0.8 }}
+                    animate={{ scale: 1.5, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.2, ease: 'easeOut' as const }}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
             {/* AI */}
             <ToolbarButton
               active={meetingSidebarTab === 'ai' && sidebarOpen}
@@ -303,10 +356,49 @@ export default function MeetingToolbar({
               />
             </div>
 
-            {/* Layout toggle (desktop) */}
+            {/* ── Layout Toggle Button Group ── */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center bg-white/[0.06] rounded-xl p-0.5 gap-0.5">
+                  {([
+                    { layout: 'gallery' as const, icon: <LayoutGrid size={16} />, label: 'Gallery' },
+                    { layout: 'speaker' as const, icon: <User size={16} />, label: 'Speaker' },
+                    { layout: 'sidebar' as const, icon: <PanelRight size={16} />, label: 'Sidebar' },
+                  ]).map(({ layout, icon, label }) => (
+                    <motion.button
+                      key={layout}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => { onSetGridLayout(layout); toast(`Switched to ${label} view`); }}
+                      className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                        gridLayout === layout
+                          ? 'bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)] ring-1 ring-emerald-500/30'
+                          : 'text-white/50 hover:text-white/80 hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      {icon}
+                      {gridLayout === layout && (
+                        <motion.div
+                          layoutId="layout-active-indicator"
+                          className="absolute inset-0 rounded-lg bg-emerald-500/15 border border-emerald-500/30"
+                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                    </motion.button>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-slate-800/95 backdrop-blur-xl text-white border-white/10 text-xs rounded-lg">
+                Switch layout
+              </TooltipContent>
+            </Tooltip>
+
+            <div className="w-px h-8 bg-white/10 mx-0.5" />
+
+            {/* More menu (desktop) */}
             <div className="relative">
               <ToolbarButton
-                icon={<LayoutGrid size={20} />}
+                icon={<MoreHorizontal size={20} />}
                 label="More"
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
               />
@@ -318,25 +410,6 @@ export default function MeetingToolbar({
                     exit={{ opacity: 0, y: 8, scale: 0.95 }}
                     className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
                   >
-                    {/* Layout options */}
-                    <div className="p-1.5 border-b border-white/10">
-                      <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Layout</p>
-                      {(['grid', 'speaker', 'gallery'] as const).map(layout => (
-                        <button
-                          key={layout}
-                          onClick={() => { onSetGridLayout(layout); setShowMoreMenu(false); toast(`Switched to ${layout} view`); }}
-                          className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${
-                            gridLayout === layout ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
-                          }`}
-                        >
-                          {layout === 'grid' && <LayoutGrid size={16} />}
-                          {layout === 'speaker' && <UserCircle size={16} />}
-                          {layout === 'gallery' && <LayoutDashboard size={16} />}
-                          <span className="capitalize">{layout}</span>
-                          {gridLayout === layout && <Check size={14} className="ml-auto text-emerald-400" />}
-                        </button>
-                      ))}
-                    </div>
                     {/* Other options */}
                     <div className="p-1.5">
                       <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Tools</p>
@@ -413,6 +486,13 @@ export default function MeetingToolbar({
                     <button onClick={() => { onToggleTranscription(); setShowMoreMenu(false); }} className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${transcriptionOpen ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
                       <FileText size={16} /> {transcriptionOpen ? 'Hide' : 'Live'} Transcription
                     </button>
+                    <button onClick={() => { onToggleWaitingRoom(); setShowMoreMenu(false); }} className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${waitingRoomOpen ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
+                      {waitingRoomNotification ? <BellRing size={16} className="text-amber-400" /> : <DoorOpen size={16} />}
+                      Waiting Room
+                      {waitingRoomCount > 0 && (
+                        <span className="ml-auto min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">{waitingRoomCount}</span>
+                      )}
+                    </button>
                   </div>
                   {/* Tools */}
                   <div className="p-1.5 border-b border-white/10">
@@ -433,18 +513,20 @@ export default function MeetingToolbar({
                   {/* Layout */}
                   <div className="p-1.5">
                     <p className="text-[10px] uppercase tracking-wider text-white/40 px-3 py-1.5 font-semibold">Layout</p>
-                    {(['grid', 'speaker', 'gallery'] as const).map(layout => (
+                    {([
+                      { layout: 'gallery' as const, icon: <LayoutGrid size={16} />, label: 'Gallery' },
+                      { layout: 'speaker' as const, icon: <User size={16} />, label: 'Speaker' },
+                      { layout: 'sidebar' as const, icon: <PanelRight size={16} />, label: 'Sidebar' },
+                    ]).map(({ layout, icon, label }) => (
                       <button
                         key={layout}
-                        onClick={() => { onSetGridLayout(layout); setShowMoreMenu(false); toast(`Switched to ${layout} view`); }}
+                        onClick={() => { onSetGridLayout(layout); setShowMoreMenu(false); toast(`Switched to ${label} view`); }}
                         className={`w-full px-3 py-2 text-left text-sm rounded-lg flex items-center gap-2.5 transition-colors ${
-                          gridLayout === layout ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                          gridLayout === layout ? 'bg-emerald-500/10 text-emerald-300' : 'text-white/70 hover:bg-white/5'
                         }`}
                       >
-                        {layout === 'grid' && <LayoutGrid size={16} />}
-                        {layout === 'speaker' && <UserCircle size={16} />}
-                        {layout === 'gallery' && <LayoutDashboard size={16} />}
-                        <span className="capitalize">{layout}</span>
+                        {icon}
+                        {label}
                         {gridLayout === layout && <Check size={14} className="ml-auto text-emerald-400" />}
                       </button>
                     ))}

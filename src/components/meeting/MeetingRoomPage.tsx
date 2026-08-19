@@ -14,11 +14,12 @@ import { Wifi, Loader2 } from 'lucide-react';
 
 // Sub-components
 import MeetingHeader from './parts/MeetingHeader';
-import VideoGrid from './parts/VideoGrid';
+import VideoGrid, { type VideoLayout } from './parts/VideoGrid';
 import MeetingToolbar from './parts/MeetingToolbar';
 import MeetingSidebar from './parts/MeetingSidebar';
 import ReactionsBar from './parts/ReactionsBar';
 import WaitingRoom from './parts/WaitingRoom';
+import HostWaitingRoomPanel, { useWaitingRoomNotification } from './parts/HostWaitingRoomPanel';
 import VirtualBackgroundSelector from '@/components/shared/VirtualBgSelector';
 import PreJoinPreview from './PreJoinPreview';
 import PostMeetingSummary from './PostMeetingSummary';
@@ -28,6 +29,7 @@ import EndMeetingDialog from './EndMeetingDialog';
 import {
   type Participant,
   type FloatingReaction,
+  type WaitingParticipant,
   mockParticipants,
   wsMsgToLocal,
   wsPollToLocal,
@@ -130,7 +132,7 @@ export default function MeetingRoomPage() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [gridLayout, setGridLayout] = useState<'grid' | 'speaker' | 'gallery'>('grid');
+  const [gridLayout, setGridLayout] = useState<VideoLayout>('gallery');
   const [pinnedParticipant, setPinnedParticipant] = useState<string | null>(null);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const [captionsVisible, setCaptionsVisible] = useState(true);
@@ -140,10 +142,69 @@ export default function MeetingRoomPage() {
   const [virtualBgOpen, setVirtualBgOpen] = useState(false);
   const [virtualBg, setVirtualBg] = useState<string>('none');
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
+  const [hostWaitingRoomOpen, setHostWaitingRoomOpen] = useState(false);
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [pollBuilderOpen, setPollBuilderOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const captionKey = useMemo(() => Date.now(), [wsCaption]);
+
+  // ── Host Waiting Room (mock data) ─────────────────────────────
+  const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([
+    { id: 'w-1', name: 'Ryan Foster', initials: 'RF', color: 'bg-teal-500', joinTime: '2m ago' },
+    { id: 'w-2', name: 'Nina Rossi', initials: 'NR', color: 'bg-fuchsia-500', joinTime: '5m ago' },
+  ]);
+
+  const mockWaitingNames = [
+    'Olivia Martinez', 'Liam Nakamura', 'Sophia Andersson',
+    'Ethan Okafor', 'Ava Petrov', 'Noah Larsson', 'Isabella Chen',
+    'Mason Dubois', 'Mia Kowalski', 'Lucas Fernandez', 'Emma Johansson',
+  ];
+
+  useEffect(() => {
+    let nameIdx = 0;
+    const interval = setInterval(() => {
+      if (nameIdx >= mockWaitingNames.length) return;
+      const name = mockWaitingNames[nameIdx];
+      const color = nameToColor(name);
+      const initials = nameToInitials(name);
+      setWaitingParticipants(prev => [
+        ...prev,
+        { id: `w-${Date.now()}`, name, initials, color, joinTime: 'just now' },
+      ]);
+      nameIdx++;
+    }, 15000 + Math.random() * 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleAdmitParticipant = useCallback((id: string) => {
+    setWaitingParticipants(prev => {
+      const p = prev.find(w => w.id === id);
+      if (p) toast.success(`${p.name} has been admitted`);
+      return prev.filter(w => w.id !== id);
+    });
+  }, []);
+
+  const handleRejectParticipant = useCallback((id: string) => {
+    setWaitingParticipants(prev => {
+      const p = prev.find(w => w.id === id);
+      if (p) toast(`${p.name} was rejected from the waiting room`);
+      return prev.filter(w => w.id !== id);
+    });
+  }, []);
+
+  const handleAdmitAll = useCallback(() => {
+    const count = waitingParticipants.length;
+    toast.success(`${count} participant${count !== 1 ? 's' : ''} admitted`);
+    setWaitingParticipants([]);
+  }, [waitingParticipants.length]);
+
+  const handleRejectAll = useCallback(() => {
+    const count = waitingParticipants.length;
+    toast(`${count} participant${count !== 1 ? 's' : ''} rejected`);
+    setWaitingParticipants([]);
+  }, [waitingParticipants.length]);
+
+  const waitingNotification = useWaitingRoomNotification(waitingParticipants.length);
 
   const meetingContainerRef = useRef<HTMLDivElement>(null);
 
@@ -215,40 +276,23 @@ export default function MeetingRoomPage() {
     // Use real WebRTC participants when available
     if (hasRemoteParticipants) {
       const all: Participant[] = [localParticipant, ...remoteParticipantList];
-      if (pinnedParticipant && gridLayout === 'speaker') {
-        const pinned = all.find(p => p.id === pinnedParticipant);
-        const others = all.filter(p => p.id !== pinnedParticipant);
-        return pinned ? [pinned, ...others.slice(0, 5)] : all.slice(0, 6);
-      }
-      if (gridLayout === 'speaker') return all.slice(0, 6);
       if (gridLayout === 'gallery') return all;
-      return all.slice(0, 4);
+      // For speaker/sidebar, return up to 8 (VideoGrid handles ordering)
+      return all;
     }
 
     // Fallback: mock participants (demo mode)
     // Replace the first mock participant with the local user if local stream exists
     if (localStream) {
       const withLocal = [localParticipant, ...mockParticipants];
-      if (pinnedParticipant && gridLayout === 'speaker') {
-        const pinned = withLocal.find(p => p.id === pinnedParticipant);
-        const others = withLocal.filter(p => p.id !== pinnedParticipant);
-        return pinned ? [pinned, ...others.slice(0, 5)] : withLocal.slice(0, 6);
-      }
-      if (gridLayout === 'speaker') return [withLocal[0], ...withLocal.slice(1, 6)];
       if (gridLayout === 'gallery') return withLocal;
-      return withLocal.slice(0, 4);
+      return withLocal;
     }
 
     // Pure fallback (no WebRTC at all)
-    if (pinnedParticipant && gridLayout === 'speaker') {
-      const pinned = mockParticipants.find(p => p.id === pinnedParticipant);
-      const others = mockParticipants.filter(p => p.id !== pinnedParticipant);
-      return pinned ? [pinned, ...others.slice(0, 5)] : mockParticipants.slice(0, 6);
-    }
-    if (gridLayout === 'speaker') return [mockParticipants[0], ...mockParticipants.slice(1, 6)];
     if (gridLayout === 'gallery') return mockParticipants;
-    return mockParticipants.slice(0, 4);
-  }, [hasRemoteParticipants, localParticipant, remoteParticipantList, localStream, gridLayout, pinnedParticipant]);
+    return mockParticipants;
+  }, [hasRemoteParticipants, localParticipant, remoteParticipantList, localStream, gridLayout]);
 
   // ── Handle incoming reactions for floating UI ──────────────────
   const handleIncomingReaction = useCallback((data: { userId: string; userName: string; emoji: string }) => {
@@ -330,6 +374,7 @@ export default function MeetingRoomPage() {
   };
 
   const toggleSidebar = (tab?: 'chat' | 'participants' | 'ai' | 'polls' | 'breakout' | 'transcription' | 'translation') => {
+    setHostWaitingRoomOpen(false);
     if (tab && sidebarOpen && meetingSidebarTab === tab) setSidebarOpen(false);
     else if (tab) { setMeetingSidebarTab(tab); setSidebarOpen(true); }
     else setSidebarOpen(prev => !prev);
@@ -461,6 +506,9 @@ export default function MeetingRoomPage() {
           displayCaption={displayCaption}
           captionKey={captionKey}
           onTogglePin={handleTogglePin}
+          onSelectSpeaker={(id) => {
+            setPinnedParticipant(prev => prev === id ? null : id);
+          }}
           localStream={localStream}
           remoteStreams={remoteStreams}
           localAudioLevel={webrtcStats.localAudioLevel}
@@ -489,10 +537,27 @@ export default function MeetingRoomPage() {
           onSetGridLayout={setGridLayout}
           onOpenPollBuilder={() => setPollBuilderOpen(true)}
           onLeaveMeeting={handleLeaveMeeting}
+          waitingRoomCount={waitingParticipants.length}
+          waitingRoomOpen={hostWaitingRoomOpen}
+          waitingRoomNotification={waitingNotification}
+          onToggleWaitingRoom={() => { setSidebarOpen(false); setHostWaitingRoomOpen(!hostWaitingRoomOpen); }}
         />
       </div>
 
       {/* Right Sidebar */}
+      <AnimatePresence>
+        {hostWaitingRoomOpen && !sidebarOpen && (
+          <HostWaitingRoomPanel
+            open={hostWaitingRoomOpen && !sidebarOpen}
+            onOpenChange={setHostWaitingRoomOpen}
+            waitingParticipants={waitingParticipants}
+            onAdmit={handleAdmitParticipant}
+            onReject={handleRejectParticipant}
+            onAdmitAll={handleAdmitAll}
+            onRejectAll={handleRejectAll}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {sidebarOpen && (
           <MeetingSidebar

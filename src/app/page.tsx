@@ -141,6 +141,9 @@ const ActivityReportsPage = dynamic(() => import('@/components/dashboard/views/A
 const RecordingPlaybackPage = dynamic(() => import('@/components/dashboard/views/RecordingPlaybackPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
+const RecurringMeetingsPage = dynamic(() => import('@/components/dashboard/views/RecurringMeetingsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
 
 // Admin views
 const AdminPage = dynamic(() => import('@/components/admin/AdminPage'), {
@@ -292,6 +295,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'meeting-notes': MeetingNotesPage, 'action-items': SmartActionItemsPage, 'session-history': SessionHistoryPage,
   'org-settings': OrgSettingsPage, 'activity-reports': ActivityReportsPage,
   'recording-playback': RecordingPlaybackPage,
+  'recurring-meetings': RecurringMeetingsPage,
 }
 
 // ===========================================================================
