@@ -4,8 +4,8 @@ import { useAppStore } from '@/store/app-store';
 import { authFetch } from '@/lib/api';
 import {
   Video, CalendarPlus, Hash, Sparkles, Users, Clock, FileText, Brain,
-  ChevronRight, Copy, Play, MoreHorizontal, Film, ArrowUpRight, ArrowDownRight,
-  VideoIcon, Calendar, Mic, Monitor,
+  ChevronRight, Play, MoreHorizontal, Film, ArrowUpRight, ArrowDownRight,
+  VideoIcon, Calendar, Mic, Monitor, Share2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import MeetingInviteDialog from '@/components/shared/MeetingInviteDialog';
 
 // ── Animation variants ─────────────────────────────────────────────────
 
@@ -225,6 +226,7 @@ export default function DashboardPage() {
   const { user, setCurrentView, setMeetingTitle, setCurrentMeetingId } = useAppStore();
   const [joinCode, setJoinCode] = useState('');
   const [showJoinInput, setShowJoinInput] = useState(false);
+  const [inviteMeeting, setInviteMeeting] = useState<UpcomingMeeting | null>(null);
 
   // Ensure user is set for display
   useEffect(() => {
@@ -359,12 +361,7 @@ export default function DashboardPage() {
   };
 
   const handleCopyLink = (meeting: UpcomingMeeting) => {
-    const link = `${window.location.origin}/join?code=${meeting.id}`;
-    navigator.clipboard.writeText(link).then(() => {
-      toast.success('Meeting link copied to clipboard');
-    }).catch(() => {
-      toast.error('Failed to copy link');
-    });
+    setInviteMeeting(meeting);
   };
 
   const upcomingMeetings: UpcomingMeeting[] = meetingsData || [];
@@ -558,11 +555,11 @@ export default function DashboardPage() {
                           <Button
                             variant='outline'
                             size='sm'
-                            className='h-8 px-4 text-xs'
+                            className='h-8 px-4 text-xs gap-1.5 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 dark:hover:bg-amber-950/30'
                             onClick={() => handleCopyLink(meeting)}
                           >
-                            <Copy className='h-3.5 w-3.5 mr-1' />
-                            Copy Link
+                            <Share2 className='h-3.5 w-3.5' />
+                            Share
                           </Button>
                         </div>
                       </div>
@@ -765,6 +762,18 @@ export default function DashboardPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Meeting Invite Dialog */}
+      {inviteMeeting && (
+        <MeetingInviteDialog
+          open={!!inviteMeeting}
+          onOpenChange={(open) => { if (!open) setInviteMeeting(null) }}
+          meetingId={inviteMeeting.id}
+          meetingTitle={inviteMeeting.title}
+          hostName={inviteMeeting.hostName}
+          startTime={inviteMeeting.scheduledAt}
+        />
+      )}
     </motion.div>
   );
 }

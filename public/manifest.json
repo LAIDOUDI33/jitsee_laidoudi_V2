@@ -1,0 +1,22 @@
+{
+  "name": "ALVISION — AI Video Conferencing",
+  "short_name": "ALVISION",
+  "description": "Enterprise AI-powered video conferencing platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
+  "orientation": "any",
+  "categories": ["business", "productivity", "video"],
+  "icons": [
+    { "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" },
+    { "src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    { "name": "New Meeting", "url": "/?action=new-meeting", "description": "Start a new meeting" },
+    { "name": "Join Meeting", "url": "/?action=join", "description": "Join with a code" },
+    { "name": "Schedule", "url": "/?action=schedule", "description": "Schedule a meeting" }
+  ]
+}

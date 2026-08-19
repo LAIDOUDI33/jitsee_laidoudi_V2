@@ -35,6 +35,7 @@ import {
   MousePointer2,
   Star,
   Quote,
+  Trophy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -267,6 +268,36 @@ const PRICING_TIERS: PricingTier[] = [
   },
 ];
 
+/* -------------------------------------------------------------------------- */
+/*                    FEATURE COMPARISON TABLE DATA                           */
+/* -------------------------------------------------------------------------- */
+
+const COMPARISON_FEATURES = [
+  { feature: 'AI Meeting Summaries', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Real-time Translation (10+ langs)', alvision: true, zoom: false, teams: false, meet: false },
+  { feature: 'Live Transcription', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Smart Action Items Extraction', alvision: true, zoom: false, teams: false, meet: false },
+  { feature: 'Virtual Backgrounds', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Breakout Rooms', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Real-time Reactions', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Meeting Polls', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'Whiteboard', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'E2E Encryption', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'On-Premise Deployment', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'SAML/OIDC SSO', alvision: true, zoom: true, teams: true, meet: false },
+  { feature: 'Custom Branding', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'AI Meeting Assistant Q&A', alvision: true, zoom: true, teams: false, meet: false },
+  { feature: 'Pre-Join Device Test', alvision: true, zoom: true, teams: true, meet: true },
+  { feature: 'PWA / Offline Support', alvision: true, zoom: false, teams: false, meet: false },
+];
+
+const COMPARISON_HEADERS = [
+  { key: 'alvision', name: 'ALVISION', highlight: true },
+  { key: 'zoom', name: 'Zoom', highlight: false },
+  { key: 'teams', name: 'Teams', highlight: false },
+  { key: 'meet', name: 'Google Meet', highlight: false },
+];
+
 const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'How does ALVISION handle data encryption?',
@@ -332,7 +363,7 @@ const TESTIMONIALS = [
     role: 'CTO',
     company: 'FinanceFlow',
     initials: 'JC',
-    color: 'bg-gradient-to-br from-sky-500 to-blue-600',
+    color: 'bg-gradient-to-br from-teal-500 to-emerald-600',
     rating: 5,
     text: 'Security was our top priority. ALVISION\'s zero-trust architecture and on-premise option gave us the confidence to migrate our entire organization. 3,000+ users, zero incidents.',
   },
@@ -511,7 +542,7 @@ export default function LandingPage() {
         <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden" id="hero">
           {/* Animated gradient mesh background with floating orbs */}
           <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30" />
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-emerald-50/20 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" />
             {/* Subtle grid/mesh pattern */}
             <div
               className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
@@ -521,7 +552,7 @@ export default function LandingPage() {
               }}
             />
             {/* Floating orbs */}
-            <div className="absolute top-[10%] left-[15%] h-72 w-72 rounded-full bg-blue-400/20 dark:bg-blue-500/10 blur-3xl animate-pulse" />
+            <div className="absolute top-[10%] left-[15%] h-72 w-72 rounded-full bg-emerald-400/15 dark:bg-emerald-500/10 blur-3xl animate-pulse" />
             <div
               className="absolute top-[50%] right-[10%] h-96 w-96 rounded-full bg-cyan-400/15 dark:bg-cyan-500/10 blur-3xl animate-pulse"
               style={{ animationDelay: '1s' }}
@@ -682,7 +713,7 @@ export default function LandingPage() {
                   {/* 2x2 video grid */}
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { name: 'Sarah Chen', color: 'from-blue-500/30 to-cyan-500/20', active: true, delay: 0.4 },
+                      { name: 'Sarah Chen', color: 'from-emerald-500/30 to-teal-500/20', active: true, delay: 0.4 },
                       { name: 'James Miller', color: 'from-violet-500/30 to-purple-500/20', active: false, delay: 0.5 },
                       { name: 'Aiko Tanaka', color: 'from-emerald-500/30 to-teal-500/20', active: false, delay: 0.6 },
                       { name: 'Carlos Ruiz', color: 'from-orange-500/30 to-amber-500/20', active: false, delay: 0.7 },
@@ -808,7 +839,7 @@ export default function LandingPage() {
                 <motion.div key={feature.title} variants={staggerItem}>
                   <Card className="h-full group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20 transition-all duration-300 border-border/50">
                     <CardContent className="p-8">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
                         <feature.icon className="w-7 h-7 text-white" />
                       </div>
                       <h3 className="text-xl font-semibold mb-3">
@@ -1040,13 +1071,13 @@ export default function LandingPage() {
               {PRICING_TIERS.map((tier) => (
                 <motion.div key={tier.name} variants={staggerItem}>
                   {tier.highlighted ? (
-                    <div className="relative rounded-xl p-[2px] bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite]"
+                    <div className="relative rounded-xl p-[2px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 animate-[spin_4s_linear_infinite]"
                       style={{ backgroundSize: '200% 200%', animation: 'pricing-border-rotate 4s linear infinite' }}
                     >
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
-                      <Card className="relative h-full rounded-xl shadow-xl shadow-blue-500/10 dark:border-border/30 dark:bg-card/50">
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 animate-[spin_4s_linear_infinite] blur-sm opacity-50" />
+                      <Card className="relative h-full rounded-xl shadow-xl shadow-emerald-500/10 dark:border-border/30 dark:bg-card/50">
                         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-4 py-1">
+                          <Badge className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-0 px-4 py-1">
                             Most Popular
                           </Badge>
                         </div>
@@ -1071,14 +1102,14 @@ export default function LandingPage() {
                                 key={feature}
                                 className="flex items-start gap-3 text-sm"
                               >
-                                <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                                 <span>{feature}</span>
                               </div>
                             ))}
                           </div>
                           <Button
                             variant={tier.ctaVariant}
-                            className="w-full h-11 font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25"
+                            className="w-full h-11 font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
                           >
                             {tier.cta}
                             <ArrowRight className="w-4 h-4 ml-2" />
@@ -1126,6 +1157,89 @@ export default function LandingPage() {
                   )}
                 </motion.div>
               ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ============================================================== */}
+                {/* ============================================================== */}
+        {/* 7.5 FEATURE COMPARISON TABLE                                 */}
+        {/* ============================================================== */}
+        <section className="py-24">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              variants={sectionVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-80px' }}
+              className="text-center mb-14"
+            >
+              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                <Trophy className="w-3 h-3 mr-1" /> Feature Comparison
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                How We <span className="gradient-text">Stack Up</span>
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+                A side-by-side look at the features that matter most.
+              </p>
+            </motion.div>
+            <motion.div
+              variants={sectionVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-40px' }}
+            >
+              <Card className="overflow-hidden border-border/50">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/50">
+                        <th className="text-left py-4 px-5 font-semibold text-muted-foreground w-[40%]">Feature</th>
+                        {COMPARISON_HEADERS.map((h) => (
+                          <th key={h.key} className={`text-center py-4 px-3 font-semibold ${h.highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                            {h.name}
+                            {h.highlight && <Badge className="ml-1.5 text-[9px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-0 px-1.5 py-0">You are here</Badge>}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {COMPARISON_FEATURES.map((row, idx) => (
+                        <tr key={row.feature} className={`border-b border-border/30 last:border-0 ${idx % 2 === 0 ? 'bg-muted/20' : ''} hover:bg-muted/40 transition-colors`}>
+                          <td className="py-3 px-5 font-medium text-sm">{row.feature}</td>
+                          {(COMPARISON_HEADERS.map((h) => (
+                            <td key={h.key} className="text-center py-3 px-3">
+                              {row[h.key as keyof typeof row] ? (
+                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${h.highlight ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>
+                                  <Check className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50 dark:bg-red-900/20 text-red-400/60">
+                                  <span className="text-xs font-medium">—</span>
+                                </span>
+                              )}
+                            </td>
+                          )))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-border/50">
+                        <td className="py-4 px-5 font-bold">Total Features</td>
+                        {COMPARISON_HEADERS.map((h) => {
+                          const total = COMPARISON_FEATURES.filter((r) => r[h.key as keyof typeof r]).length;
+                          return (
+                            <td key={h.key} className={`text-center py-4 px-3 font-bold text-lg ${h.highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                              {total}/{COMPARISON_FEATURES.length}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
             </motion.div>
           </div>
         </section>
@@ -1210,7 +1324,7 @@ export default function LandingPage() {
               {TESTIMONIALS.map((t, idx) => (
                 <motion.div key={t.name} variants={staggerItem}>
                   <Card className="h-full border-border/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${idx % 3 === 0 ? 'from-rose-500 to-pink-500' : idx % 3 === 1 ? 'from-sky-500 to-blue-500' : 'from-emerald-500 to-teal-500'}`} />
+                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${idx % 3 === 0 ? 'from-rose-500 to-pink-500' : idx % 3 === 1 ? 'from-amber-500 to-orange-500' : 'from-emerald-500 to-teal-500'}`} />
                     <CardContent className="p-6 pt-7">
                       <Quote className="h-8 w-8 text-muted-foreground/20 mb-3" />
                       <p className="text-sm leading-relaxed text-foreground/80 mb-5">{t.text}</p>

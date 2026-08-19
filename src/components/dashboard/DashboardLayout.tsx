@@ -90,6 +90,7 @@ const mainNavItems: NavItem[] = [
   { label: 'Analytics', icon: <BarChart3 className='h-4 w-4' />, view: 'analytics' },
   { label: 'Status', icon: <Activity className='h-4 w-4' />, view: 'status' },
   { label: 'People', icon: <UsersRound className='h-4 w-4' />, view: 'people' },
+  { label: 'Contacts', icon: <UserIcon className='h-4 w-4' />, view: 'contacts' },
   { label: 'Org Settings', icon: <Building2 className='h-4 w-4' />, view: 'org-settings' },
   { label: 'Integrations', icon: <Puzzle className='h-4 w-4' />, view: 'integrations' },
   { label: 'Help Center', icon: <HelpCircle className='h-4 w-4' />, view: 'help-center' },

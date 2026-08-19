@@ -22,6 +22,7 @@ export type AppView =
   | 'analytics'
   | 'status'
   | 'people'
+  | 'contacts'
   | 'integrations'
   | 'admin'
   | 'admin-users'
@@ -42,6 +43,7 @@ export type AppView =
   | 'session-history'
   | 'org-settings'
   | 'activity-reports'
+  | 'recording-playback'
 
 export interface NotificationItem {
   id: string
@@ -97,6 +99,10 @@ interface AppState {
   // Search
   searchOpen: boolean
   setSearchOpen: (open: boolean) => void
+
+  // Recording Playback
+  currentRecordingId: string | null
+  setCurrentRecordingId: (id: string | null) => void
 }
 
 const defaultNotifications: NotificationItem[] = [
@@ -203,6 +209,9 @@ export const useAppStore = create<AppState>()(
 
       searchOpen: false,
       setSearchOpen: (open) => set({ searchOpen: open }),
+
+      currentRecordingId: null,
+      setCurrentRecordingId: (id) => set({ currentRecordingId: id }),
     }),
     {
       name: 'alvision-auth',

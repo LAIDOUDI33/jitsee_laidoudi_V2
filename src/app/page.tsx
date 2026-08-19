@@ -99,6 +99,9 @@ const StatusPage = dynamic(() => import('@/components/dashboard/views/StatusPage
 const PeoplePage = dynamic(() => import('@/components/dashboard/views/PeoplePage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
+const ContactsPage = dynamic(() => import('@/components/dashboard/views/ContactsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
 const IntegrationsPage = dynamic(() => import('@/components/dashboard/views/IntegrationsPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
@@ -133,6 +136,9 @@ const OrgSettingsPage = dynamic(() => import('@/components/dashboard/views/OrgSe
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
 const ActivityReportsPage = dynamic(() => import('@/components/dashboard/views/ActivityReportsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
+const RecordingPlaybackPage = dynamic(() => import('@/components/dashboard/views/RecordingPlaybackPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
 
@@ -276,7 +282,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   meetings: MeetingsPage, teams: TeamsPage, chat: ChatPage, files: FilesPage,
   recordings: RecordingsPage, 'ai-assistant': AIAssistantPage, knowledge: KnowledgePage,
   calendar: CalendarPage, events: EventsPage, whiteboard: WhiteboardPage,
-  analytics: AnalyticsPage, status: StatusPage, people: PeoplePage,
+  analytics: AnalyticsPage, status: StatusPage, people: PeoplePage, contacts: ContactsPage,
   integrations: IntegrationsPage, 'help-center': HelpCenterPage, admin: AdminPage,
   'admin-users': AdminUsersPage, 'admin-orgs': AdminOrgsPage,
   'admin-security': AdminSecurityPage, 'admin-audit': AdminAuditPage,
@@ -285,6 +291,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'breakout-rooms': BreakoutRoomsPage, participants: ParticipantsPage,
   'meeting-notes': MeetingNotesPage, 'action-items': SmartActionItemsPage, 'session-history': SessionHistoryPage,
   'org-settings': OrgSettingsPage, 'activity-reports': ActivityReportsPage,
+  'recording-playback': RecordingPlaybackPage,
 }
 
 // ===========================================================================

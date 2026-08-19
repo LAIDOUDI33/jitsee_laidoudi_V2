@@ -32,6 +32,7 @@ import {
   Check,
   Link2,
   FileDown,
+  Share2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence } from 'framer-motion'
 import MeetingScheduler from '@/components/shared/MeetingScheduler'
+import MeetingInviteDialog from '@/components/shared/MeetingInviteDialog'
 import { authFetch } from '@/lib/api'
 
 interface Meeting {
@@ -179,6 +181,7 @@ export default function MeetingsPage() {
   const [newMeeting, setNewMeeting] = useState({ title: '', date: '', time: '', duration: '30m', type: 'scheduled', description: '' })
   const [activeTab, setActiveTab] = useState('upcoming')
   const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set())
+  const [inviteMeeting, setInviteMeeting] = useState<Meeting | null>(null)
 
   const fetchMeetings = async () => {
     setLoading(true)
@@ -378,7 +381,15 @@ export default function MeetingsPage() {
                 )}
               </div>
               <div className='flex items-center gap-2 shrink-0'>
-                {/* Copy Link button with animated checkmark */}
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  className='h-8 w-8 p-0 hover:scale-110 active:scale-95 transition-transform text-amber-500 hover:text-amber-600'
+                  onClick={() => setInviteMeeting(m)}
+                  title='Share & Invite'
+                >
+                  <Share2 className='h-4 w-4' />
+                </Button>
                 <Button
                   size='sm'
                   variant='ghost'
@@ -427,6 +438,7 @@ export default function MeetingsPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='end'>
+                    <DropdownMenuItem className='gap-2' onClick={() => setInviteMeeting(m)}><Share2 className='h-4 w-4' /> Share & Invite</DropdownMenuItem>
                     <DropdownMenuItem className='gap-2' onClick={() => handleCopyLink(m.roomId, m.id)}><Copy className='h-4 w-4' /> Copy Room Link</DropdownMenuItem>
                     <DropdownMenuItem className='gap-2' onClick={() => handleJoin(m)}><Video className='h-4 w-4' /> {m.status === 'active' ? 'Join Now' : 'Start Early'}</DropdownMenuItem>
                     <DropdownMenuItem className='gap-2' onClick={() => handleDownloadIcal(m.id, m.title)}><FileDown className='h-4 w-4' /> Download .ics</DropdownMenuItem>
@@ -711,6 +723,17 @@ export default function MeetingsPage() {
         </AnimatePresence>
         )}
       </div>
+
+      {inviteMeeting && (
+        <MeetingInviteDialog
+          open={!!inviteMeeting}
+          onOpenChange={(open) => { if (!open) setInviteMeeting(null) }}
+          meetingId={inviteMeeting.roomId}
+          meetingTitle={inviteMeeting.title}
+          hostName={inviteMeeting.host}
+          startTime={inviteMeeting.date && inviteMeeting.time ? `${inviteMeeting.date}T${inviteMeeting.time}` : undefined}
+        />
+      )}
     </div>
   )
 }

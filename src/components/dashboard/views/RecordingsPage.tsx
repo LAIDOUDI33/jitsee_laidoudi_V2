@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/select'
 import { motion, AnimatePresence } from 'framer-motion'
 import { authFetch } from '@/lib/api'
+import { useAppStore } from '@/store/app-store'
 
 interface Recording {
   id: string
@@ -538,6 +539,13 @@ export default function RecordingsPage() {
     setPlayerOpen(true)
   }
 
+  const { setCurrentRecordingId, setCurrentView } = useAppStore()
+
+  const openPlayback = (rec: Recording) => {
+    setCurrentRecordingId(rec.id)
+    setCurrentView('recording-playback')
+  }
+
   return (
     <div className='space-y-6'>
       {/* Header */}
@@ -649,13 +657,13 @@ export default function RecordingsPage() {
           <motion.div key={rec.id} variants={item}>
             <Card className='group relative border border-border/50 hover:border-primary/30 bg-gradient-to-br from-card to-card/80 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden before:content-["\"] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-primary/50 before:to-primary/0'>
               {/* Video preview area */}
-              <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center overflow-hidden cursor-pointer' onClick={() => openPlayer(rec)}>
+              <div className='relative bg-gradient-to-br from-zinc-800 to-zinc-900 aspect-video flex items-center justify-center overflow-hidden cursor-pointer' onClick={() => openPlayback(rec)}>
                 <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer pointer-events-none' />
                 <Film className='h-12 w-12 text-zinc-600' />
                 <Button
                   size='icon'
                   className='absolute inset-0 m-auto h-14 w-14 rounded-full bg-emerald-500/80 backdrop-blur-sm hover:bg-emerald-500/90 transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95'
-                  onClick={() => openPlayer(rec)}
+                  onClick={(e) => { e.stopPropagation(); openPlayback(rec) }}
                 >
                   <Play className='h-6 w-6 text-white ml-0.5' />
                 </Button>
@@ -694,7 +702,7 @@ export default function RecordingsPage() {
                       <Button variant='ghost' size='icon' className='h-8 w-8 shrink-0'><MoreVertical className='h-4 w-4' /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align='end'>
-                      <DropdownMenuItem className='gap-2' onClick={() => openPlayer(rec)}><Play className='h-4 w-4' /> Play</DropdownMenuItem>
+                      <DropdownMenuItem className='gap-2' onClick={() => openPlayback(rec)}><Play className='h-4 w-4' /> Play</DropdownMenuItem>
                       <DropdownMenuItem className='gap-2' onClick={() => handleDownload(rec.title)}><Download className='h-4 w-4' /> Download</DropdownMenuItem>
                       <DropdownMenuItem className='gap-2' onClick={() => handleShare(rec.title)}><Share2 className='h-4 w-4' /> Share</DropdownMenuItem>
                       <DropdownMenuSeparator />
