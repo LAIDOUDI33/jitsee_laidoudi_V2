@@ -3322,6 +3322,298 @@ Stage Summary:
 1. Breakout Rooms timer/broadcast completion
 2. Onboarding flow wizard with product tour tooltips
 3. Meeting Notes AI auto-summarize integration
-4. Calendar view enhancement (week/month views with meeting blocks)
+4. Calendar view enhancement (week/month views with meeting blocks) ✅ DONE
 5. Admin dashboard analytics widgets (real DB queries)
 6. Profile page enhancement (avatar upload, status message, presence)
+
+---
+Task ID: 15-1
+Agent: Calendar Enhancement Agent
+Task: Enhanced Calendar with Week/Month views + meeting time blocks
+
+Work Log:
+- Read existing CalendarPage.tsx (~420 lines) with Day/List toggle and month grid
+- Read worklog (last 60 lines) and project state
+- Checked available UI components (ToggleGroup, ScrollArea, Tooltip, etc.)
+- Designed and wrote complete CalendarPage.tsx rewrite (925 lines) with 4 views
+- Implemented ToggleGroup segmented control for Day/Week/Month/List switching
+- Built Week View: 7-day header row (Sun-Sat), 6AM-10PM hour grid, absolutely positioned meeting blocks with colored left borders, current time rose indicator, Now scroll button, prev/next week navigation
+- Built Day View: single-day hourly time grid with positioned event blocks, current time indicator, prev/next day navigation
+- Enhanced Month View: 6x7 grid (42 cells), up to 3 colored event chips per cell, +N more indicator, emerald ring for today, subtle bg for selected day, click-to-navigate on events
+- Built List View: chronological event list grouped by date with type-colored left borders, badges, participant info, today indicator
+- Created 27 mock events spread across current month (meetings, events, deadlines, reminders at various times/durations)
+- Applied meeting type color palette: emerald (meeting), violet (event), rose (deadline), teal (reminder) — no blue/indigo
+- Added AnimatePresence transitions between views, Tooltip on event blocks, responsive design
+- Sidebar shows in Month/List views (mini calendar, selected date events, upcoming this week)
+- Week/Day views go full-width for maximum time grid space
+- Kept CalendarEvent interface compatible, kept API fetch with mock data fallback
+- Removed unused eslint-disable directive, achieved 0 errors 0 warnings
+- Dev server compiles successfully
+
+Stage Summary:
+- **Complete rewrite of CalendarPage.tsx** from ~420 lines to 925 lines
+- **4 calendar views**: Day (hourly time grid), Week (7-column time grid), Month (6x7 cell grid), List (grouped chronological)
+- **Key features**: ToggleGroup view switcher, Now scroll button, current time rose indicator, colored meeting blocks by type, 27 mock events, AnimatePresence view transitions, responsive layout
+- **Color palette**: emerald/violet/rose/teal (no blue/indigo)
+- **Lint: 0 errors, 0 warnings**
+- **Dev log: ✅ Compiling successfully, no errors**
+
+---
+Task ID: 15-2
+Agent: Profile Enhancement Agent
+Task: Enhanced Profile with presence, status, avatar upload, completion tracker
+
+Work Log:
+- Read existing ProfilePage.tsx (~490 lines) and worklog (last 60 lines) for project state
+- Read app-store.ts, progress.tsx, tabs.tsx, popover.tsx, dialog.tsx to understand available APIs
+- Designed and wrote complete ProfilePage.tsx rewrite (490 → ~530 lines) with 6 major new features
+- **Feature 1 - Presence Indicator**: Colored dot (emerald/amber/rose/slate) on avatar bottom-right, clickable Popover with 4 options (Online, Away, DND, Appear Offline), each with icon + description + checkmark for active, persisted to localStorage via `alvision_presence` key
+- **Feature 2 - Custom Status Message**: Editable status text (max 100 chars) below name, emoji picker (Popover with 20 emoji grid), 6 preset quick-status chips shown during edit mode, status displayed as emoji + text, persisted via `alvision_status_emoji` and `alvision_status_text` keys
+- **Feature 3 - Profile Completion Tracker**: Dynamic progress bar with 7 checklist items (photo, bio, phone, timezone, department, status, first meeting hosted), animated counter for percentage, emerald gradient progress bar with framer-motion animation, 2-column grid of checklist cards with CheckCircle2/XCircle icons
+- **Feature 4 - Enhanced Avatar Section**: 96px avatar (h-24 w-24) with ring border, hover overlay with Camera icon for upload, hidden file input with FileReader via URL.createObjectURL, preview Dialog modal before saving, X overlay button to remove uploaded avatar, persisted via `alvision_uploaded_avatar` key
+- **Feature 5 - Stats Section Enhancement**: AnimatedCounter component using framer-motion useMotionValue + useTransform + animate, Tabs component with This Week / This Month / All Time toggle, different mock data per period (8/34/142 meetings etc.), animated stat transitions on tab change
+- **Feature 6 - Activity Timeline**: Vertical timeline with 10 entries, colored dots by type (emerald=meeting, violet=achievement, rose=recording, amber=profile, teal=team), icons per entry, relative timestamps, scrollable container (max-h-[480px]), staggered entry animations
+- Added new profile fields: phone number, timezone, department (with edit support and localStorage persistence)
+- Removed hardcoded profileCompletion=78, now dynamically computed from checklist
+- Removed separate Activity Overview card, merged stats into Meeting Stats card with heatmap below
+- Color palette: emerald/violet/amber/rose/teal (no blue/indigo)
+- Used shadcn/ui: Card, Popover, Dialog, Tabs, Badge, Avatar, Input, Textarea, Label, Button, Skeleton
+- Used framer-motion: motion, useMotionValue, useTransform, animate for counter animations
+
+Stage Summary:
+- **Enhanced ProfilePage.tsx** from ~490 lines to ~530 lines with 6 major new features
+- **Presence system**: 4 states with popover selector, localStorage persistence, colored dot indicator
+- **Custom status**: Emoji picker (20 emojis), 6 preset chips, editable text, localStorage persistence
+- **Profile completion**: Dynamic 7-item checklist, animated progress bar, animated percentage counter
+- **Avatar upload**: File selection, preview modal, confirm/save, remove button, localStorage persistence
+- **Enhanced stats**: AnimatedCounter component, Tabs period toggle (week/month/all), merged heatmap
+- **Activity timeline**: 10-entry vertical timeline with 5 entry types, colored dots, staggered animations
+- **New profile fields**: Phone, timezone, department (editable with localStorage)
+- **Lint: 0 errors, 0 warnings**
+- **Dev log: ✅ Running successfully**
+
+---
+Task ID: 15-3
+Agent: Onboarding Tour Agent
+Task: Interactive Onboarding Tour with step-by-step tooltips
+
+Work Log:
+- Read existing OnboardingModal.tsx (568 lines) to understand the initial welcome modal pattern
+- Read DashboardLayout.tsx (633 lines) to understand sidebar nav, header, and OnboardingModal integration
+- Read DashboardPage.tsx to identify key UI sections for tour targeting
+- Read HelpCenterPage.tsx (239 lines) for restart tour button placement
+- Read useOnboarding.ts hook to understand existing onboarding state management
+- Designed 8-step tour system: Dashboard overview, Quick Actions, Meetings Hub, Smart Calendar, Teams, AI Assistant, Notifications, completion
+- Created OnboardingTour.tsx (~697 lines) with:
+  - 8 TOUR_STEPS with CSS selectors, icons, accent colors, descriptions
+  - SpotlightOverlay component using box-shadow trick (0 0 0 9999px rgba(0,0,0,0.6)) for dim effect
+  - Emerald glow ring (box-shadow: 0 0 0 4px rgba(16,185,129,0.5)) around highlighted element
+  - Smart tooltip positioning (computePlacement) — prefers bottom, then top, then right, then left based on viewport space
+  - getTooltipStyle calculates absolute positioning with transforms for each placement
+  - TourTooltip with AnimatePresence slide-in/out variants per placement direction
+  - TooltipInner with step badge, icon, title, description, progress dots, Back/Next/Skip buttons
+  - useOnboardingTour() hook exported with { startTour, isTourActive, currentStep }
+  - Global event system (window 'start-alvision-tour' event) for restart from Help Center
+  - localStorage 'alvision_tour_completed' for persistence
+  - ResizeObserver on target elements for dynamic repositioning
+  - Window resize handler for recalculation
+  - Keyboard navigation: Escape to finish, Arrow keys for step navigation
+  - Auto-starts after 800ms delay if localStorage key not set
+  - Portal rendering via createPortal to document.body at z-50/z-60
+- Added data-tour attributes to DashboardPage.tsx: dashboard, quick-actions, meetings
+- Added data-tour attributes to DashboardLayout.tsx sidebar nav: teams, ai-assistant, calendar
+- Added data-tour="notifications" wrapper around NotificationDropdown in header
+- Imported and rendered <OnboardingTour /> in DashboardLayout (z-50 portal, above all content)
+- Added "Restart Tour" button with RotateCcw icon to HelpCenterPage with data-tour="restart-tour"
+- Added dataTour field to NavItem interface in DashboardLayout
+- Fixed lint error: moved handleFinish declaration before keyboard useEffect that references it
+- Fixed lint error: removed setMounted setState-in-effect, replaced with typeof document check
+- Removed unused TOOLTIP_WIDTH constant and isCentered variable
+- All changes: 0 lint errors, 0 warnings
+- Dev server compiles successfully, GET / 200
+
+Stage Summary:
+- **Created OnboardingTour.tsx** (~697 lines) — full interactive 8-step guided tour overlay system
+- **Spotlight effect**: box-shadow trick creates dim overlay with cutout hole, emerald glow ring on highlighted element
+- **Smart positioning**: auto-detects best tooltip placement (bottom/top/left/right) based on viewport space
+- **8 tour steps**: Dashboard, Quick Actions, Meetings, Calendar (sidebar), Teams (sidebar), AI Assistant (sidebar), Notifications (header bell), completion (centered)
+- **Exported useOnboardingTour() hook** for external control with { startTour, isTourActive, currentStep }
+- **Keyboard support**: Escape, ArrowLeft/Right/Up/Down for navigation
+- **Restart capability**: "Restart Tour" button in Help Center dispatches window event
+- **Integration**: data-tour attributes added to DashboardPage (3), DashboardLayout sidebar (3), header notifications (1)
+- **Color palette**: emerald (progress dots, step badge, glow ring), amber (skip), teal (completion), per-step accent colors
+- **Lint: 0 errors, 0 warnings**
+- **Dev log: ✅ Compiling successfully, GET / 200**
+
+---
+Task ID: 15-4
+Agent: Meeting Notes AI Agent
+Task: Meeting Notes AI auto-summarize with LLM backend
+
+Work Log:
+- Read worklog (last 60 lines) and existing MeetingNotesPage.tsx (302 lines) to understand project state
+- Read MeetingNotesEditor.tsx (666 lines) to understand the notes editor component and its API integration
+- Read existing AI summarize endpoint at `/api/v1/ai/summarize/route.ts` to match LLM SDK usage pattern
+- Read `api-auth.ts`, `security.ts`, `meeting-notes/route.ts` for API patterns
+- Confirmed shadcn/ui collapsible component exists at `src/components/ui/collapsible.tsx`
+
+**Backend API (`src/app/api/v1/meetings/ai-summary/route.ts`):**
+- Created POST endpoint accepting `{ notes, meetingTitle?, participants? }`
+- Authenticated via `requireAuth()` with `AuthError`/`SecurityError` catch patterns
+- Validates notes is non-empty string (400 if empty)
+- Sanitizes notes via `sanitizePrompt(notes, 15000)`, optional title via `inputSanitizeOptional`
+- Validates participants array (max 50, each max 100 chars)
+- Builds structured user prompt with markdown template for 5 sections
+- Calls LLM via `z-ai-web-dev-sdk` using `ZAI.create()` → `zai.chat.completions.create()` (gpt-4o-mini, 2000 tokens)
+- Parses LLM response into structured sections via `parseSummarySections()` using H2 heading regex
+- Returns `{ success: true, data: { raw, sections: { executiveSummary, keyPoints, actionItems, decisions, nextSteps } } }`
+- Audit log entry with `AI_NOTES_SUMMARIZE` action
+- Error handling: 400 for empty notes, 500 for LLM failure, auth/security error passthrough
+
+**Frontend (`src/components/dashboard/views/MeetingNotesPage.tsx`):**
+- Expanded from 302 → 760 lines with AI features
+- Added new types: `AISummarySections`, `AISummaryData`
+- Added AI state: `aiLoading`, `aiSummary`, `aiError`, `copied`, `editorKey`
+- Added `SummarySection` component: collapsible section with icon, title, chevron toggle, bullet list
+- Added `AISummaryPanel` component: full panel with emerald left border, emerald bg tint
+  - Header: Sparkles icon, "AI Summary" label, "Generated" badge, Copy and Dismiss buttons
+  - Body: 5 structured sections (Executive Summary with FileText, Key Points with Lightbulb, Action Items with CheckCircle2, Decisions with Bookmark, Next Steps with ArrowRight)
+  - Footer: "Save as Notes" and "Append to Notes" buttons with emerald styling
+- Added `markdownToHtml()` helper for converting AI markdown to editor-compatible HTML
+- Added `stripHtml()` helper for extracting plain text from editor content
+- Modified detail view: added AI Summarize button (emerald gradient, Sparkles icon, Loader2 spinner loading state) next to Back button
+- Added AI error card (red border, AlertCircle, dismissible)
+- Added AI empty state hint card (dashed border, "✨ Let AI summarize your meeting notes" with Generate button)
+- Added `handleAISummarize`: fetches notes from API, strips HTML, calls AI endpoint, sets summary
+- Added `handleCopySummary`: copies raw markdown to clipboard with toast feedback
+- Added `handleSaveAsNotes`: converts markdown to HTML, saves via POST to meeting-notes, increments editorKey to force re-render
+- Added `handleAppendToNotes`: fetches current notes, appends AI summary HTML, saves, re-renders editor
+- AI state clears on note selection change via useEffect
+- Color palette: emerald (buttons, borders, accents), violet (section icons), teal (action items), amber (decisions)
+- AnimatePresence entrance/exit animations for summary panel, error card, empty state hint
+
+Stage Summary:
+- **Created** `src/app/api/v1/meetings/ai-summary/route.ts` (193 lines) — AI meeting notes summarization endpoint
+- **Modified** `src/components/dashboard/views/MeetingNotesPage.tsx` (302 → 760 lines) — AI summary UI with panel, error states, save/append
+- LLM generates structured markdown with 5 sections, parsed into typed JSON for frontend rendering
+- Collapsible sections, copy to clipboard, save/append to notes functionality
+- Emerald/violet/teal/amber color palette, no indigo/blue
+- `bun run lint` — 0 errors, 0 warnings
+- Dev server compiles successfully
+
+---
+Task ID: 15-5
+Agent: Admin Analytics Agent
+Task: Admin analytics with real DB query widgets
+
+Work Log:
+- Read worklog (last 60 lines) and existing files to understand project state
+- Read app-store.ts, page.tsx, DashboardLayout.tsx, prisma/schema.prisma, api-auth.ts, lib/api.ts, roles.ts
+- Examined existing admin API at stats/route.ts for pattern reference
+- Confirmed shadcn/ui components exist (card, skeleton, badge, avatar)
+
+**Backend API (`src/app/api/v1/admin/analytics/route.ts`):**
+- Created GET endpoint with `requireRole(orgadmin)` (level 80+)
+- Accepts `?period=week|month|all` query parameter for time filtering
+- Helper functions: `getStartOfWeek()` (Monday-based), `getStartOfMonth()`
+- Parallel Prisma queries via `Promise.all()`:
+  - `db.user.count()` for totalUsers, activeUsers, newUsersThisMonth, newUsersThisWeek
+  - `db.user.groupBy({ by: [role] })` for usersByRole
+  - `db.meeting.count()` for totalMeetings, meetingsThisWeek, meetingsThisMonth
+  - `db.meeting.groupBy({ by: [status] })` for meetingsByStatus
+  - `db.organization.count()` and `db.team.count()` for org stats
+  - `db.teamMember.groupBy({ by: [teamId] })` for averageTeamSize calculation
+  - `db.user.findMany()` for recentActivity (last 10 with lastLogin, ordered desc)
+  - `db.user.findMany()` for daily user growth data (last 14 days)
+- Returns structured `{ success: true, data: { userStats, meetingStats, organizationStats, recentActivity, dailyGrowth } }`
+- Error handling: AuthError passthrough, generic 500 catch
+
+**Frontend (`src/components/dashboard/views/AdminAnalyticsPage.tsx`):**
+- Created 540-line comprehensive admin analytics dashboard
+- **Animated Counter Hook** (`useAnimatedCounter`): requestAnimationFrame-based cubic ease-out counter
+- **StatCard Component**: 4 overview cards with colored left border, animated counter, hover lift, accent icon background
+- **UserGrowthChart**: CSS bar chart with 14 vertical bars, Y-axis labels, day name labels, emerald gradient bars, framer-motion height animation, total summary
+- **MeetingDonutChart**: CSS conic-gradient donut chart with center count label, color-coded legend with percentages, empty state handling, `useMemo` + `reduce` for immutable gradient computation
+- **UsersByRoleChart**: Horizontal bar chart with role-specific gradient colors, sorted by count, animated width transitions
+- **RecentActivityTable**: Striped table with sticky header, avatar initials, role badges, relative time formatting, max-h-96 scroll, framer-motion row entrance
+- **Time Period Selector**: "This Week" / "This Month" / "All Time" toggle with active state styling
+- **Loading State**: Full skeleton card layout matching the actual dashboard structure
+- **Error State**: Rose-bordered card with retry button
+- **Responsive Design**: 1-col mobile, 2-col sm/lg grid layouts
+- Color palette: emerald (users/growth), violet (meetings), amber (organizations/roles), teal (teams/activity), rose (errors)
+
+**Integration:**
+- Added `admin-analytics` to AppView union type in `src/store/app-store.ts`
+- Added `AdminAnalyticsPage` dynamic import in `src/app/page.tsx`
+- Added `admin-analytics: AdminAnalyticsPage` to view mapping in page.tsx
+- Added `Admin Analytics` nav item (BarChart3 icon) in adminNavItems in `DashboardLayout.tsx`
+- Added breadcrumb entry: Dashboard → Administration → Admin Analytics
+- Added viewLabel: `admin-analytics: Admin Analytics`
+
+Stage Summary:
+- **Created** `src/app/api/v1/admin/analytics/route.ts` (130 lines) — Real DB analytics API with Prisma aggregation
+- **Created** `src/components/dashboard/views/AdminAnalyticsPage.tsx` (540 lines) — Full analytics dashboard with CSS charts
+- **Modified** `src/store/app-store.ts` — Added `admin-analytics` to AppView union
+- **Modified** `src/app/page.tsx` — Added dynamic import + view mapping
+- **Modified** `src/components/dashboard/DashboardLayout.tsx` — Added nav item, breadcrumb, viewLabel
+- `bun run lint` — 0 errors, 0 warnings
+- Dev server compiles successfully, GET / 200
+
+---
+Task ID: 15-1
+Agent: Main Orchestrator
+Task: Phase 15 — Advanced Productivity & Collaboration Suite
+
+Work Log:
+- Verified project state: lint 0 errors, dev server running cleanly
+- Launched 5 parallel sub-agents for Phase 15 features
+- Agent 15-1: Rewrote CalendarPage.tsx (~925 lines) with Day/Week/Month/List views
+- Agent 15-2: Enhanced ProfilePage.tsx with presence, emoji, avatar upload, completion tracker
+- Agent 15-3: Created OnboardingTour.tsx (~697 lines) with 8-step spotlight tour
+- Agent 15-4: Created AI summary API + enhanced MeetingNotesPage with AI summarize
+- Agent 15-5: Created AdminAnalyticsPage with real DB queries + API endpoint
+- Ran full lint verification: 0 errors, 0 warnings
+- Browser QA verified all 5 features working
+- All API endpoints returning 200
+
+Stage Summary:
+- **Phase 15 Complete — 5 major features delivered:**
+
+**Phase 15 — Advanced Productivity & Collaboration Suite:**
+1. Enhanced Calendar (Day/Week/Month/List views, time grid, meeting blocks, current time indicator)
+2. Enhanced Profile (presence indicator, emoji status, avatar upload/preview, completion tracker with progress bar, animated stats, activity timeline)
+3. Interactive Onboarding Tour (8-step spotlight with box-shadow cutout, smart positioning, keyboard nav, localStorage persistence)
+4. Meeting Notes AI Auto-summarize (LLM backend via z-ai-web-dev-sdk, collapsible summary sections, copy/save/append actions)
+5. Admin Analytics Dashboard (real Prisma DB queries, period selector, CSS bar charts, donut chart, role distribution, recent activity table)
+
+- **Files created:** 3 new (OnboardingTour.tsx, AdminAnalyticsPage.tsx, ai-summary/route.ts)
+- **Files modified:** 6 (CalendarPage.tsx, ProfilePage.tsx, MeetingNotesPage.tsx, app-store.ts, page.tsx, DashboardLayout.tsx)
+- **AppView additions:** 'admin-analytics'
+- **Lint: 0 errors, 0 warnings**
+- **Browser QA: ✅ Calendar views, Admin Analytics DB data, Profile completion/presence, Onboarding tour all verified**
+
+---
+Task ID: 15
+Agent: Main Orchestrator
+Task: Phase 15 orchestration and verification
+
+Work Log:
+- Planned 5 parallel work streams for Phase 15
+- All 5 sub-agents completed successfully
+- Performed browser-based QA verification of all new features
+- Verified lint passes with 0 errors
+- Verified all API endpoints return 200
+- Updated worklog
+
+Stage Summary:
+- **Total feature count now: 30+ dashboard views, 65+ API endpoints, 25+ shared components, 20+ meeting room components**
+- **Phases 1-15 Complete**
+- **Recommended next priorities:**
+  1. Breakout Rooms timer/broadcast enhancement
+  2. Real-time collaboration features (live cursors, shared whiteboard)
+  3. Mobile-responsive meeting room
+  4. Email notification system integration
+  5. Advanced search with filters
+  6. Dark mode polish and theme customization
+  7. Performance optimization (code splitting, lazy loading)
+  8. Accessibility audit (WCAG 2.1 AA)

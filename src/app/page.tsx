@@ -167,6 +167,9 @@ const AdminAuditPage = dynamic(() => import('@/components/admin/AdminAuditPage')
 const AdminSystemPage = dynamic(() => import('@/components/admin/AdminSystemPage'), {
   loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
 })
+const AdminAnalyticsPage = dynamic(() => import('@/components/dashboard/views/AdminAnalyticsPage'), {
+  loading: () => <DashboardLayout><ViewLoader /></DashboardLayout>, ssr: false,
+})
 
 // Settings & Profile
 const SettingsPage = dynamic(() => import('@/components/settings/SettingsPage'), {
@@ -300,6 +303,7 @@ const dashboardSubViews: Record<string, React.ComponentType> = {
   'recording-playback': RecordingPlaybackPage,
   'recurring-meetings': RecurringMeetingsPage,
   'activity-feed': ActivityFeedPage,
+  'admin-analytics': AdminAnalyticsPage,
 }
 
 // ===========================================================================

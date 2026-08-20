@@ -63,6 +63,7 @@ import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import SearchCommand from '@/components/shared/SearchCommand'
 import QuickStartMeeting from '@/components/shared/QuickStartMeeting'
 import OnboardingModal from '@/components/shared/OnboardingModal'
+import OnboardingTour from '@/components/shared/OnboardingTour'
 import KeyboardShortcuts, { useKeyboardShortcuts } from '@/components/shared/KeyboardShortcuts'
 import KeyboardShortcutsOverlay from '@/components/shared/KeyboardShortcutsOverlay'
 import { useOnboarding } from '@/hooks/useOnboarding'
@@ -74,18 +75,19 @@ interface NavItem {
   icon: React.ReactNode
   view: AppView
   adminOnly?: boolean
+  dataTour?: string
 }
 
 const mainNavItems: NavItem[] = [
   { label: 'Dashboard', icon: <LayoutDashboard className='h-4 w-4' />, view: 'dashboard' },
   { label: 'Meetings', icon: <Video className='h-4 w-4' />, view: 'meetings' },
-  { label: 'Teams', icon: <Users className='h-4 w-4' />, view: 'teams' },
+  { label: 'Teams', icon: <Users className='h-4 w-4' />, view: 'teams', dataTour: 'teams' },
   { label: 'Chat', icon: <MessageSquare className='h-4 w-4' />, view: 'chat' },
   { label: 'Files', icon: <FolderOpen className='h-4 w-4' />, view: 'files' },
   { label: 'Recordings', icon: <Film className='h-4 w-4' />, view: 'recordings' },
-  { label: 'AI Assistant', icon: <Bot className='h-4 w-4' />, view: 'ai-assistant' },
+  { label: 'AI Assistant', icon: <Bot className='h-4 w-4' />, view: 'ai-assistant', dataTour: 'ai-assistant' },
   { label: 'Knowledge Base', icon: <BookOpen className='h-4 w-4' />, view: 'knowledge' },
-  { label: 'Calendar', icon: <CalendarDays className='h-4 w-4' />, view: 'calendar' },
+  { label: 'Calendar', icon: <CalendarDays className='h-4 w-4' />, view: 'calendar', dataTour: 'calendar' },
   { label: 'Recurring', icon: <CalendarPlus className='h-4 w-4' />, view: 'recurring-meetings' },
   { label: 'Events', icon: <CalendarHeart className='h-4 w-4' />, view: 'events' },
   { label: 'Whiteboard', icon: <Pen className='h-4 w-4' />, view: 'whiteboard' },
@@ -113,6 +115,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Organizations', icon: <Building2 className='h-4 w-4' />, view: 'admin-orgs', adminOnly: true },
   { label: 'Security', icon: <Lock className='h-4 w-4' />, view: 'admin-security', adminOnly: true },
   { label: 'Activity Reports', icon: <BarChart3 className='h-4 w-4' />, view: 'activity-reports', adminOnly: true },
+  { label: 'Admin Analytics', icon: <BarChart3 className='h-4 w-4' />, view: 'admin-analytics', adminOnly: true },
   { label: 'Audit Log', icon: <FileText className='h-4 w-4' />, view: 'admin-audit', adminOnly: true },
   { label: 'System', icon: <Server className='h-4 w-4' />, view: 'admin-system', adminOnly: true },
 ]
@@ -147,6 +150,7 @@ function NavContent({ collapsed, onItemClick }: { collapsed: boolean; onItemClic
             <button
               onClick={() => handleNav(item.view)}
               aria-label={item.label}
+              {...(item.dataTour ? { 'data-tour': item.dataTour } : {})}
               className={cn(
                 'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 relative group',
                 active
@@ -385,6 +389,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'admin-audit': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Audit Log' }],
     'activity-reports': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Activity Reports' }],
     'admin-system': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'System' }],
+    'admin-analytics': [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Administration', view: 'admin' }, { label: 'Admin Analytics' }],
     settings: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Settings' }],
     profile: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Profile' }],
     search: [{ label: 'Dashboard', view: 'dashboard' }, { label: 'Search' }],
@@ -409,6 +414,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     'admin-audit': 'Audit Log',
     'activity-reports': 'Activity Reports',
     'admin-system': 'System',
+    'admin-analytics': 'Admin Analytics',
     settings: 'Settings',
     profile: 'Profile',
     search: 'Search',
@@ -437,6 +443,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <>
       <SearchCommand />
+      <OnboardingTour />
       <OnboardingModal
         open={showOnboarding}
         onClose={() => setShowOnboarding(false)}
@@ -533,7 +540,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
 
               {/* Notification bell */}
-              <NotificationDropdown />
+              <div data-tour='notifications'><NotificationDropdown /></div>
 
               {/* User avatar dropdown */}
               {user && (

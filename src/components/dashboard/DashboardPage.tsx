@@ -369,7 +369,7 @@ export default function DashboardPage() {
   const stats: DashboardStats = statsData || MOCK_STATS;
 
   return (
-    <motion.div className='max-w-6xl mx-auto space-y-8' variants={container} initial='hidden' animate='show'>
+    <motion.div className='max-w-6xl mx-auto space-y-8' variants={container} initial='hidden' animate='show' data-tour='dashboard'>
       {/* ═══════════════════ WELCOME BANNER ═══════════════════ */}
       <motion.div variants={item}>
         <div className='relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 lg:p-8 text-white'>
@@ -403,7 +403,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ═══════════════════ QUICK ACTIONS ROW ═══════════════════ */}
-      <motion.div variants={item}>
+      <motion.div variants={item} data-tour='quick-actions'>
         <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
           {/* New Meeting */}
           <motion.div
@@ -487,7 +487,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ═══════════════════ UPCOMING MEETINGS ═══════════════════ */}
-      <motion.div variants={item}>
+      <motion.div variants={item} data-tour='meetings'>
         <div className='flex items-center justify-between mb-4'>
           <h2 className='text-lg font-semibold'>Upcoming Meetings</h2>
           <Button

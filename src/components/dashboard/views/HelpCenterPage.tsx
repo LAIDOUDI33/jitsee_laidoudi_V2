@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Command, ArrowRight, BookOpen, Video, Brain, Shield, Users, Code2,
   MessageCircle, Mail, Globe, Clock, Bookmark, Loader2, Send, HelpCircle,
+  RotateCcw,
 } from 'lucide-react'
 
 const anim = {
@@ -122,8 +123,20 @@ export default function HelpCenterPage() {
       </motion.div>
 
       {/* Quick Links */}
+      <motion.div variants={anim.i} className='flex items-center justify-between'>
+        <h2 className='text-base font-semibold mb-0'>Quick Links</h2>
+        <Button
+          variant='outline'
+          size='sm'
+          data-tour='restart-tour'
+          onClick={() => window.dispatchEvent(new Event('start-alvision-tour'))}
+          className='text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700'
+        >
+          <RotateCcw className='h-3.5 w-3.5' />
+          Restart Tour
+        </Button>
+      </motion.div>
       <motion.div variants={anim.i}>
-        <h2 className='text-base font-semibold mb-3'>Quick Links</h2>
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
           {quickLinks.map((link) => (
             <motion.div key={link.title} variants={anim.i}>
